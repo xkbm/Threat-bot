@@ -1,4 +1,4 @@
-# esto es una prueba.
+# esto es una prueba nuevamente.
 
 import discord
 from discord.ext import commands
