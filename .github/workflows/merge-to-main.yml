@@ -31,7 +31,7 @@ jobs:
 
       - name: Reiniciar Servidor en Pterodactyl
         run: |
-          curl -X POST "https://panel.peruvia.cloudhost.gg/api/client/servers/${{ secrets.SERVER_ID }}/power" \
+          curl -X POST "https://panel.orionhost.xyz/api/client/servers/${{ secrets.SERVER_ID }}/power" \
           -H "Authorization: Bearer ${{ secrets.PTERO_API_KEY }}" \
           -H "Content-Type: application/json" \
           -H "Accept: Application/vnd.pterodactyl.v1+json" \
