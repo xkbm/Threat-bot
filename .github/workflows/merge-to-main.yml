@@ -1,0 +1,38 @@
+name: Auto Merge and Restart
+
+on:
+  workflow_run:
+    workflows: ["Bot Check Dev"] # Asegúrate de que este nombre sea IGUAL al 'name' de tu test.yml
+    types:
+      - completed
+
+jobs:
+  merge-and-deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configurar Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fusionar Dev a Main
+        run: |
+          git checkout main
+          git merge origin/dev
+          git push origin main
+
+      - name: Reiniciar Servidor en Pterodactyl
+        run: |
+          curl -X POST "https://panel.peruvia.cloudhost.gg/api/client/servers/${{ secrets.SERVER_ID }}/power" \
+          -H "Authorization: Bearer ${{ secrets.PTERO_API_KEY }}" \
+          -H "Content-Type: application/json" \
+          -H "Accept: Application/vnd.pterodactyl.v1+json" \
+          -d '{"signal": "restart"}'
