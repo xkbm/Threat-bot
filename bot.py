@@ -1,4 +1,4 @@
-# Testeo autoreinicio.
+# Testeo autoreinicio nuevamente.
 
 import discord
 from discord.ext import commands
