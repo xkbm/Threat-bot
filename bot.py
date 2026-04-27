@@ -1,3 +1,5 @@
+# Prueba denuevo.
+
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -302,7 +304,8 @@ def obtener_config_guild(guild_id):
             "log_channel_id": None,
             "whitelist": ["youtube.com", "youtu.be", "google.com", "wikipedia.org", "github.com", "stackoverflow.com", "reddit.com", "twitter.com", "x.com", "twitch.tv", "spotify.com", "microsoft.com", "apple.com", "amazon.com", "discord.com"],
             "stats": {"total_analisis": 0, "seguros": 0, "maliciosos": 0, "errores": 0},
-            "infracciones": {}
+            "infracciones": {},
+            "infracciones_registradas": {}
         }
         guardar_datos()
     return guilds_data[guild_id]
@@ -331,12 +334,25 @@ def update_stats_guild(guild_id, tipo):
     update_stats_global(tipo)
     guardar_datos()
 
-def registrar_infraccion(guild_id, user_id):
-    """Registra una infracción de seguridad para un usuario."""
+def registrar_infraccion(guild_id, user_id, elemento_id):
+    """
+    Registra una infracción para un usuario si no ha sido sancionado ya por ese elemento.
+    elemento_id: cadena única que identifica el contenido (ej. 'url:http://...', 'filehash:abc123')
+    """
     config = obtener_config_guild(guild_id)
     if "infracciones" not in config:
         config["infracciones"] = {}
+    if "infracciones_registradas" not in config:
+        config["infracciones_registradas"] = {}
+
     uid = str(user_id)
+    if uid not in config["infracciones_registradas"]:
+        config["infracciones_registradas"][uid] = []
+
+    if elemento_id in config["infracciones_registradas"][uid]:
+        return config["infracciones"].get(uid, 0)
+
+    config["infracciones_registradas"][uid].append(elemento_id)
     config["infracciones"][uid] = config["infracciones"].get(uid, 0) + 1
     guardar_datos()
     return config["infracciones"][uid]
@@ -450,7 +466,7 @@ async def analizar_url(url, guild_id=None, mensaje_original=None, guardar_cache=
                             if mal > 0:
                                 if guild_id: update_stats_guild(guild_id, "malicioso")
                                 if mensaje_original and guild_id:
-                                    registrar_infraccion(guild_id, mensaje_original.author.id)
+                                    registrar_infraccion(guild_id, mensaje_original.author.id, f"url:{url}")
                                 embed = discord.Embed(
                                     title=f"{EMOJI_WARNING} URL Maliciosa Detectada",
                                     description=f"Se encontraron **{mal}** detecciones",
@@ -527,7 +543,7 @@ async def analizar_hash(hash_valor, guild_id=None, mensaje_original=None, guarda
                     if mal > 0:
                         if guild_id: update_stats_guild(guild_id, "malicioso")
                         if mensaje_original and guild_id:
-                            registrar_infraccion(guild_id, mensaje_original.author.id)
+                            registrar_infraccion(guild_id, mensaje_original.author.id, f"hash:{hash_valor}")
                         top = obtener_top_antivirus(results)
                         top_text = ", ".join(top) if top else "Varios antivirus"
                         embed = discord.Embed(
@@ -598,7 +614,7 @@ async def analizar_ip(ip, guild_id=None, mensaje_original=None, guardar_cache=Tr
                     if mal > 0:
                         if guild_id: update_stats_guild(guild_id, "malicioso")
                         if mensaje_original and guild_id:
-                            registrar_infraccion(guild_id, mensaje_original.author.id)
+                            registrar_infraccion(guild_id, mensaje_original.author.id, f"ip:{ip}")
                         embed = discord.Embed(
                             title=f"{EMOJI_WARNING} IP Maliciosa Detectada",
                             description=f"**{mal}** fuentes reportan actividad sospechosa",
@@ -711,7 +727,7 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
                             if mal > 0:
                                 if guild_id: update_stats_guild(guild_id, "malicioso")
                                 if mensaje_original and guild_id:
-                                    registrar_infraccion(guild_id, mensaje_original.author.id)
+                                    registrar_infraccion(guild_id, mensaje_original.author.id, f"filehash:{file_hash}")
                                 embed = discord.Embed(
                                     title=f"{EMOJI_WARNING} Archivo Malicioso Detectado",
                                     description=f"**{mal}** antivirus detectaron {EMOJI_FILE} `{archivo.filename}`",
@@ -939,7 +955,7 @@ async def on_message(message):
 
                             if is_nsfw:
                                 if guild_id:
-                                    registrar_infraccion(guild_id, message.author.id)
+                                    registrar_infraccion(guild_id, message.author.id, f"nsfw:{content_hash}")
                                 await message.add_reaction(EMOJI_WARNING)
                                 detectados = []
                                 if models.get('nudity', 0.0) >= 0.5: detectados.append(f"Desnudez {models['nudity']*100:.0f}%")
@@ -996,6 +1012,7 @@ async def on_message(message):
 
             if embed is not None:
                 if tipo == "malicioso":
+                    registrar_infraccion(guild_id, message.author.id, f"url:{url}")
                     await message.channel.send(embed=embed, reference=message)
                 elif not silent_mode:
                     await message.channel.send(embed=embed, reference=message)
@@ -1095,7 +1112,7 @@ async def on_message(message):
 
                             if is_nsfw:
                                 if guild_id:
-                                    registrar_infraccion(guild_id, message.author.id)
+                                    registrar_infraccion(guild_id, message.author.id, f"nsfw:{content_hash}")
                                 await message.add_reaction(EMOJI_WARNING)
                                 detectados = []
                                 if models.get('nudity', 0.0) >= 0.5: detectados.append(f"Desnudez {models['nudity']*100:.0f}%")
@@ -1238,6 +1255,8 @@ async def on_message(message):
                     )
 
                 if tipo == "malicioso" or doble_ext:
+                    if tipo == "malicioso":
+                        registrar_infraccion(guild_id, message.author.id, f"filehash:{file_hash}")
                     await message.channel.send(embed=embed, reference=message)
                 elif not silent_mode:
                     await message.channel.send(embed=embed, reference=message)
@@ -1327,6 +1346,7 @@ async def on_message_edit(before, after):
 
             if embed is not None:
                 if tipo == "malicioso":
+                    registrar_infraccion(guild_id, after.author.id, f"url:{url}")
                     await after.channel.send(embed=embed, reference=after)
                     if log_channel_id:
                         await enviar_log_guild(guild_id, "URL", url, "Detectado en edición", after.author)
@@ -1380,6 +1400,8 @@ async def on_message_edit(before, after):
                 if doble_ext and not any("Doble extensión" in field.name for field in embed.fields):
                     embed.add_field(name=f"{EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
                 if tipo == "malicioso" or doble_ext:
+                    if tipo == "malicioso":
+                        registrar_infraccion(guild_id, after.author.id, f"filehash:{file_hash}")
                     await after.channel.send(embed=embed, reference=after)
                 elif not silent_mode:
                     await after.channel.send(embed=embed, reference=after)
