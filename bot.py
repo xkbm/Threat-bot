@@ -1359,14 +1359,15 @@ async def on_message_edit(before, after):
             if embed is not None:
                 set_cache_mem(clave, tipo, embed)
 
-        # Quitar reacciones anteriores del bot y poner loading
-        for reaction in after.reactions:
-            if reaction.me:
-                try:
-                    await after.remove_reaction(reaction.emoji, bot.user)
-                    print(f"[DEBUG] Reacción {reaction.emoji} eliminada.")
-                except discord.NotFound:
-                    pass
+        # --- Limpiar reacciones previas del bot ---
+        emoji_bot = {EMOJI_CORRECTO, EMOJI_INCORRECTO, EMOJI_WARNING, EMOJI_LOADING, EMOJI_COOLDOWN, EMOJI_WHITELIST}
+        for emoji in emoji_bot:
+            try:
+                await after.remove_reaction(emoji, bot.user)
+                print(f"[DEBUG] Reacción {emoji} eliminada.")
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                pass
+        # Añadir loading
         await after.add_reaction(EMOJI_LOADING)
 
         if embed is not None:
@@ -1447,13 +1448,13 @@ async def on_message_edit(before, after):
             doble_ext = tiene_doble_extension(archivo.filename)
             warning_mime = ""
 
-            # Quitar reacciones anteriores del bot y poner loading
-            for reaction in after.reactions:
-                if reaction.me:
-                    try:
-                        await after.remove_reaction(reaction.emoji, bot.user)
-                    except discord.NotFound:
-                        pass
+            # --- Limpiar reacciones previas del bot ---
+            emoji_bot = {EMOJI_CORRECTO, EMOJI_INCORRECTO, EMOJI_WARNING, EMOJI_LOADING, EMOJI_COOLDOWN, EMOJI_WHITELIST}
+            for emoji in emoji_bot:
+                try:
+                    await after.remove_reaction(emoji, bot.user)
+                except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                    pass
             await after.add_reaction(EMOJI_LOADING)
 
             # 1. Descargar el archivo para obtener el hash y verificar MIME
