@@ -1277,7 +1277,13 @@ async def on_message(message):
                 if tipo == "malicioso":
                     await enviar_log_guild(guild_id, "URL (múltiples)", url_orig, f"Detectado en análisis múltiple", message.author, elemento_id=f"url:{url_orig}")
 
-                # Enviar resumen primero (protegido contra mensaje eliminado)
+        # Enviar logs por cada URL maliciosa
+        if maliciosas > 0 and log_channel_id:
+            for url_orig, tipo, embed in resultados:
+                if tipo == "malicioso":
+                    await enviar_log_guild(guild_id, "URL (múltiples)", url_orig, f"Detectado en análisis múltiple", message.author, elemento_id=f"url:{url_orig}")
+
+        # Enviar resumen (protegido contra mensaje eliminado)
         try:
             await message.channel.send(embed=embed_resumen, reference=message)
         except (discord.HTTPException, discord.NotFound):
