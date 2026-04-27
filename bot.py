@@ -1325,6 +1325,7 @@ async def on_message_edit(before, after):
     strict_mode = config["strict_mode"]
     log_channel_id = config["log_channel_id"]
 
+    # --- URLs añadidas en la edición ---
     url_pattern = r'https?://[^\s]+'
     urls = re.findall(url_pattern, after.content)
     if urls and not re.findall(url_pattern, before.content):
@@ -1337,30 +1338,45 @@ async def on_message_edit(before, after):
             return
 
         if url_es_imagen(url):
-            return  # Opcional: añadir análisis de imágenes en ediciones
+            # Por ahora no analizamos imágenes en ediciones automáticamente,
+            # pero si más adelante quieres añadirlo, replicarías aquí la lógica de on_message.
+            return
         else:
+            # --- URL no imagen (misma lógica que on_message) ---
             url_original = url
             url = await expandir_url(url)
             clave = f"url:{url_original}"
-            tipo, embed = get_from_cache_mem(clave) or obtener_analisis_db(clave)
+            tipo, embed = get_from_cache_mem(clave)
+            if embed is None:
+                tipo, embed = obtener_analisis_db(clave)
+                if embed is not None:
+                    set_cache_mem(clave, tipo, embed)
 
             if embed is not None:
+                # Añadir campo de redirección si procede
+                if url != url_original:
+                    embed = embed.copy()
+                    embed.add_field(name=f"{EMOJI_REPLY} Redirección", value=f"Original: `{url_original}`\nExpandida: `{url}`", inline=False)
+
                 if tipo == "malicioso":
                     registrar_infraccion(guild_id, after.author.id, f"url:{url}")
                     await after.channel.send(embed=embed, reference=after)
                     if log_channel_id:
                         await enviar_log_guild(guild_id, "URL", url, "Detectado en edición", after.author)
                     if strict_mode:
-                        await after.delete()
+                        try: await after.delete()
+                        except: pass
                 elif not silent_mode:
                     await after.channel.send(embed=embed, reference=after)
                 return
 
+            # Anti‑spam / cooldown (igual que en on_message)
             ahora = time.time()
             if after.author.id in bot.antispam_scan and ahora - bot.antispam_scan[after.author.id] < 10:
                 return
             bot.antispam_scan[after.author.id] = ahora
 
+            # Análisis fresco
             tipo, embed = await analizar_url(url, guild_id=guild_id, mensaje_original=after, guardar_cache=True)
             if url != url_original:
                 embed.add_field(name=f"{EMOJI_REPLY} Redirección", value=f"Original: `{url_original}`\nExpandida: `{url}`", inline=False)
@@ -1369,53 +1385,130 @@ async def on_message_edit(before, after):
                 if log_channel_id:
                     await enviar_log_guild(guild_id, "URL", url, "Detectado en edición", after.author)
                 if strict_mode:
-                    await after.delete()
+                    try: await after.delete()
+                    except: pass
             elif not silent_mode:
                 await after.channel.send(embed=embed, reference=after)
 
-    # Archivos añadidos en la edición (solo si no había adjuntos antes)
+    # --- Archivos añadidos en la edición (solo si no había adjuntos antes) ---
     if after.attachments and not before.attachments:
         archivo = after.attachments[0]
         if not es_imagen(archivo):
+            # Anti‑spam / cooldown (mismo control que en on_message)
+            ahora = time.time()
+            user_id = after.author.id
+            if user_id not in bot.user_scan_history:
+                bot.user_scan_history[user_id] = []
+            bot.user_scan_history[user_id] = [t for t in bot.user_scan_history[user_id] if ahora - t < 3600]
+            if len(bot.user_scan_history[user_id]) >= 30:
+                await after.add_reaction(EMOJI_COOLDOWN)
+                return
+            if user_id in bot.antispam_scan and ahora - bot.antispam_scan[user_id] < 10:
+                await after.add_reaction(EMOJI_COOLDOWN)
+                return
+            bot.antispam_scan[user_id] = ahora
+            bot.user_scan_history[user_id].append(ahora)
+
             doble_ext = tiene_doble_extension(archivo.filename)
+            warning_mime = ""
+
             if doble_ext:
                 await after.add_reaction(EMOJI_WARNING)
 
+            # 1. Descargar el archivo para obtener el hash y verificar MIME
             headers = {"Authorization": f"Bot {TOKEN}"}
             try:
                 async with aiohttp.ClientSession() as session:
                     async with session.get(archivo.url, headers=headers) as resp:
                         if resp.status != 200:
+                            error_embed = discord.Embed(
+                                title=f"{EMOJI_INCORRECTO} Error",
+                                description="No se pudo descargar el archivo.",
+                                color=discord.Color.red()
+                            )
+                            if doble_ext:
+                                error_embed.add_field(name=f"{EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
+                            if not silent_mode or doble_ext:
+                                await after.channel.send(embed=error_embed, reference=after)
                             return
+
                         file_data = await resp.read()
                         file_hash = hashlib.sha256(file_data).hexdigest()
-            except:
+
+                        content_type = resp.headers.get('Content-Type', '')
+                        if archivo.filename.endswith('.jpg') and content_type not in ('image/jpeg', 'image/jpg'):
+                            warning_mime = f"El archivo tiene extensión .jpg pero el tipo real es {content_type}."
+                        elif archivo.filename.endswith('.png') and content_type != 'image/png':
+                            warning_mime = f"El archivo tiene extensión .png pero el tipo real es {content_type}."
+
+            except Exception as e:
+                error_embed = discord.Embed(
+                    title=f"{EMOJI_INCORRECTO} Error",
+                    description="Error al descargar el archivo.",
+                    color=discord.Color.red()
+                )
+                if doble_ext:
+                    error_embed.add_field(name=f"{EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
+                if not silent_mode or doble_ext:
+                    await after.channel.send(embed=error_embed, reference=after)
                 return
 
+            # 2. Caché / DB (por hash)
             clave_hash = f"filehash:{file_hash}"
-            tipo, embed = get_from_cache_mem(clave_hash) or obtener_analisis_db(clave_hash)
+            tipo, embed = get_from_cache_mem(clave_hash)
+            if embed is None:
+                tipo, embed = obtener_analisis_db(clave_hash)
+                if embed is not None:
+                    set_cache_mem(clave_hash, tipo, embed)
 
             if embed is not None:
                 embed = embed.copy()
                 if doble_ext and not any("Doble extensión" in field.name for field in embed.fields):
                     embed.add_field(name=f"{EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
+                if warning_mime and not any("Verificación MIME" in field.name for field in embed.fields):
+                    embed.add_field(name=f"{EMOJI_WARNING} Verificación MIME", value=warning_mime, inline=False)
+
                 if tipo == "malicioso" or doble_ext:
                     if tipo == "malicioso":
                         registrar_infraccion(guild_id, after.author.id, f"filehash:{file_hash}")
                     await after.channel.send(embed=embed, reference=after)
                 elif not silent_mode:
                     await after.channel.send(embed=embed, reference=after)
+
+                if tipo == "malicioso":
+                    await after.add_reaction(EMOJI_WARNING)
+                    if log_channel_id:
+                        await enviar_log_guild(guild_id, "Archivo", archivo.filename, "Amenaza detectada en edición (cache)", after.author)
+                    if strict_mode:
+                        try: await after.delete()
+                        except: pass
+                elif tipo == "seguro":
+                    await after.add_reaction(EMOJI_CORRECTO)
+                else:
+                    await after.add_reaction(EMOJI_INCORRECTO)
                 return
 
+            # 3. Análisis fresco con VT
             await after.add_reaction(EMOJI_LOADING)
             tipo, embed = await analizar_archivo(archivo, file_bytes=file_data, file_hash=file_hash, guild_id=guild_id, mensaje_original=after, guardar_cache=True)
             await safe_remove_loading(after)
+
             if doble_ext:
                 embed.add_field(name=f"{EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
+            if warning_mime:
+                embed.add_field(name=f"{EMOJI_WARNING} Verificación MIME", value=warning_mime, inline=False)
+
             if tipo == "malicioso" or doble_ext:
                 await after.channel.send(embed=embed, reference=after)
             elif not silent_mode:
                 await after.channel.send(embed=embed, reference=after)
+
+            try:
+                if tipo == "seguro": await after.add_reaction(EMOJI_CORRECTO)
+                elif tipo == "malicioso": await after.add_reaction(EMOJI_WARNING)
+                else: await after.add_reaction(EMOJI_INCORRECTO)
+            except discord.NotFound:
+                pass
 
 # ========== EXPORTACIONES A BOT ==========
 bot.MAX_FILE_SIZE = MAX_FILE_SIZE
