@@ -76,6 +76,9 @@ EMOJI_WHITELIST = "<:SM_Whitelist:1496963945943269498>"
 EMOJI_COOLDOWN = "<:SM_Cooldown:1497096698676379752>"
 EMOJI_REPLY = "<:SM_Reply:1042590456892104835>"
 EMOJI_KEY = "<:SM_Key:1497274741160149153>"
+EMOJI_KICK = "<:SM_Kick:1498412609484099626>"
+EMOJI_BAN = "<:SM_Ban:1498412610704375848>"
+EMOJI_CLEAN = "<:SM_Clean:1498412609056014336>"
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -413,7 +416,7 @@ class LogActionView(discord.ui.View):
         if not elemento_id:
             self.remove_item(self.ignorar_btn)
 
-    @discord.ui.button(label="Banear usuario", style=discord.ButtonStyle.danger, emoji="🔨")
+    @discord.ui.button(label="Banear usuario", style=discord.ButtonStyle.danger, emoji=f"{EMOJI_BAN}")
     async def banear_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not interaction.user.guild_permissions.ban_members:
             await interaction.response.send_message("No tienes permisos para banear.", ephemeral=True)
@@ -437,7 +440,7 @@ class LogActionView(discord.ui.View):
                 child.disabled = True
             await interaction.message.edit(view=self)
 
-    @discord.ui.button(label="Expulsar usuario", style=discord.ButtonStyle.danger, emoji="👢")
+    @discord.ui.button(label="Expulsar usuario", style=discord.ButtonStyle.danger, emoji=f"{EMOJI_KICK}")
     async def kick_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not interaction.user.guild_permissions.kick_members:
             await interaction.response.send_message("No tienes permisos para expulsar.", ephemeral=True)
@@ -461,7 +464,7 @@ class LogActionView(discord.ui.View):
                 child.disabled = True
             await interaction.message.edit(view=self)
 
-    @discord.ui.button(label="Ignorar (quitar infracción)", style=discord.ButtonStyle.secondary, emoji="🚫")
+    @discord.ui.button(label="Ignorar (quitar infracción)", style=discord.ButtonStyle.secondary, emoji=f"{EMOJI_CLEAN}")
     async def ignorar_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not interaction.user.guild_permissions.administrator:
             await interaction.response.send_message("Solo administradores pueden ignorar infracciones.", ephemeral=True)
