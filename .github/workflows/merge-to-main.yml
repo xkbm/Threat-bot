@@ -2,7 +2,7 @@ name: Auto Merge and Restart
 
 on:
   workflow_run:
-    workflows: ["Bot Check Dev"] # Asegúrate de que este nombre sea IGUAL al 'name' de tu test.yml
+    workflows: ["Bot Check Dev"]
     types:
       - completed
 
@@ -28,6 +28,15 @@ jobs:
           git checkout main
           git merge origin/dev
           git push origin main
+
+      # nueva linea
+      - name: Forzar sincronización del servidor con Git
+        run: |
+          curl -X POST "https://panel.orionhost.xyz/api/client/servers/${{ secrets.SERVER_ID }}/command" \
+          -H "Authorization: Bearer ${{ secrets.PTERO_API_KEY }}" \
+          -H "Content-Type: application/json" \
+          -H "Accept: Application/vnd.pterodactyl.v1+json" \
+          -d '{"command": "cd /home/container && git fetch --all && git reset --hard origin/main && git clean -fd"}'
 
       - name: Reiniciar Servidor en Pterodactyl
         run: |
