@@ -1,6 +1,3 @@
-# Threat - Sistema de seguridad para Discord
-# Versión con escaneo de múltiples enlaces, botones en logs y manejo seguro de reacciones
-
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -1280,23 +1277,32 @@ async def on_message(message):
                 if tipo == "malicioso":
                     await enviar_log_guild(guild_id, "URL (múltiples)", url_orig, f"Detectado en análisis múltiple", message.author, elemento_id=f"url:{url_orig}")
 
-        # Modo estricto
-        if maliciosas > 0 and strict_mode:
-            try:
-                await message.delete()
-            except:
-                pass
+        # Enviar logs por cada URL maliciosa
+        if maliciosas > 0 and log_channel_id:
+            for url_orig, tipo, embed in resultados:
+                if tipo == "malicioso":
+                    await enviar_log_guild(guild_id, "URL (múltiples)", url_orig, f"Detectado en análisis múltiple", message.author, elemento_id=f"url:{url_orig}")
 
-        # Enviar resumen
-        await message.channel.send(embed=embed_resumen, reference=message)
+        # Enviar resumen (protegido contra mensaje eliminado)
+        try:
+            await message.channel.send(embed=embed_resumen, reference=message)
+        except (discord.HTTPException, discord.NotFound):
+            await message.channel.send(embed=embed_resumen)  # sin referencia
 
-        # Reacción según resultado
+        # Reacción según resultado (segura, ignora si el mensaje ya no existe)
         if maliciosas > 0:
             await safe_add_reaction(message, EMOJI_WARNING)
         elif errores > 0:
             await safe_add_reaction(message, EMOJI_WARNING)
         else:
             await safe_add_reaction(message, EMOJI_CORRECTO)
+
+        # Modo estricto (eliminar mensaje original después de responder)
+        if maliciosas > 0 and strict_mode:
+            try:
+                await message.delete()
+            except:
+                pass
 
         await bot.process_commands(message)
         return
