@@ -9,7 +9,6 @@ on:
 jobs:
   merge-and-deploy:
     runs-on: ubuntu-latest
-    # Solo se ejecuta si el test de la rama dev fue exitoso
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     
     steps:
@@ -30,21 +29,25 @@ jobs:
           git merge origin/dev
           git push origin main
 
-      - name: Sync archivos al servidor (Limpieza de Cogs viejos)
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+      - name: Sync archivos vía SFTP (Limpieza total)
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
         with:
-          server: panel.orionhost.xyz
           username: ${{ secrets.SFTP_USERNAME }}
           password: ${{ secrets.PTERO_API_KEY }}
+          # IMPORTANTE: Usa la IP numérica de tu servidor (ej: 193.123.45.67) 
+          # si el dominio sigue dando TimeOut por Cloudflare.
+          server: panel.orionhost.xyz 
           port: 2022
-          protocol: sftp
-          # 'dangerous-clean-slate' borra del servidor lo que NO esté en tu GitHub
-          dangerous-clean-slate: true 
-          # EXCLUIR archivos para que no se borren ni se sobrescriban en el servidor
-          exclude: |
-            **/.git*
-            **/.git*/**
-            **/node_modules/**
+          local_path: './*'
+          remote_path: '/'
+          # 'delete_remote_files: true' borrará los cogs que ya no existen en el repo
+          delete_remote_files: true
+          # Lista de archivos a proteger (No se borran del servidor)
+          exclude_allow_missing: true
+          args: '-o StrictHostKeyChecking=no'
+          ignore: |
+            .git/
+            .github/
             analisis.db
             data.json
             .env
