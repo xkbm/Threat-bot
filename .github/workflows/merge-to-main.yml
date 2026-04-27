@@ -9,6 +9,7 @@ on:
 jobs:
   merge-and-deploy:
     runs-on: ubuntu-latest
+    # Solo se ejecuta si el test de la rama dev fue exitoso
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     
     steps:
@@ -29,15 +30,17 @@ jobs:
           git merge origin/dev
           git push origin main
 
-      # === NUEVO PASO: SINCRONIZAR ARCHIVOS ===
-      - name: Sync archivos al servidor (Borra lo viejo)
+      - name: Sync archivos al servidor (Limpieza de Cogs viejos)
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: panel.orionhost.xyz
-          username: ${{ secrets.SFTP_USERNAME }} # Ejemplo: admin.123
-          password: ${{ secrets.PTERO_API_KEY }} # En Pterodactyl, la API Key suele ser la password de SFTP
+          username: ${{ secrets.SFTP_USERNAME }}
+          password: ${{ secrets.PTERO_API_KEY }}
           port: 2022
-          delete: true # <--- ESTO BORRA LOS COGS VIEJOS
+          protocol: sftp
+          # 'dangerous-clean-slate' borra del servidor lo que NO esté en tu GitHub
+          dangerous-clean-slate: true 
+          # EXCLUIR archivos para que no se borren ni se sobrescriban en el servidor
           exclude: |
             **/.git*
             **/.git*/**
@@ -45,6 +48,7 @@ jobs:
             analisis.db
             data.json
             .env
+            *.log
 
       - name: Reiniciar Servidor en Pterodactyl
         run: |
