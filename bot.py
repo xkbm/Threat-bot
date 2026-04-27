@@ -1,5 +1,3 @@
-# Prueba denuevo.
-
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -1325,11 +1323,14 @@ async def on_message_edit(before, after):
     strict_mode = config["strict_mode"]
     log_channel_id = config["log_channel_id"]
 
-    # --- URLs añadidas en la edición ---
+    # --- URLs añadidas o cambiadas en la edición ---
     url_pattern = r'https?://[^\s]+'
-    urls = re.findall(url_pattern, after.content)
-    if urls and not re.findall(url_pattern, before.content):
-        url = urls[0]
+    urls_before = set(re.findall(url_pattern, before.content))
+    urls_after = set(re.findall(url_pattern, after.content))
+    nuevas_urls = urls_after - urls_before
+
+    if nuevas_urls:
+        url = list(nuevas_urls)[0]  # analizar la primera URL nueva
         from urllib.parse import urlparse
         parsed = urlparse(url)
         dominio = parsed.netloc.lower().removeprefix("www.")
@@ -1338,8 +1339,7 @@ async def on_message_edit(before, after):
             return
 
         if url_es_imagen(url):
-            # Por ahora no analizamos imágenes en ediciones automáticamente
-            return
+            return  # por simplicidad no analizamos imágenes en ediciones
         else:
             # --- URL no imagen (misma lógica que on_message) ---
             url_original = url
@@ -1351,14 +1351,25 @@ async def on_message_edit(before, after):
                 if embed is not None:
                     set_cache_mem(clave, tipo, embed)
 
+            # Quitar reacciones anteriores del bot y poner loading
+            for reaction in after.reactions:
+                if reaction.me:
+                    try:
+                        await after.remove_reaction(reaction.emoji, bot.user)
+                    except discord.NotFound:
+                        pass
+            await after.add_reaction(EMOJI_LOADING)
+
             if embed is not None:
                 # Añadir campo de redirección si procede
                 if url != url_original:
                     embed = embed.copy()
                     embed.add_field(name=f"{EMOJI_REPLY} Redirección", value=f"Original: `{url_original}`\nExpandida: `{url}`", inline=False)
 
+                await safe_remove_loading(after)
                 if tipo == "malicioso":
                     registrar_infraccion(guild_id, after.author.id, f"url:{url}")
+                    await after.add_reaction(EMOJI_WARNING)
                     await after.channel.send(embed=embed, reference=after)
                     if log_channel_id:
                         await enviar_log_guild(guild_id, "URL", url, "Detectado en edición", after.author)
@@ -1366,23 +1377,28 @@ async def on_message_edit(before, after):
                         try: await after.delete()
                         except: pass
                 elif not silent_mode:
+                    await after.add_reaction(EMOJI_CORRECTO)
                     await after.channel.send(embed=embed, reference=after)
+                else:
+                    await after.add_reaction(EMOJI_CORRECTO if tipo == "seguro" else EMOJI_INCORRECTO)
                 return
 
             # Anti‑spam / cooldown
             ahora = time.time()
             if after.author.id in bot.antispam_scan and ahora - bot.antispam_scan[after.author.id] < 10:
+                await safe_remove_loading(after)
                 return
             bot.antispam_scan[after.author.id] = ahora
 
             # Análisis fresco
-            await after.add_reaction(EMOJI_LOADING)
             tipo, embed = await analizar_url(url, guild_id=guild_id, mensaje_original=after, guardar_cache=True)
             await safe_remove_loading(after)
 
             if url != url_original:
                 embed.add_field(name=f"{EMOJI_REPLY} Redirección", value=f"Original: `{url_original}`\nExpandida: `{url}`", inline=False)
+
             if tipo == "malicioso":
+                await after.add_reaction(EMOJI_WARNING)
                 await after.channel.send(embed=embed, reference=after)
                 if log_channel_id:
                     await enviar_log_guild(guild_id, "URL", url, "Detectado en edición", after.author)
@@ -1390,7 +1406,10 @@ async def on_message_edit(before, after):
                     try: await after.delete()
                     except: pass
             elif not silent_mode:
+                await after.add_reaction(EMOJI_CORRECTO)
                 await after.channel.send(embed=embed, reference=after)
+            else:
+                await after.add_reaction(EMOJI_CORRECTO if tipo == "seguro" else EMOJI_INCORRECTO)
 
     # --- Archivos añadidos en la edición (solo si no había adjuntos antes) ---
     if after.attachments and not before.attachments:
@@ -1414,8 +1433,14 @@ async def on_message_edit(before, after):
             doble_ext = tiene_doble_extension(archivo.filename)
             warning_mime = ""
 
-            if doble_ext:
-                await after.add_reaction(EMOJI_WARNING)
+            # Quitar reacciones anteriores del bot y poner loading
+            for reaction in after.reactions:
+                if reaction.me:
+                    try:
+                        await after.remove_reaction(reaction.emoji, bot.user)
+                    except discord.NotFound:
+                        pass
+            await after.add_reaction(EMOJI_LOADING)
 
             # 1. Descargar el archivo para obtener el hash y verificar MIME
             headers = {"Authorization": f"Bot {TOKEN}"}
@@ -1423,6 +1448,7 @@ async def on_message_edit(before, after):
                 async with aiohttp.ClientSession() as session:
                     async with session.get(archivo.url, headers=headers) as resp:
                         if resp.status != 200:
+                            await safe_remove_loading(after)
                             error_embed = discord.Embed(
                                 title=f"{EMOJI_INCORRECTO} Error",
                                 description="No se pudo descargar el archivo.",
@@ -1444,6 +1470,7 @@ async def on_message_edit(before, after):
                             warning_mime = f"El archivo tiene extensión .png pero el tipo real es {content_type}."
 
             except Exception as e:
+                await safe_remove_loading(after)
                 error_embed = discord.Embed(
                     title=f"{EMOJI_INCORRECTO} Error",
                     description="Error al descargar el archivo.",
@@ -1463,6 +1490,7 @@ async def on_message_edit(before, after):
                 if embed is not None:
                     set_cache_mem(clave_hash, tipo, embed)
 
+            await safe_remove_loading(after)
             if embed is not None:
                 embed = embed.copy()
                 if doble_ext and not any("Doble extensión" in field.name for field in embed.fields):
@@ -1473,25 +1501,25 @@ async def on_message_edit(before, after):
                 if tipo == "malicioso" or doble_ext:
                     if tipo == "malicioso":
                         registrar_infraccion(guild_id, after.author.id, f"filehash:{file_hash}")
+                        await after.add_reaction(EMOJI_WARNING)
+                    else:
+                        await after.add_reaction(EMOJI_CORRECTO)
                     await after.channel.send(embed=embed, reference=after)
                 elif not silent_mode:
-                    await after.channel.send(embed=embed, reference=after)
-
-                if tipo == "malicioso":
-                    await after.add_reaction(EMOJI_WARNING)
-                    if log_channel_id:
-                        await enviar_log_guild(guild_id, "Archivo", archivo.filename, "Amenaza detectada en edición (cache)", after.author)
-                    if strict_mode:
-                        try: await after.delete()
-                        except: pass
-                elif tipo == "seguro":
                     await after.add_reaction(EMOJI_CORRECTO)
+                    await after.channel.send(embed=embed, reference=after)
                 else:
-                    await after.add_reaction(EMOJI_INCORRECTO)
+                    await after.add_reaction(EMOJI_CORRECTO if tipo == "seguro" else EMOJI_INCORRECTO)
+
+                if tipo == "malicioso" and log_channel_id:
+                    await enviar_log_guild(guild_id, "Archivo", archivo.filename, "Amenaza detectada en edición (cache)", after.author)
+                if tipo == "malicioso" and strict_mode:
+                    try: await after.delete()
+                    except: pass
                 return
 
             # 3. Análisis fresco con VT
-            await after.add_reaction(EMOJI_LOADING)
+            await after.add_reaction(EMOJI_LOADING)  # volver a poner loading porque lo quitamos antes
             tipo, embed = await analizar_archivo(archivo, file_bytes=file_data, file_hash=file_hash, guild_id=guild_id, mensaje_original=after, guardar_cache=True)
             await safe_remove_loading(after)
 
@@ -1501,16 +1529,22 @@ async def on_message_edit(before, after):
                 embed.add_field(name=f"{EMOJI_WARNING} Verificación MIME", value=warning_mime, inline=False)
 
             if tipo == "malicioso" or doble_ext:
+                if tipo == "malicioso":
+                    await after.add_reaction(EMOJI_WARNING)
+                else:
+                    await after.add_reaction(EMOJI_CORRECTO)
                 await after.channel.send(embed=embed, reference=after)
             elif not silent_mode:
+                await after.add_reaction(EMOJI_CORRECTO)
                 await after.channel.send(embed=embed, reference=after)
+            else:
+                await after.add_reaction(EMOJI_CORRECTO if tipo == "seguro" else EMOJI_INCORRECTO)
 
-            try:
-                if tipo == "seguro": await after.add_reaction(EMOJI_CORRECTO)
-                elif tipo == "malicioso": await after.add_reaction(EMOJI_WARNING)
-                else: await after.add_reaction(EMOJI_INCORRECTO)
-            except discord.NotFound:
-                pass
+            if tipo == "malicioso" and log_channel_id:
+                await enviar_log_guild(guild_id, "Archivo", archivo.filename, "Amenaza detectada en edición", after.author)
+            if tipo == "malicioso" and strict_mode:
+                try: await after.delete()
+                except: pass
 
 # ========== EXPORTACIONES A BOT ==========
 bot.MAX_FILE_SIZE = MAX_FILE_SIZE
