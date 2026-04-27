@@ -2,7 +2,7 @@ name: Auto Merge and Restart
 
 on:
   workflow_run:
-    workflows: ["Bot Check Dev"]
+    workflows: ["Bot Check Dev"] # Asegúrate de que este nombre sea IGUAL al 'name' de tu test.yml
     types:
       - completed
 
@@ -28,28 +28,6 @@ jobs:
           git checkout main
           git merge origin/dev
           git push origin main
-
-      - name: Sync archivos vía SFTP (Limpieza de Cogs)
-        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
-        with:
-          username: ${{ secrets.SFTP_USERNAME }}
-          password: ${{ secrets.PTERO_API_KEY }}
-          server: panel.orionhost.xyz
-          port: 2022
-          local_path: './*'
-          remote_path: '/'
-          # Esto borra en el servidor lo que ya no existe en tu repo de GitHub
-          delete_remote_files: true
-          # Argumentos para evitar errores de "Host Key"
-          args: '-o StrictHostKeyChecking=no'
-          # Lista de archivos que NUNCA debe tocar en el servidor
-          ignore: |
-            .git/
-            .github/
-            analisis.db
-            data.json
-            .env
-            *.log
 
       - name: Reiniciar Servidor en Pterodactyl
         run: |
