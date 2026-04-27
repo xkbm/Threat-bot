@@ -1,3 +1,6 @@
+# Threat - Sistema de seguridad para Discord
+# Versión final con botones de acción en logs
+
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -76,6 +79,7 @@ EMOJI_KEY = "<:SM_Key:1497274741160149153>"
 
 intents = discord.Intents.default()
 intents.message_content = True
+intents.members = True
 bot = commands.Bot(command_prefix="-", intents=intents, allowed_mentions=discord.AllowedMentions.none())
 
 # ========== FUNCIONES GLOBALES ==========
@@ -397,7 +401,93 @@ def barra_porcentaje(porcentaje, longitud=10):
     vacio = longitud - lleno
     return "█" * lleno + "░" * vacio
 
-async def enviar_log_guild(guild_id, tipo, valor, detalles, usuario, url_vt=None):
+# ========== VISTA DE BOTONES PARA LOGS ==========
+class LogActionView(discord.ui.View):
+    def __init__(self, bot, guild_id, user_id, elemento_id=None):
+        super().__init__(timeout=None)
+        self.bot = bot
+        self.guild_id = guild_id
+        self.user_id = user_id
+        self.elemento_id = elemento_id
+
+        if not elemento_id:
+            self.remove_item(self.ignorar_btn)
+
+    @discord.ui.button(label="Banear usuario", style=discord.ButtonStyle.danger, emoji="🔨")
+    async def banear_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not interaction.user.guild_permissions.ban_members:
+            await interaction.response.send_message("No tienes permisos para banear.", ephemeral=True)
+            return
+
+        guild = interaction.guild
+        user = guild.get_member(self.user_id)
+        if user is None:
+            await interaction.response.send_message("El usuario ya no está en el servidor.", ephemeral=True)
+            return
+
+        try:
+            await guild.ban(user, reason="Amenaza detectada por Threat (acción desde log)")
+            await interaction.response.send_message(f"{user.mention} ha sido baneado.", ephemeral=True)
+        except discord.Forbidden:
+            await interaction.response.send_message("No tengo permisos para banear a ese usuario.", ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"Error inesperado: {e}", ephemeral=True)
+        else:
+            for child in self.children:
+                child.disabled = True
+            await interaction.message.edit(view=self)
+
+    @discord.ui.button(label="Expulsar usuario", style=discord.ButtonStyle.danger, emoji="👢")
+    async def kick_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not interaction.user.guild_permissions.kick_members:
+            await interaction.response.send_message("No tienes permisos para expulsar.", ephemeral=True)
+            return
+
+        guild = interaction.guild
+        user = guild.get_member(self.user_id)
+        if user is None:
+            await interaction.response.send_message("El usuario ya no está en el servidor.", ephemeral=True)
+            return
+
+        try:
+            await guild.kick(user, reason="Amenaza detectada por Threat (acción desde log)")
+            await interaction.response.send_message(f"{user.mention} ha sido expulsado.", ephemeral=True)
+        except discord.Forbidden:
+            await interaction.response.send_message("No tengo permisos para expulsar a ese usuario.", ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"Error inesperado: {e}", ephemeral=True)
+        else:
+            for child in self.children:
+                child.disabled = True
+            await interaction.message.edit(view=self)
+
+    @discord.ui.button(label="Ignorar (quitar infracción)", style=discord.ButtonStyle.secondary, emoji="🚫")
+    async def ignorar_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("Solo administradores pueden ignorar infracciones.", ephemeral=True)
+            return
+
+        config = self.bot.obtener_config_guild(self.guild_id)
+        uid = str(self.user_id)
+        if self.elemento_id and uid in config.get("infracciones_registradas", {}):
+            registradas = config["infracciones_registradas"][uid]
+            if self.elemento_id in registradas:
+                registradas.remove(self.elemento_id)
+                if uid in config["infracciones"]:
+                    config["infracciones"][uid] = max(0, config["infracciones"].get(uid, 1) - 1)
+                self.bot.guardar_datos()
+                await interaction.response.send_message("Infracción eliminada.", ephemeral=True)
+            else:
+                await interaction.response.send_message("Esa infracción ya no existe.", ephemeral=True)
+        else:
+            await interaction.response.send_message("No se pudo identificar la infracción.", ephemeral=True)
+
+        for child in self.children:
+            child.disabled = True
+        await interaction.message.edit(view=self)
+
+# ========== ENVIAR LOG (CON BOTONES) ==========
+async def enviar_log_guild(guild_id, tipo, valor, detalles, usuario, url_vt=None, elemento_id=None):
     config = obtener_config_guild(guild_id)
     log_channel_id = config["log_channel_id"]
     if log_channel_id is None:
@@ -416,7 +506,9 @@ async def enviar_log_guild(guild_id, tipo, valor, detalles, usuario, url_vt=None
     if url_vt:
         embed.add_field(name=f"{EMOJI_LINK} VirusTotal", value=f"[Ver informe]({url_vt})", inline=False)
     embed.set_footer(text=f"ID: {usuario.id} • {time.strftime('%Y-%m-%d %H:%M:%S')}")
-    await channel.send(embed=embed)
+
+    view = LogActionView(bot, guild_id, usuario.id, elemento_id=elemento_id)
+    await channel.send(embed=embed, view=view)
 
 # ========== UTILIDADES (expandir URL, doble extensión) ==========
 async def expandir_url(url):
@@ -473,7 +565,7 @@ async def analizar_url(url, guild_id=None, mensaje_original=None, guardar_cache=
                                 embed.add_field(name="URL", value=f"`{url}`", inline=False)
                                 embed.add_field(name="\u200b", value=f"{EMOJI_LINK} [Ver informe completo]({vt_link})", inline=False)
                                 if mensaje_original and guild_id:
-                                    await enviar_log_guild(guild_id, "URL", url, f"{mal} detecciones", mensaje_original.author, vt_link)
+                                    await enviar_log_guild(guild_id, "URL", url, f"{mal} detecciones", mensaje_original.author, vt_link, elemento_id=f"url:{url}")
                                     config = obtener_config_guild(guild_id)
                                     if config["strict_mode"]:
                                         try: await mensaje_original.delete()
@@ -553,7 +645,7 @@ async def analizar_hash(hash_valor, guild_id=None, mensaje_original=None, guarda
                         embed.add_field(name="Detectado por", value=f"`{top_text}`", inline=False)
                         embed.add_field(name="\u200b", value=f"{EMOJI_LINK} [Ver informe completo]({vt_link})", inline=False)
                         if mensaje_original and guild_id:
-                            await enviar_log_guild(guild_id, "Hash", hash_valor, f"{mal} detecciones (top: {top_text})", mensaje_original.author, vt_link)
+                            await enviar_log_guild(guild_id, "Hash", hash_valor, f"{mal} detecciones (top: {top_text})", mensaje_original.author, vt_link, elemento_id=f"hash:{hash_valor}")
                             config = obtener_config_guild(guild_id)
                             if config["strict_mode"]:
                                 try: await mensaje_original.delete()
@@ -621,7 +713,7 @@ async def analizar_ip(ip, guild_id=None, mensaje_original=None, guardar_cache=Tr
                         embed.add_field(name="IP", value=f"`{ip}`", inline=False)
                         embed.add_field(name="\u200b", value=f"{EMOJI_LINK} [Ver informe completo]({vt_link})", inline=False)
                         if mensaje_original and guild_id:
-                            await enviar_log_guild(guild_id, "IP", ip, f"{mal} fuentes reportan", mensaje_original.author, vt_link)
+                            await enviar_log_guild(guild_id, "IP", ip, f"{mal} fuentes reportan", mensaje_original.author, vt_link, elemento_id=f"ip:{ip}")
                             config = obtener_config_guild(guild_id)
                             if config["strict_mode"]:
                                 try: await mensaje_original.delete()
@@ -732,7 +824,7 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
                                     color=discord.Color.orange()
                                 )
                                 if mensaje_original and guild_id:
-                                    await enviar_log_guild(guild_id, "Archivo", archivo.filename, f"{mal} detecciones", mensaje_original.author)
+                                    await enviar_log_guild(guild_id, "Archivo", archivo.filename, f"{mal} detecciones", mensaje_original.author, elemento_id=f"filehash:{file_hash}")
                                     config = obtener_config_guild(guild_id)
                                     if config["strict_mode"]:
                                         try: await mensaje_original.delete()
@@ -1012,16 +1104,16 @@ async def on_message(message):
                 if tipo == "malicioso":
                     registrar_infraccion(guild_id, message.author.id, f"url:{url}")
                     await message.channel.send(embed=embed, reference=message)
+                    if log_channel_id:
+                        await enviar_log_guild(guild_id, "URL", url, "Amenaza detectada (cache)", message.author, elemento_id=f"url:{url}")
+                    if strict_mode:
+                        try: await message.delete()
+                        except: pass
                 elif not silent_mode:
                     await message.channel.send(embed=embed, reference=message)
 
                 if tipo == "malicioso":
                     await message.add_reaction(EMOJI_WARNING)
-                    if log_channel_id:
-                        await enviar_log_guild(guild_id, "URL", url, "Amenaza detectada (cache)", message.author)
-                    if strict_mode:
-                        try: await message.delete()
-                        except: pass
                 elif tipo == "seguro":
                     await message.add_reaction(EMOJI_CORRECTO)
                 else:
@@ -1255,14 +1347,14 @@ async def on_message(message):
                 if tipo == "malicioso" or doble_ext:
                     if tipo == "malicioso":
                         registrar_infraccion(guild_id, message.author.id, f"filehash:{file_hash}")
+                        if log_channel_id:
+                            await enviar_log_guild(guild_id, "Archivo", archivo.filename, "Amenaza detectada (cache)", message.author, elemento_id=f"filehash:{file_hash}")
                     await message.channel.send(embed=embed, reference=message)
                 elif not silent_mode:
                     await message.channel.send(embed=embed, reference=message)
 
                 if tipo == "malicioso":
                     await message.add_reaction(EMOJI_WARNING)
-                    if log_channel_id:
-                        await enviar_log_guild(guild_id, "Archivo", archivo.filename, "Amenaza detectada (cache)", message.author)
                     if strict_mode:
                         try: await message.delete()
                         except: pass
@@ -1367,7 +1459,6 @@ async def on_message_edit(before, after):
                 print(f"[DEBUG] Reacción {emoji} eliminada.")
             except (discord.NotFound, discord.Forbidden, discord.HTTPException):
                 pass
-        # Añadir loading
         await after.add_reaction(EMOJI_LOADING)
 
         if embed is not None:
@@ -1382,7 +1473,7 @@ async def on_message_edit(before, after):
                 await after.add_reaction(EMOJI_WARNING)
                 await after.channel.send(embed=embed, reference=after)
                 if log_channel_id:
-                    await enviar_log_guild(guild_id, "URL", url, "Detectado en edición", after.author)
+                    await enviar_log_guild(guild_id, "URL", url, "Detectado en edición", after.author, elemento_id=f"url:{url}")
                 if strict_mode:
                     try: await after.delete()
                     except: pass
@@ -1412,7 +1503,7 @@ async def on_message_edit(before, after):
             await after.add_reaction(EMOJI_WARNING)
             await after.channel.send(embed=embed, reference=after)
             if log_channel_id:
-                await enviar_log_guild(guild_id, "URL", url, "Detectado en edición", after.author)
+                await enviar_log_guild(guild_id, "URL", url, "Detectado en edición", after.author, elemento_id=f"url:{url}")
             if strict_mode:
                 try: await after.delete()
                 except: pass
@@ -1519,6 +1610,8 @@ async def on_message_edit(before, after):
                     if tipo == "malicioso":
                         registrar_infraccion(guild_id, after.author.id, f"filehash:{file_hash}")
                         await after.add_reaction(EMOJI_WARNING)
+                        if log_channel_id:
+                            await enviar_log_guild(guild_id, "Archivo", archivo.filename, "Amenaza detectada en edición (cache)", after.author, elemento_id=f"filehash:{file_hash}")
                     else:
                         await after.add_reaction(EMOJI_CORRECTO)
                     await after.channel.send(embed=embed, reference=after)
@@ -1528,12 +1621,9 @@ async def on_message_edit(before, after):
                 else:
                     await after.add_reaction(EMOJI_CORRECTO if tipo == "seguro" else EMOJI_INCORRECTO)
 
-                if tipo == "malicioso":
-                    if log_channel_id:
-                        await enviar_log_guild(guild_id, "Archivo", archivo.filename, "Amenaza detectada en edición (cache)", after.author)
-                    if strict_mode:
-                        try: await after.delete()
-                        except: pass
+                if tipo == "malicioso" and strict_mode:
+                    try: await after.delete()
+                    except: pass
                 return
 
             # 3. Análisis fresco con VT
@@ -1549,6 +1639,8 @@ async def on_message_edit(before, after):
             if tipo == "malicioso" or doble_ext:
                 if tipo == "malicioso":
                     await after.add_reaction(EMOJI_WARNING)
+                    if log_channel_id:
+                        await enviar_log_guild(guild_id, "Archivo", archivo.filename, "Amenaza detectada en edición", after.author, elemento_id=f"filehash:{file_hash}")
                 else:
                     await after.add_reaction(EMOJI_CORRECTO)
                 await after.channel.send(embed=embed, reference=after)
@@ -1558,12 +1650,9 @@ async def on_message_edit(before, after):
             else:
                 await after.add_reaction(EMOJI_CORRECTO if tipo == "seguro" else EMOJI_INCORRECTO)
 
-            if tipo == "malicioso":
-                if log_channel_id:
-                    await enviar_log_guild(guild_id, "Archivo", archivo.filename, "Amenaza detectada en edición", after.author)
-                if strict_mode:
-                    try: await after.delete()
-                    except: pass
+            if tipo == "malicioso" and strict_mode:
+                try: await after.delete()
+                except: pass
 
 # ========== EXPORTACIONES A BOT ==========
 bot.MAX_FILE_SIZE = MAX_FILE_SIZE
