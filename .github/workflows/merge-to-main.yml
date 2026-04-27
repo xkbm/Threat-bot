@@ -2,7 +2,7 @@ name: Auto Merge and Restart
 
 on:
   workflow_run:
-    workflows: ["Bot Check Dev"] # Asegúrate de que este nombre sea IGUAL al 'name' de tu test.yml
+    workflows: ["Bot Check Dev"]
     types:
       - completed
 
@@ -28,6 +28,23 @@ jobs:
           git checkout main
           git merge origin/dev
           git push origin main
+
+      # === NUEVO PASO: SINCRONIZAR ARCHIVOS ===
+      - name: Sync archivos al servidor (Borra lo viejo)
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: panel.orionhost.xyz
+          username: ${{ secrets.SFTP_USERNAME }} # Ejemplo: admin.123
+          password: ${{ secrets.PTERO_API_KEY }} # En Pterodactyl, la API Key suele ser la password de SFTP
+          port: 2022
+          delete: true # <--- ESTO BORRA LOS COGS VIEJOS
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            analisis.db
+            data.json
+            .env
 
       - name: Reiniciar Servidor en Pterodactyl
         run: |
