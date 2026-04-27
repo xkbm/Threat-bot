@@ -23,12 +23,14 @@ class InfoCog(commands.Cog):
                 "• **Modos de seguridad**: `/silentmode` (solo reacciones) y `/strictmode` (elimina mensajes maliciosos).\n"
                 "• **Logs**: `/setlogchannel` para recibir alertas detalladas en un canal privado.\n"
                 "• **Estadísticas**: `/stats` muestra total de análisis, amenazas detectadas y uso de API keys.\n"
-                "• **Whitelist**: `/whitelist` gestiona dominios de confianza que se ignoran en los análisis.\n\n"
+                "• **Whitelist**: `/whitelist` gestiona dominios de confianza que se ignoran en los análisis.\n"
+                "• **Reputación**: `/usercheck` consulta las infracciones acumuladas por un usuario.\n\n"
                 "**Protección avanzada:**\n"
                 "• **Detección NSFW multimodelo**: nudity, weapons, alcohol y contenido ofensivo.\n"
                 "• **Doble extensión**: detecta archivos con extensiones engañosas (ej. `foto.jpg.exe`).\n"
                 "• **Verificación MIME**: compara la extensión del archivo con su tipo real.\n"
-                "• **Expansión de URLs acortadas**: sigue redirecciones para analizar el destino final."
+                "• **Expansión de URLs acortadas**: sigue redirecciones para analizar el destino final.\n"
+                "• **Escaneo de ediciones**: analiza automáticamente las URLs o archivos que se añaden al editar un mensaje."
             ),
             inline=False
         )

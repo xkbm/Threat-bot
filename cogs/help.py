@@ -10,7 +10,8 @@ class HelpCog(commands.Cog):
     async def help_command(self, interaction: discord.Interaction):
         embed = discord.Embed(
             title=f"{self.bot.EMOJI_SHIELD} Comandos de Threat",
-            description="Bot de seguridad con análisis automático y manual usando VirusTotal y Sightengine (NSFW).",
+            description="Bot de seguridad con análisis automático y manual usando VirusTotal y Sightengine (NSFW). "
+                        "Incluye escaneo de mensajes editados y sistema de reputación.",
             color=discord.Color.blue()
         )
         embed.add_field(
@@ -26,6 +27,11 @@ class HelpCog(commands.Cog):
         embed.add_field(
             name=f"{self.bot.EMOJI_SHIELD} `/about`",
             value="Información sobre el funcionamiento del bot y su sistema de caché.",
+            inline=False
+        )
+        embed.add_field(
+            name=f"{self.bot.EMOJI_GUARDIAN} `/usercheck` (admin)",
+            value="Muestra el número de infracciones de seguridad de un usuario.",
             inline=False
         )
         embed.add_field(
