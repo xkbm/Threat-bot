@@ -1,3 +1,6 @@
+# Threat - Sistema de seguridad para Discord
+# Versión 2.1
+
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -302,8 +305,7 @@ def obtener_config_guild(guild_id):
             "log_channel_id": None,
             "whitelist": ["youtube.com", "youtu.be", "google.com", "wikipedia.org", "github.com", "stackoverflow.com", "reddit.com", "twitter.com", "x.com", "twitch.tv", "spotify.com", "microsoft.com", "apple.com", "amazon.com", "discord.com"],
             "stats": {"total_analisis": 0, "seguros": 0, "maliciosos": 0, "errores": 0},
-            "infracciones": {},
-            "invite_whitelist": []
+            "infracciones": {}
         }
         guardar_datos()
     return guilds_data[guild_id]
@@ -878,20 +880,6 @@ async def on_message(message):
     strict_mode = config["strict_mode"]
     log_channel_id = config["log_channel_id"]
 
-    # Filtro de invitaciones de Discord
-    invite_regex = r'(?:https?://)?(?:www\.)?(?:discord\.(?:gg|io|me|li)|discord(?:app)?\.com/invite)/([A-Za-z0-9\-_]+)'
-    match = re.search(invite_regex, message.content)
-    if match:
-        codigo = match.group(1)
-        invite_whitelist = config.get("invite_whitelist", [])
-        if codigo not in invite_whitelist:
-            try:
-                await message.delete()
-                await message.channel.send(f"{message.author.mention} ❌ Las invitaciones a otros servidores no están permitidas.", delete_after=5)
-            except discord.Forbidden:
-                pass
-            return
-
     url_pattern = r'https?://[^\s]+'
     urls = re.findall(url_pattern, message.content)
     if urls:
@@ -1321,20 +1309,6 @@ async def on_message_edit(before, after):
     strict_mode = config["strict_mode"]
     log_channel_id = config["log_channel_id"]
 
-    # Filtro de invitaciones también en ediciones
-    invite_regex = r'(?:https?://)?(?:www\.)?(?:discord\.(?:gg|io|me|li)|discord(?:app)?\.com/invite)/([A-Za-z0-9\-_]+)'
-    match = re.search(invite_regex, after.content)
-    if match:
-        codigo = match.group(1)
-        invite_whitelist = config.get("invite_whitelist", [])
-        if codigo not in invite_whitelist:
-            try:
-                await after.delete()
-                await after.channel.send(f"{after.author.mention} ❌ Las invitaciones a otros servidores no están permitidas.", delete_after=5)
-            except discord.Forbidden:
-                pass
-            return
-
     url_pattern = r'https?://[^\s]+'
     urls = re.findall(url_pattern, after.content)
     if urls and not re.findall(url_pattern, before.content):
@@ -1406,7 +1380,7 @@ async def on_message_edit(before, after):
 
             if embed is not None:
                 embed = embed.copy()
-                if doble_ext and not any("Doble extensión" in f.name for f in embed.fields):
+                if doble_ext and not any("Doble extensión" in field.name for field in embed.fields):
                     embed.add_field(name=f"{EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
                 if tipo == "malicioso" or doble_ext:
                     await after.channel.send(embed=embed, reference=after)
