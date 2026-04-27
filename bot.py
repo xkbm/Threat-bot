@@ -1275,6 +1275,111 @@ async def on_message(message):
    
     await bot.process_commands(message)
 
+    @bot.event
+async def on_message_edit(before, after):
+    # Solo si el contenido cambió o se añadieron archivos
+    if before.author == bot.user:
+        return
+    if not after.guild:
+        return
+
+    guild_id = after.guild.id
+    config = obtener_config_guild(guild_id)
+    silent_mode = config["silent_mode"]
+    strict_mode = config["strict_mode"]
+    log_channel_id = config["log_channel_id"]
+
+    # URLs añadidas en la edición
+    url_pattern = r'https?://[^\s]+'
+    urls = re.findall(url_pattern, after.content)
+    if urls and not re.findall(url_pattern, before.content):
+        url = urls[0]
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        dominio = parsed.netloc.lower().removeprefix("www.")
+        whitelist = config.get("whitelist", [])
+        if dominio in whitelist:
+            return
+
+        if url_es_imagen(url):
+            # Por simplicidad, ignoramos imágenes en ediciones (puedes expandir)
+            return
+        else:
+            url_original = url
+            url = await expandir_url(url)
+            clave = f"url:{url_original}"
+            tipo, embed = get_from_cache_mem(clave) or obtener_analisis_db(clave)
+
+            if embed is not None:
+                if tipo == "malicioso":
+                    await after.channel.send(embed=embed, reference=after)
+                    if log_channel_id:
+                        await enviar_log_guild(guild_id, "URL", url, "Detectado en edición", after.author)
+                    if strict_mode:
+                        await after.delete()
+                elif not silent_mode:
+                    await after.channel.send(embed=embed, reference=after)
+                return
+
+            ahora = time.time()
+            if after.author.id in bot.antispam_scan and ahora - bot.antispam_scan[after.author.id] < 10:
+                return
+            bot.antispam_scan[after.author.id] = ahora
+
+            tipo, embed = await analizar_url(url, guild_id=guild_id, mensaje_original=after, guardar_cache=True)
+            if url != url_original:
+                embed.add_field(name=f"{EMOJI_REPLY} Redirección", value=f"Original: `{url_original}`\nExpandida: `{url}`", inline=False)
+            if tipo == "malicioso":
+                await after.channel.send(embed=embed, reference=after)
+                if log_channel_id:
+                    await enviar_log_guild(guild_id, "URL", url, "Detectado en edición", after.author)
+                if strict_mode:
+                    await after.delete()
+            elif not silent_mode:
+                await after.channel.send(embed=embed, reference=after)
+
+    # Archivos añadidos en la edición (solo si no había adjuntos antes)
+    if after.attachments and not before.attachments:
+        archivo = after.attachments[0]
+        if not es_imagen(archivo):
+            doble_ext = tiene_doble_extension(archivo.filename)
+            if doble_ext:
+                await after.add_reaction(EMOJI_WARNING)
+
+            headers = {"Authorization": f"Bot {TOKEN}"}
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(archivo.url, headers=headers) as resp:
+                        if resp.status != 200:
+                            return
+                        file_data = await resp.read()
+                        file_hash = hashlib.sha256(file_data).hexdigest()
+            except:
+                return
+
+            clave_hash = f"filehash:{file_hash}"
+            tipo, embed = get_from_cache_mem(clave_hash) or obtener_analisis_db(clave_hash)
+
+            if embed is not None:
+                embed = embed.copy()
+                if doble_ext and not any("Doble extensión" in f.name for f in embed.fields):
+                    embed.add_field(name=f"{EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
+                if tipo == "malicioso" or doble_ext:
+                    await after.channel.send(embed=embed, reference=after)
+                elif not silent_mode:
+                    await after.channel.send(embed=embed, reference=after)
+                return
+
+            await after.add_reaction(EMOJI_LOADING)
+            tipo, embed = await analizar_archivo(archivo, file_bytes=file_data, file_hash=file_hash, guild_id=guild_id, mensaje_original=after, guardar_cache=True)
+            await safe_remove_loading(after)
+            if doble_ext:
+                embed.add_field(...)
+            if tipo == "malicioso" or doble_ext:
+                await after.channel.send(embed=embed, reference=after)
+            elif not silent_mode:
+                await after.channel.send(embed=embed, reference=after)
+
 # ========== EXPORTACIONES A BOT ==========
 bot.MAX_FILE_SIZE = MAX_FILE_SIZE
 bot.CACHE_DURATION = CACHE_DURATION
