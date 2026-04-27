@@ -1338,8 +1338,7 @@ async def on_message_edit(before, after):
             return
 
         if url_es_imagen(url):
-            # Por ahora no analizamos imágenes en ediciones automáticamente,
-            # pero si más adelante quieres añadirlo, replicarías aquí la lógica de on_message.
+            # Por ahora no analizamos imágenes en ediciones automáticamente
             return
         else:
             # --- URL no imagen (misma lógica que on_message) ---
@@ -1370,14 +1369,17 @@ async def on_message_edit(before, after):
                     await after.channel.send(embed=embed, reference=after)
                 return
 
-            # Anti‑spam / cooldown (igual que en on_message)
+            # Anti‑spam / cooldown
             ahora = time.time()
             if after.author.id in bot.antispam_scan and ahora - bot.antispam_scan[after.author.id] < 10:
                 return
             bot.antispam_scan[after.author.id] = ahora
 
             # Análisis fresco
+            await after.add_reaction(EMOJI_LOADING)
             tipo, embed = await analizar_url(url, guild_id=guild_id, mensaje_original=after, guardar_cache=True)
+            await safe_remove_loading(after)
+
             if url != url_original:
                 embed.add_field(name=f"{EMOJI_REPLY} Redirección", value=f"Original: `{url_original}`\nExpandida: `{url}`", inline=False)
             if tipo == "malicioso":
@@ -1394,7 +1396,7 @@ async def on_message_edit(before, after):
     if after.attachments and not before.attachments:
         archivo = after.attachments[0]
         if not es_imagen(archivo):
-            # Anti‑spam / cooldown (mismo control que en on_message)
+            # Anti‑spam / cooldown
             ahora = time.time()
             user_id = after.author.id
             if user_id not in bot.user_scan_history:
