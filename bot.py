@@ -1,6 +1,3 @@
-# Threat - Sistema de seguridad para Discord
-# Versión 2.1
-
 import discord
 from discord.ext import commands
 from discord import app_commands
