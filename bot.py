@@ -1,5 +1,3 @@
-# Testeo de reinicio.
-
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -79,6 +77,14 @@ EMOJI_KEY = "<:SM_Key:1497274741160149153>"
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="-", intents=intents, allowed_mentions=discord.AllowedMentions.none())
+
+# ========== FUNCIONES GLOBALES ==========
+async def safe_remove_loading(msg):
+    """Elimina de forma segura la reacción de carga, ignorando si el mensaje ya no existe."""
+    try:
+        await msg.remove_reaction(EMOJI_LOADING, bot.user)
+    except discord.NotFound:
+        pass
 
 # ========== SEGUIMIENTO DE USO DE APIs ==========
 # VirusTotal
@@ -295,7 +301,9 @@ def obtener_config_guild(guild_id):
             "strict_mode": False,
             "log_channel_id": None,
             "whitelist": ["youtube.com", "youtu.be", "google.com", "wikipedia.org", "github.com", "stackoverflow.com", "reddit.com", "twitter.com", "x.com", "twitch.tv", "spotify.com", "microsoft.com", "apple.com", "amazon.com", "discord.com"],
-            "stats": {"total_analisis": 0, "seguros": 0, "maliciosos": 0, "errores": 0}
+            "stats": {"total_analisis": 0, "seguros": 0, "maliciosos": 0, "errores": 0},
+            "infracciones": {},
+            "invite_whitelist": []
         }
         guardar_datos()
     return guilds_data[guild_id]
@@ -323,6 +331,16 @@ def update_stats_guild(guild_id, tipo):
     else: stats["errores"] += 1
     update_stats_global(tipo)
     guardar_datos()
+
+def registrar_infraccion(guild_id, user_id):
+    """Registra una infracción de seguridad para un usuario."""
+    config = obtener_config_guild(guild_id)
+    if "infracciones" not in config:
+        config["infracciones"] = {}
+    uid = str(user_id)
+    config["infracciones"][uid] = config["infracciones"].get(uid, 0) + 1
+    guardar_datos()
+    return config["infracciones"][uid]
 
 def get_from_cache_mem(key):
     if key in cache_mem:
@@ -432,6 +450,8 @@ async def analizar_url(url, guild_id=None, mensaje_original=None, guardar_cache=
                             vt_link = f"https://www.virustotal.com/gui/home/url?url={encoded_url}"
                             if mal > 0:
                                 if guild_id: update_stats_guild(guild_id, "malicioso")
+                                if mensaje_original and guild_id:
+                                    registrar_infraccion(guild_id, mensaje_original.author.id)
                                 embed = discord.Embed(
                                     title=f"{EMOJI_WARNING} URL Maliciosa Detectada",
                                     description=f"Se encontraron **{mal}** detecciones",
@@ -507,6 +527,8 @@ async def analizar_hash(hash_valor, guild_id=None, mensaje_original=None, guarda
                     vt_link = f"https://www.virustotal.com/gui/file/{hash_valor}"
                     if mal > 0:
                         if guild_id: update_stats_guild(guild_id, "malicioso")
+                        if mensaje_original and guild_id:
+                            registrar_infraccion(guild_id, mensaje_original.author.id)
                         top = obtener_top_antivirus(results)
                         top_text = ", ".join(top) if top else "Varios antivirus"
                         embed = discord.Embed(
@@ -576,6 +598,8 @@ async def analizar_ip(ip, guild_id=None, mensaje_original=None, guardar_cache=Tr
                     vt_link = f"https://www.virustotal.com/gui/ip-address/{ip}"
                     if mal > 0:
                         if guild_id: update_stats_guild(guild_id, "malicioso")
+                        if mensaje_original and guild_id:
+                            registrar_infraccion(guild_id, mensaje_original.author.id)
                         embed = discord.Embed(
                             title=f"{EMOJI_WARNING} IP Maliciosa Detectada",
                             description=f"**{mal}** fuentes reportan actividad sospechosa",
@@ -625,6 +649,7 @@ async def analizar_ip(ip, guild_id=None, mensaje_original=None, guardar_cache=Tr
             guardar_analisis_db(clave, "ip", "error", embed)
             set_cache_mem(clave, "error", embed)
         return "error", embed
+
 async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=None, mensaje_original=None, guardar_cache=True):
     if file_bytes is None:
         headers = {"Authorization": f"Bot {TOKEN}"}
@@ -686,6 +711,8 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
                             mal = stats_data["malicious"]
                             if mal > 0:
                                 if guild_id: update_stats_guild(guild_id, "malicioso")
+                                if mensaje_original and guild_id:
+                                    registrar_infraccion(guild_id, mensaje_original.author.id)
                                 embed = discord.Embed(
                                     title=f"{EMOJI_WARNING} Archivo Malicioso Detectado",
                                     description=f"**{mal}** antivirus detectaron {EMOJI_FILE} `{archivo.filename}`",
@@ -698,10 +725,8 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
                                         try: await mensaje_original.delete()
                                         except: pass
                                 if guardar_cache:
-                                    # Cache por hash
                                     guardar_analisis_db(clave, "file", "malicioso", embed)
                                     set_cache_mem(clave, "malicioso", embed)
-                                    # 🆕 Cache rápido por nombre/tamaño
                                     clave_nombre = f"file:{archivo.filename}:{archivo.size}"
                                     guardar_analisis_db(clave_nombre, "file", "malicioso", embed)
                                     set_cache_mem(clave_nombre, "malicioso", embed)
@@ -716,7 +741,6 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
                                 if guardar_cache:
                                     guardar_analisis_db(clave, "file", "seguro", embed)
                                     set_cache_mem(clave, "seguro", embed)
-                                    # 🆕 Cache rápido por nombre/tamaño
                                     clave_nombre = f"file:{archivo.filename}:{archivo.size}"
                                     guardar_analisis_db(clave_nombre, "file", "seguro", embed)
                                     set_cache_mem(clave_nombre, "seguro", embed)
@@ -755,6 +779,7 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
             guardar_analisis_db(clave, "file", "error", embed)
             set_cache_mem(clave, "error", embed)
         return "error", embed
+
 # ========== ANÁLISIS NSFW MULTIMODELO ==========
 async def analizar_imagen_multimodelo(image_content_hash, image_bytes):
     clave = f"nsfw:{image_content_hash}"
@@ -853,11 +878,19 @@ async def on_message(message):
     strict_mode = config["strict_mode"]
     log_channel_id = config["log_channel_id"]
 
-    async def safe_remove_loading(msg):
-        try:
-            await msg.remove_reaction(EMOJI_LOADING, bot.user)
-        except discord.NotFound:
-            pass
+    # Filtro de invitaciones de Discord
+    invite_regex = r'(?:https?://)?(?:www\.)?(?:discord\.(?:gg|io|me|li)|discord(?:app)?\.com/invite)/([A-Za-z0-9\-_]+)'
+    match = re.search(invite_regex, message.content)
+    if match:
+        codigo = match.group(1)
+        invite_whitelist = config.get("invite_whitelist", [])
+        if codigo not in invite_whitelist:
+            try:
+                await message.delete()
+                await message.channel.send(f"{message.author.mention} ❌ Las invitaciones a otros servidores no están permitidas.", delete_after=5)
+            except discord.Forbidden:
+                pass
+            return
 
     url_pattern = r'https?://[^\s]+'
     urls = re.findall(url_pattern, message.content)
@@ -920,6 +953,8 @@ async def on_message(message):
                                 return
 
                             if is_nsfw:
+                                if guild_id:
+                                    registrar_infraccion(guild_id, message.author.id)
                                 await message.add_reaction(EMOJI_WARNING)
                                 detectados = []
                                 if models.get('nudity', 0.0) >= 0.5: detectados.append(f"Desnudez {models['nudity']*100:.0f}%")
@@ -975,7 +1010,6 @@ async def on_message(message):
                     set_cache_mem(clave, tipo, embed)
 
             if embed is not None:
-                # Siempre mostrar si es malicioso, aunque esté en modo silencioso
                 if tipo == "malicioso":
                     await message.channel.send(embed=embed, reference=message)
                 elif not silent_mode:
@@ -1016,7 +1050,6 @@ async def on_message(message):
             if url != url_original:
                 embed.add_field(name=f"{EMOJI_REPLY} Redirección", value=f"Original: `{url_original}`\nExpandida: `{url}`", inline=False)
 
-            # Mostrar siempre si es malicioso, aunque esté en modo silencioso
             if tipo == "malicioso":
                 await message.channel.send(embed=embed, reference=message)
             elif not silent_mode:
@@ -1076,6 +1109,8 @@ async def on_message(message):
                                 return
 
                             if is_nsfw:
+                                if guild_id:
+                                    registrar_infraccion(guild_id, message.author.id)
                                 await message.add_reaction(EMOJI_WARNING)
                                 detectados = []
                                 if models.get('nudity', 0.0) >= 0.5: detectados.append(f"Desnudez {models['nudity']*100:.0f}%")
@@ -1203,7 +1238,6 @@ async def on_message(message):
                     set_cache_mem(clave_hash, tipo, embed)
 
             if embed is not None:
-                # Añadir las advertencias que no estaban en el embed cacheado
                 embed = embed.copy()
                 if doble_ext and not any("Doble extensión" in field.name for field in embed.fields):
                     embed.add_field(
@@ -1218,7 +1252,6 @@ async def on_message(message):
                         inline=False
                     )
 
-                # Mostrar siempre si malicioso o doble extensión
                 if tipo == "malicioso" or doble_ext:
                     await message.channel.send(embed=embed, reference=message)
                 elif not silent_mode:
@@ -1243,7 +1276,6 @@ async def on_message(message):
             tipo, embed = await analizar_archivo(archivo, file_bytes=file_data, file_hash=file_hash, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
             await safe_remove_loading(message)
 
-            # Añadir advertencias al embed nuevo
             if doble_ext:
                 embed.add_field(
                     name=f"{EMOJI_WARNING} Doble extensión",
@@ -1257,7 +1289,6 @@ async def on_message(message):
                     inline=False
                 )
 
-            # Enviar siempre si es malicioso o doble extensión
             if tipo == "malicioso" or doble_ext:
                 await message.channel.send(embed=embed, reference=message)
             elif not silent_mode:
@@ -1272,8 +1303,126 @@ async def on_message(message):
 
             await bot.process_commands(message)
             return
-   
+
+    # Procesar comandos para mensajes sin URL ni archivo adjunto
     await bot.process_commands(message)
+
+# ========== EVENTO ON_MESSAGE_EDIT ==========
+@bot.event
+async def on_message_edit(before, after):
+    if before.author == bot.user:
+        return
+    if not after.guild:
+        return
+
+    guild_id = after.guild.id
+    config = obtener_config_guild(guild_id)
+    silent_mode = config["silent_mode"]
+    strict_mode = config["strict_mode"]
+    log_channel_id = config["log_channel_id"]
+
+    # Filtro de invitaciones también en ediciones
+    invite_regex = r'(?:https?://)?(?:www\.)?(?:discord\.(?:gg|io|me|li)|discord(?:app)?\.com/invite)/([A-Za-z0-9\-_]+)'
+    match = re.search(invite_regex, after.content)
+    if match:
+        codigo = match.group(1)
+        invite_whitelist = config.get("invite_whitelist", [])
+        if codigo not in invite_whitelist:
+            try:
+                await after.delete()
+                await after.channel.send(f"{after.author.mention} ❌ Las invitaciones a otros servidores no están permitidas.", delete_after=5)
+            except discord.Forbidden:
+                pass
+            return
+
+    url_pattern = r'https?://[^\s]+'
+    urls = re.findall(url_pattern, after.content)
+    if urls and not re.findall(url_pattern, before.content):
+        url = urls[0]
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        dominio = parsed.netloc.lower().removeprefix("www.")
+        whitelist = config.get("whitelist", [])
+        if dominio in whitelist:
+            return
+
+        if url_es_imagen(url):
+            return  # Opcional: añadir análisis de imágenes en ediciones
+        else:
+            url_original = url
+            url = await expandir_url(url)
+            clave = f"url:{url_original}"
+            tipo, embed = get_from_cache_mem(clave) or obtener_analisis_db(clave)
+
+            if embed is not None:
+                if tipo == "malicioso":
+                    await after.channel.send(embed=embed, reference=after)
+                    if log_channel_id:
+                        await enviar_log_guild(guild_id, "URL", url, "Detectado en edición", after.author)
+                    if strict_mode:
+                        await after.delete()
+                elif not silent_mode:
+                    await after.channel.send(embed=embed, reference=after)
+                return
+
+            ahora = time.time()
+            if after.author.id in bot.antispam_scan and ahora - bot.antispam_scan[after.author.id] < 10:
+                return
+            bot.antispam_scan[after.author.id] = ahora
+
+            tipo, embed = await analizar_url(url, guild_id=guild_id, mensaje_original=after, guardar_cache=True)
+            if url != url_original:
+                embed.add_field(name=f"{EMOJI_REPLY} Redirección", value=f"Original: `{url_original}`\nExpandida: `{url}`", inline=False)
+            if tipo == "malicioso":
+                await after.channel.send(embed=embed, reference=after)
+                if log_channel_id:
+                    await enviar_log_guild(guild_id, "URL", url, "Detectado en edición", after.author)
+                if strict_mode:
+                    await after.delete()
+            elif not silent_mode:
+                await after.channel.send(embed=embed, reference=after)
+
+    # Archivos añadidos en la edición (solo si no había adjuntos antes)
+    if after.attachments and not before.attachments:
+        archivo = after.attachments[0]
+        if not es_imagen(archivo):
+            doble_ext = tiene_doble_extension(archivo.filename)
+            if doble_ext:
+                await after.add_reaction(EMOJI_WARNING)
+
+            headers = {"Authorization": f"Bot {TOKEN}"}
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(archivo.url, headers=headers) as resp:
+                        if resp.status != 200:
+                            return
+                        file_data = await resp.read()
+                        file_hash = hashlib.sha256(file_data).hexdigest()
+            except:
+                return
+
+            clave_hash = f"filehash:{file_hash}"
+            tipo, embed = get_from_cache_mem(clave_hash) or obtener_analisis_db(clave_hash)
+
+            if embed is not None:
+                embed = embed.copy()
+                if doble_ext and not any("Doble extensión" in f.name for f in embed.fields):
+                    embed.add_field(name=f"{EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
+                if tipo == "malicioso" or doble_ext:
+                    await after.channel.send(embed=embed, reference=after)
+                elif not silent_mode:
+                    await after.channel.send(embed=embed, reference=after)
+                return
+
+            await after.add_reaction(EMOJI_LOADING)
+            tipo, embed = await analizar_archivo(archivo, file_bytes=file_data, file_hash=file_hash, guild_id=guild_id, mensaje_original=after, guardar_cache=True)
+            await safe_remove_loading(after)
+            if doble_ext:
+                embed.add_field(name=f"{EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
+            if tipo == "malicioso" or doble_ext:
+                await after.channel.send(embed=embed, reference=after)
+            elif not silent_mode:
+                await after.channel.send(embed=embed, reference=after)
 
 # ========== EXPORTACIONES A BOT ==========
 bot.MAX_FILE_SIZE = MAX_FILE_SIZE
