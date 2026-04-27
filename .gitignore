@@ -1,5 +1,7 @@
 .env
 __pycache__/
+analisis.db
+data.json
 *.db
 *.log
 .vscode/
