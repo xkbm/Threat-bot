@@ -1,5 +1,5 @@
 # Threat - Sistema de seguridad para Discord
-# Versión final con escaneo múltiple, botones en logs y respeto a silent mode
+# Versión con embeds estandarizados, escaneo múltiple, botones en logs y respeto a silent mode
 
 import discord
 from discord.ext import commands
@@ -548,7 +548,7 @@ async def analizar_url(url, guild_id=None, mensaje_original=None, guardar_cache=
     key = obtener_siguiente_key()
     if not key:
         embed = discord.Embed(title="Error de configuración", description="No hay claves de VirusTotal disponibles.", color=discord.Color.red())
-        return "error", embed
+        return "error", embed, 0
     headers = {"x-apikey": key}
     try:
         async with aiohttp.ClientSession() as session:
@@ -584,7 +584,7 @@ async def analizar_url(url, guild_id=None, mensaje_original=None, guardar_cache=
                                     clave = f"url:{url}"
                                     guardar_analisis_db(clave, "url", "malicioso", embed)
                                     set_cache_mem(clave, "malicioso", embed)
-                                return "malicioso", embed
+                                return "malicioso", embed, mal
                             else:
                                 if guild_id: update_stats_guild(guild_id, "seguro")
                                 embed = discord.Embed(
@@ -598,7 +598,7 @@ async def analizar_url(url, guild_id=None, mensaje_original=None, guardar_cache=
                                     clave = f"url:{url}"
                                     guardar_analisis_db(clave, "url", "seguro", embed)
                                     set_cache_mem(clave, "seguro", embed)
-                                return "seguro", embed
+                                return "seguro", embed, 0
                         else:
                             if guild_id: update_stats_guild(guild_id, "error")
                             embed = discord.Embed(title=f"{EMOJI_INCORRECTO} Error en análisis", description="Error al obtener resultado del análisis", color=discord.Color.red())
@@ -606,7 +606,7 @@ async def analizar_url(url, guild_id=None, mensaje_original=None, guardar_cache=
                                 clave = f"url:{url}"
                                 guardar_analisis_db(clave, "url", "error", embed)
                                 set_cache_mem(clave, "error", embed)
-                            return "error", embed
+                            return "error", embed, 0
                 else:
                     if guild_id: update_stats_guild(guild_id, "error")
                     embed = discord.Embed(title=f"{EMOJI_INCORRECTO} Error al analizar URL", description="VirusTotal no procesó la solicitud", color=discord.Color.red())
@@ -614,7 +614,7 @@ async def analizar_url(url, guild_id=None, mensaje_original=None, guardar_cache=
                         clave = f"url:{url}"
                         guardar_analisis_db(clave, "url", "error", embed)
                         set_cache_mem(clave, "error", embed)
-                    return "error", embed
+                    return "error", embed, 0
     except Exception as e:
         if guild_id: update_stats_guild(guild_id, "error")
         print(f"Error en analizar_url: {e}")
@@ -623,13 +623,13 @@ async def analizar_url(url, guild_id=None, mensaje_original=None, guardar_cache=
             clave = f"url:{url}"
             guardar_analisis_db(clave, "url", "error", embed)
             set_cache_mem(clave, "error", embed)
-        return "error", embed
+        return "error", embed, 0
 
 async def analizar_hash(hash_valor, guild_id=None, mensaje_original=None, guardar_cache=True):
     key = obtener_siguiente_key()
     if not key:
         embed = discord.Embed(title="Error de configuración", description="No hay claves de VirusTotal disponibles.", color=discord.Color.red())
-        return "error", embed
+        return "error", embed, 0
     headers = {"x-apikey": key}
     try:
         async with aiohttp.ClientSession() as session:
@@ -664,7 +664,7 @@ async def analizar_hash(hash_valor, guild_id=None, mensaje_original=None, guarda
                             clave = f"hash:{hash_valor}"
                             guardar_analisis_db(clave, "hash", "malicioso", embed)
                             set_cache_mem(clave, "malicioso", embed)
-                        return "malicioso", embed
+                        return "malicioso", embed, mal
                     else:
                         if guild_id: update_stats_guild(guild_id, "seguro")
                         embed = discord.Embed(
@@ -678,7 +678,7 @@ async def analizar_hash(hash_valor, guild_id=None, mensaje_original=None, guarda
                             clave = f"hash:{hash_valor}"
                             guardar_analisis_db(clave, "hash", "seguro", embed)
                             set_cache_mem(clave, "seguro", embed)
-                        return "seguro", embed
+                        return "seguro", embed, 0
                 else:
                     if guild_id: update_stats_guild(guild_id, "error")
                     embed = discord.Embed(title=f"{EMOJI_INCORRECTO} Hash no encontrado", description="No existe en VirusTotal", color=discord.Color.red())
@@ -686,7 +686,7 @@ async def analizar_hash(hash_valor, guild_id=None, mensaje_original=None, guarda
                         clave = f"hash:{hash_valor}"
                         guardar_analisis_db(clave, "hash", "error", embed)
                         set_cache_mem(clave, "error", embed)
-                    return "error", embed
+                    return "error", embed, 0
     except Exception as e:
         if guild_id: update_stats_guild(guild_id, "error")
         print(f"Error en analizar_hash: {e}")
@@ -695,13 +695,13 @@ async def analizar_hash(hash_valor, guild_id=None, mensaje_original=None, guarda
             clave = f"hash:{hash_valor}"
             guardar_analisis_db(clave, "hash", "error", embed)
             set_cache_mem(clave, "error", embed)
-        return "error", embed
+        return "error", embed, 0
 
 async def analizar_ip(ip, guild_id=None, mensaje_original=None, guardar_cache=True):
     key = obtener_siguiente_key()
     if not key:
         embed = discord.Embed(title="Error de configuración", description="No hay claves de VirusTotal disponibles.", color=discord.Color.red())
-        return "error", embed
+        return "error", embed, 0
     headers = {"x-apikey": key}
     try:
         async with aiohttp.ClientSession() as session:
@@ -732,7 +732,7 @@ async def analizar_ip(ip, guild_id=None, mensaje_original=None, guardar_cache=Tr
                             clave = f"ip:{ip}"
                             guardar_analisis_db(clave, "ip", "malicioso", embed)
                             set_cache_mem(clave, "malicioso", embed)
-                        return "malicioso", embed
+                        return "malicioso", embed, mal
                     else:
                         if guild_id: update_stats_guild(guild_id, "seguro")
                         embed = discord.Embed(
@@ -746,7 +746,7 @@ async def analizar_ip(ip, guild_id=None, mensaje_original=None, guardar_cache=Tr
                             clave = f"ip:{ip}"
                             guardar_analisis_db(clave, "ip", "seguro", embed)
                             set_cache_mem(clave, "seguro", embed)
-                        return "seguro", embed
+                        return "seguro", embed, 0
                 else:
                     if guild_id: update_stats_guild(guild_id, "error")
                     embed = discord.Embed(title=f"{EMOJI_INCORRECTO} IP no encontrada", description="No se pudo analizar la IP", color=discord.Color.red())
@@ -754,7 +754,7 @@ async def analizar_ip(ip, guild_id=None, mensaje_original=None, guardar_cache=Tr
                         clave = f"ip:{ip}"
                         guardar_analisis_db(clave, "ip", "error", embed)
                         set_cache_mem(clave, "error", embed)
-                    return "error", embed
+                    return "error", embed, 0
     except Exception as e:
         if guild_id: update_stats_guild(guild_id, "error")
         print(f"Error en analizar_ip: {e}")
@@ -763,7 +763,7 @@ async def analizar_ip(ip, guild_id=None, mensaje_original=None, guardar_cache=Tr
             clave = f"ip:{ip}"
             guardar_analisis_db(clave, "ip", "error", embed)
             set_cache_mem(clave, "error", embed)
-        return "error", embed
+        return "error", embed, 0
 
 async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=None, mensaje_original=None, guardar_cache=True):
     if file_bytes is None:
@@ -779,7 +779,7 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
                             description="No se pudo obtener el archivo",
                             color=discord.Color.red()
                         )
-                        return "error", embed
+                        return "error", embed, 0
                     file_bytes = await resp.read()
                     file_hash = hashlib.sha256(file_bytes).hexdigest()
         except Exception as e:
@@ -790,7 +790,7 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
                 description="Error al descargar el archivo",
                 color=discord.Color.red()
             )
-            return "error", embed
+            return "error", embed, 0
 
     if archivo.size > MAX_FILE_SIZE:
         if guild_id: update_stats_guild(guild_id, "error")
@@ -799,7 +799,7 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
             description=f"{EMOJI_FILE} `{archivo.filename}` excede 32 MB",
             color=discord.Color.red()
         )
-        return "error", embed
+        return "error", embed, 0
 
     clave = f"filehash:{file_hash}"
     key = obtener_siguiente_key()
@@ -809,7 +809,7 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
             description="No hay claves de VirusTotal disponibles.",
             color=discord.Color.red()
         )
-        return "error", embed
+        return "error", embed, 0
     headers = {"x-apikey": key}
     try:
         data = aiohttp.FormData()
@@ -845,7 +845,7 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
                                     clave_nombre = f"file:{archivo.filename}:{archivo.size}"
                                     guardar_analisis_db(clave_nombre, "file", "malicioso", embed)
                                     set_cache_mem(clave_nombre, "malicioso", embed)
-                                return "malicioso", embed
+                                return "malicioso", embed, mal
                             else:
                                 if guild_id: update_stats_guild(guild_id, "seguro")
                                 embed = discord.Embed(
@@ -859,7 +859,7 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
                                     clave_nombre = f"file:{archivo.filename}:{archivo.size}"
                                     guardar_analisis_db(clave_nombre, "file", "seguro", embed)
                                     set_cache_mem(clave_nombre, "seguro", embed)
-                                return "seguro", embed
+                                return "seguro", embed, 0
                         else:
                             if guild_id: update_stats_guild(guild_id, "error")
                             embed = discord.Embed(
@@ -870,7 +870,7 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
                             if guardar_cache:
                                 guardar_analisis_db(clave, "file", "error", embed)
                                 set_cache_mem(clave, "error", embed)
-                            return "error", embed
+                            return "error", embed, 0
                 else:
                     if guild_id: update_stats_guild(guild_id, "error")
                     embed = discord.Embed(
@@ -881,7 +881,7 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
                     if guardar_cache:
                         guardar_analisis_db(clave, "file", "error", embed)
                         set_cache_mem(clave, "error", embed)
-                    return "error", embed
+                    return "error", embed, 0
     except Exception as e:
         if guild_id: update_stats_guild(guild_id, "error")
         print(f"Error en analizar_archivo: {e}")
@@ -893,7 +893,7 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
         if guardar_cache:
             guardar_analisis_db(clave, "file", "error", embed)
             set_cache_mem(clave, "error", embed)
-        return "error", embed
+        return "error", embed, 0
 
 # ========== ANÁLISIS NSFW MULTIMODELO ==========
 async def analizar_imagen_multimodelo(image_content_hash, image_bytes):
@@ -1017,7 +1017,7 @@ async def on_message(message):
             await bot.process_commands(message)
             return
 
-        # --- Si solo hay una URL, mantener comportamiento detallado ---
+        # --- Si solo hay una URL, mantener comportamiento detallado estandarizado ---
         if len(todas_urls) == 1:
             url = todas_urls[0]
             if url_es_imagen(url):
@@ -1034,6 +1034,7 @@ async def on_message(message):
                                     await safe_add_reaction(message, EMOJI_INCORRECTO)
                                     if not silent_mode:
                                         embed = discord.Embed(title=f"{EMOJI_INCORRECTO} Imagen demasiado grande", description="No se puede analizar (>2 MB)", color=discord.Color.red())
+                                        embed.add_field(name="Resultados", value=f"{EMOJI_INCORRECTO} Imagen excede el límite de 2 MB", inline=False)
                                         await message.channel.send(embed=embed, reference=message)
                                     await bot.process_commands(message)
                                     return
@@ -1043,6 +1044,7 @@ async def on_message(message):
                                     await safe_add_reaction(message, EMOJI_INCORRECTO)
                                     if not silent_mode:
                                         embed = discord.Embed(title=f"{EMOJI_INCORRECTO} Imagen demasiado grande", description="No se puede analizar (>2 MB)", color=discord.Color.red())
+                                        embed.add_field(name="Resultados", value=f"{EMOJI_INCORRECTO} Imagen excede el límite de 2 MB", inline=False)
                                         await message.channel.send(embed=embed, reference=message)
                                     await bot.process_commands(message)
                                     return
@@ -1058,6 +1060,7 @@ async def on_message(message):
                                             description="La imagen supera el límite de 2 MB permitido por Sightengine.\nNo se pudo verificar el contenido.",
                                             color=discord.Color.orange()
                                         )
+                                        embed.add_field(name="Resultados", value=f"{EMOJI_WARNING} Imagen no analizada por exceder límite de Sightengine", inline=False)
                                         await message.channel.send(embed=embed, reference=message)
                                     await bot.process_commands(message)
                                     return
@@ -1072,9 +1075,11 @@ async def on_message(message):
                                     if models.get('offensive', 0.0) >= 0.7: detectados.append(f"Ofensivo {models['offensive']*100:.0f}%")
                                     if models.get('alcohol', 0.0) >= 0.7: detectados.append(f"Alcohol {models['alcohol']*100:.0f}%")
                                     detalles_str = ", ".join(detectados) if detectados else "Contenido inapropiado"
-                                    embed = discord.Embed(title=f"{EMOJI_WARNING} Contenido Inapropiado Detectado (URL)", description=f"{detalles_str}", color=discord.Color.orange())
-                                    embed.add_field(name="Enlace", value=f"[Ver imagen]({url})", inline=False)
-                                    await message.channel.send(embed=embed, reference=message)
+                                    titulo = f"{EMOJI_WARNING} Contenido Inapropiado Detectado"
+                                    descripcion = f"Se detectó contenido NSFW en una imagen de {message.author.mention}.\n**Detalles:** {detalles_str}"
+                                    nuevo_embed = discord.Embed(title=titulo, description=descripcion, color=discord.Color.orange())
+                                    nuevo_embed.add_field(name="Resultados", value=f"{EMOJI_WARNING} Imagen con contenido inapropiado\n{detalles_str}", inline=False)
+                                    await message.channel.send(embed=nuevo_embed, reference=message)
                                     if log_channel_id:
                                         embed_log = discord.Embed(title=f"{EMOJI_WARNING} Contenido Inapropiado", description=f"{detalles_str} " + ("(cache)" if from_cache else ""), color=discord.Color.red())
                                         embed_log.add_field(name="Usuario", value=message.author.mention, inline=True)
@@ -1088,9 +1093,11 @@ async def on_message(message):
                                 else:
                                     await safe_add_reaction(message, EMOJI_CORRECTO)
                                     if not silent_mode:
-                                        embed = discord.Embed(title=f"{EMOJI_CORRECTO} Imagen Segura (URL)", description="No se detectó contenido inapropiado.", color=discord.Color.green())
-                                        embed.add_field(name="Enlace", value=f"[Ver imagen]({url})", inline=False)
-                                        await message.channel.send(embed=embed, reference=message)
+                                        titulo = f"{EMOJI_CORRECTO} Imagen Segura"
+                                        descripcion = f"No se detectó contenido inapropiado en la imagen de {message.author.mention}."
+                                        nuevo_embed = discord.Embed(title=titulo, description=descripcion, color=discord.Color.green())
+                                        nuevo_embed.add_field(name="Resultados", value=f"{EMOJI_CORRECTO} Imagen segura", inline=False)
+                                        await message.channel.send(embed=nuevo_embed, reference=message)
                             else:
                                 await safe_remove_loading(message)
                 except asyncio.TimeoutError:
@@ -1098,6 +1105,7 @@ async def on_message(message):
                     await safe_add_reaction(message, EMOJI_WARNING)
                     if not silent_mode:
                         embed = discord.Embed(title=f"{EMOJI_WARNING} Descarga lenta", description="La descarga de la imagen ha tardado demasiado.", color=discord.Color.orange())
+                        embed.add_field(name="Resultados", value=f"{EMOJI_WARNING} Tiempo de descarga excedido", inline=False)
                         await message.channel.send(embed=embed, reference=message)
                 except Exception as e:
                     print(f"Excepción al procesar URL de imagen: {e}")
@@ -1105,73 +1113,73 @@ async def on_message(message):
                     await safe_add_reaction(message, EMOJI_WARNING)
                     if not silent_mode:
                         embed = discord.Embed(title=f"{EMOJI_WARNING} Error de descarga", description="No se pudo descargar la imagen.", color=discord.Color.red())
+                        embed.add_field(name="Resultados", value=f"{EMOJI_WARNING} Error en la descarga de la imagen", inline=False)
                         await message.channel.send(embed=embed, reference=message)
                 await bot.process_commands(message)
                 return
             else:
-                # --- URL no imagen (comportamiento detallado) ---
+                # --- URL no imagen (comportamiento detallado estandarizado) ---
                 url_original = url
                 url = await expandir_url(url)
                 clave = f"url:{url_original}"
-                tipo, embed = get_from_cache_mem(clave)
+                tipo, embed, mal = get_from_cache_mem(clave)
                 if embed is None:
-                    tipo, embed = obtener_analisis_db(clave)
+                    tipo, embed, mal = obtener_analisis_db(clave)
                     if embed is not None:
                         set_cache_mem(clave, tipo, embed)
 
-                if embed is not None:
-                    if tipo == "malicioso":
-                        registrar_infraccion(guild_id, message.author.id, f"url:{url}")
-                        await message.channel.send(embed=embed, reference=message)
-                        if log_channel_id:
-                            await enviar_log_guild(guild_id, "URL", url, "Amenaza detectada (cache)", message.author, elemento_id=f"url:{url}")
-                        if strict_mode:
-                            try: await message.delete()
-                            except: pass
-                    elif not silent_mode:
-                        await message.channel.send(embed=embed, reference=message)
-
-                    if tipo == "malicioso":
-                        await safe_add_reaction(message, EMOJI_WARNING)
-                    elif tipo == "seguro":
-                        await safe_add_reaction(message, EMOJI_CORRECTO)
-                    else:
-                        await safe_add_reaction(message, EMOJI_INCORRECTO)
-                    await bot.process_commands(message)
-                    return
-
-                ahora = time.time()
-                user_id = message.author.id
-                if user_id not in bot.user_scan_history:
-                    bot.user_scan_history[user_id] = []
-                bot.user_scan_history[user_id] = [t for t in bot.user_scan_history[user_id] if ahora - t < 3600]
-                if len(bot.user_scan_history[user_id]) >= 30:
-                    await safe_add_reaction(message, EMOJI_COOLDOWN)
-                    return
-                if user_id in bot.antispam_scan:
-                    if ahora - bot.antispam_scan[user_id] < 10:
-                        await safe_add_reaction(message, EMOJI_COOLDOWN)
-                        return
-                bot.antispam_scan[user_id] = ahora
-                bot.user_scan_history[user_id].append(ahora)
-
-                await safe_add_reaction(message, EMOJI_LOADING)
-                tipo, embed = await analizar_url(url, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
-                await safe_remove_loading(message)
-                if url != url_original:
-                    embed.add_field(name=f"{EMOJI_REPLY} Redirección", value=f"Original: `{url_original}`\nExpandida: `{url}`", inline=False)
-
+                # --- Construir embed estandarizado ---
                 if tipo == "malicioso":
-                    await message.channel.send(embed=embed, reference=message)
-                elif not silent_mode:
-                    await message.channel.send(embed=embed, reference=message)
+                    color = discord.Color.orange()
+                    titulo = f"{EMOJI_WARNING} URL Maliciosa Detectada"
+                    descripcion = f"Se encontraron **{mal}** detecciones en el enlace de {message.author.mention}."
+                elif tipo == "seguro":
+                    color = discord.Color.green()
+                    titulo = f"{EMOJI_CORRECTO} URL Segura"
+                    descripcion = f"No se detectaron amenazas en el enlace de {message.author.mention}."
+                else:
+                    color = discord.Color.red()
+                    titulo = f"{EMOJI_WARNING} Error en análisis"
+                    descripcion = f"No se pudo analizar el enlace de {message.author.mention}."
 
-                try:
-                    if tipo == "seguro": await safe_add_reaction(message, EMOJI_CORRECTO)
-                    elif tipo == "malicioso": await safe_add_reaction(message, EMOJI_WARNING)
-                    else: await safe_add_reaction(message, EMOJI_INCORRECTO)
-                except discord.NotFound:
-                    pass
+                nuevo_embed = discord.Embed(title=titulo, description=descripcion, color=color)
+
+                # Campo Resultados
+                if tipo == "malicioso":
+                    encoded_url = urllib.parse.quote_plus(url)
+                    vt_link = f"https://www.virustotal.com/gui/home/url?url={encoded_url}"
+                    resultado_str = f"{EMOJI_WARNING} `{url_original}`\n{EMOJI_LINK} [Ver informe completo]({vt_link})"
+                elif tipo == "seguro":
+                    encoded_url = urllib.parse.quote_plus(url)
+                    vt_link = f"https://www.virustotal.com/gui/home/url?url={encoded_url}"
+                    resultado_str = f"{EMOJI_CORRECTO} `{url_original}`\n{EMOJI_LINK} [Ver en VirusTotal]({vt_link})"
+                else:
+                    resultado_str = f"{EMOJI_INCORRECTO} `{url_original}`"
+
+                if url != url_original:
+                    resultado_str += f"\n{EMOJI_REPLY} Redirección: `{url}`"
+
+                nuevo_embed.add_field(name="Resultados", value=resultado_str, inline=False)
+
+                # Enviar y reacciones (respetando silent / strict)
+                if tipo == "malicioso":
+                    registrar_infraccion(guild_id, message.author.id, f"url:{url}")
+                    await message.channel.send(embed=nuevo_embed, reference=message)
+                    if log_channel_id:
+                        await enviar_log_guild(guild_id, "URL", url, f"{mal} detecciones", message.author, vt_link, elemento_id=f"url:{url}")
+                    if strict_mode:
+                        try: await message.delete()
+                        except: pass
+                    await safe_add_reaction(message, EMOJI_WARNING)
+                elif tipo == "seguro":
+                    if not silent_mode:
+                        await message.channel.send(embed=nuevo_embed, reference=message)
+                    await safe_add_reaction(message, EMOJI_CORRECTO)
+                else:
+                    if not silent_mode:
+                        await message.channel.send(embed=nuevo_embed, reference=message)
+                    await safe_add_reaction(message, EMOJI_INCORRECTO)
+
                 await bot.process_commands(message)
                 return
 
@@ -1191,14 +1199,14 @@ async def on_message(message):
             url_exp = await expandir_url(url)
             clase = f"url:{url_original}"
 
-            tipo, embed = get_from_cache_mem(clase)
+            tipo, embed, mal = get_from_cache_mem(clase)
             if embed is None:
-                tipo, embed = obtener_analisis_db(clase)
+                tipo, embed, mal = obtener_analisis_db(clase)
                 if tipo is not None:
                     set_cache_mem(clase, tipo, embed)
 
             if embed is not None:
-                resultados.append((url_original, tipo, embed))
+                resultados.append((url_original, tipo, embed, mal))
                 if tipo == "malicioso":
                     maliciosas += 1
                     registrar_infraccion(guild_id, message.author.id, f"url:{url_exp}")
@@ -1209,8 +1217,8 @@ async def on_message(message):
                 continue
 
             await asyncio.sleep(1)
-            tipo, embed = await analizar_url(url_exp, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
-            resultados.append((url_original, tipo, embed))
+            tipo, embed, mal = await analizar_url(url_exp, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
+            resultados.append((url_original, tipo, embed, mal))
             if tipo == "malicioso":
                 maliciosas += 1
             elif tipo == "seguro":
@@ -1240,7 +1248,7 @@ async def on_message(message):
         )
 
         valor_campo = ""
-        for url_orig, tipo, embed in resultados:
+        for url_orig, tipo, _, _ in resultados:
             if tipo == "malicioso":
                 valor_campo += f"{EMOJI_WARNING} `{url_orig}`\n"
             elif tipo == "seguro":
@@ -1251,7 +1259,7 @@ async def on_message(message):
 
         if maliciosas > 0:
             maliciosas_str = ""
-            for url_orig, tipo, embed in resultados:
+            for url_orig, tipo, _, _ in resultados:
                 if tipo == "malicioso":
                     encoded_url = urllib.parse.quote_plus(url_orig)
                     vt_link = f"https://www.virustotal.com/gui/home/url?url={encoded_url}"
@@ -1259,7 +1267,7 @@ async def on_message(message):
             embed_resumen.add_field(name=f"{EMOJI_WARNING} Enlaces maliciosos", value=maliciosas_str[:1024], inline=False)
 
         if maliciosas > 0 and log_channel_id:
-            for url_orig, tipo, embed in resultados:
+            for url_orig, tipo, _, _ in resultados:
                 if tipo == "malicioso":
                     await enviar_log_guild(guild_id, "URL (múltiples)", url_orig, f"Detectado en análisis múltiple", message.author, elemento_id=f"url:{url_orig}")
 
@@ -1300,7 +1308,7 @@ async def on_message(message):
         await safe_add_reaction(message, EMOJI_LOADING)
 
         resultados_imagenes = []   # (filename, is_nsfw, models dict o info)
-        resultados_archivos = []   # (filename, tipo, embed o mensaje)
+        resultados_archivos = []   # (filename, tipo, mal, info extra)
 
         # --- Procesar imágenes (NSFW) ---
         for img in imagenes:
@@ -1332,7 +1340,7 @@ async def on_message(message):
                 await safe_add_reaction(message, EMOJI_WARNING)
 
             if archivo.size > MAX_FILE_SIZE:
-                resultados_archivos.append((archivo.filename, "error", None))
+                resultados_archivos.append((archivo.filename, "error", 0, None))
                 continue
 
             headers = {"Authorization": f"Bot {TOKEN}"}
@@ -1340,7 +1348,7 @@ async def on_message(message):
                 async with aiohttp.ClientSession() as session:
                     async with session.get(archivo.url, headers=headers) as resp:
                         if resp.status != 200:
-                            resultados_archivos.append((archivo.filename, "error", None))
+                            resultados_archivos.append((archivo.filename, "error", 0, None))
                             continue
                         file_data = await resp.read()
                         file_hash = hashlib.sha256(file_data).hexdigest()
@@ -1353,24 +1361,24 @@ async def on_message(message):
                             warning_mime = f"Extensión .png pero tipo real {content_type}"
 
             except:
-                resultados_archivos.append((archivo.filename, "error", None))
+                resultados_archivos.append((archivo.filename, "error", 0, None))
                 continue
 
             # Caché por hash
             clase_hash = f"filehash:{file_hash}"
-            tipo, embed = get_from_cache_mem(clase_hash)
+            tipo, embed, mal = get_from_cache_mem(clase_hash)
             if embed is None:
-                tipo, embed = obtener_analisis_db(clase_hash)
+                tipo, embed, mal = obtener_analisis_db(clase_hash)
                 if embed is not None:
                     set_cache_mem(clase_hash, tipo, embed)
 
             if embed is not None:
                 if tipo == "malicioso":
                     registrar_infraccion(guild_id, message.author.id, f"filehash:{file_hash}")
-                resultados_archivos.append((archivo.filename, tipo, embed))
+                resultados_archivos.append((archivo.filename, tipo, mal, (file_hash, warning_mime)))
             else:
-                tipo, embed = await analizar_archivo(archivo, file_bytes=file_data, file_hash=file_hash, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
-                resultados_archivos.append((archivo.filename, tipo, embed))
+                tipo, embed, mal = await analizar_archivo(archivo, file_bytes=file_data, file_hash=file_hash, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
+                resultados_archivos.append((archivo.filename, tipo, mal, (file_hash, warning_mime)))
 
         await safe_remove_loading(message)
 
@@ -1394,7 +1402,7 @@ async def on_message(message):
             else:
                 errores += 1
 
-        for _, tipo, _ in resultados_archivos:
+        for _, tipo, mal, _ in resultados_archivos:
             if tipo == "malicioso":
                 maliciosos += 1
             elif tipo == "seguro":
@@ -1422,7 +1430,6 @@ async def on_message(message):
         campo_archivos = ""
         for filename, tipo, models in resultados_imagenes:
             if tipo == "nsfw":
-                # Añadir detalles de modelos
                 detalles_modelos = []
                 if models.get('nudity', 0.0) >= 0.5: detalles_modelos.append(f"Desnudez {models['nudity']*100:.0f}%")
                 if models.get('weapon', 0.0) >= 0.5: detalles_modelos.append(f"Armas {models['weapon']*100:.0f}%")
@@ -1435,9 +1442,9 @@ async def on_message(message):
             else:
                 campo_archivos += f"{EMOJI_INCORRECTO} `{filename}` (error)\n"
 
-        for filename, tipo, _ in resultados_archivos:
+        for filename, tipo, mal, info_extra in resultados_archivos:
             if tipo == "malicioso":
-                campo_archivos += f"{EMOJI_WARNING} `{filename}`\n"
+                campo_archivos += f"{EMOJI_WARNING} `{filename}` ({mal} detecciones)\n"
             elif tipo == "seguro":
                 campo_archivos += f"{EMOJI_CORRECTO} `{filename}`\n"
             else:
@@ -1447,9 +1454,10 @@ async def on_message(message):
 
         # Enviar logs individuales por archivo malicioso
         if log_channel_id:
-            for filename, tipo, _ in resultados_archivos:
-                if tipo == "malicioso":
-                    await enviar_log_guild(guild_id, "Archivo (múltiples)", filename, f"Detectado en análisis múltiple", message.author, elemento_id=f"file:{filename}:{0}")
+            for filename, tipo, mal, info_extra in resultados_archivos:
+                if tipo == "malicioso" and info_extra:
+                    file_hash = info_extra[0]
+                    await enviar_log_guild(guild_id, "Archivo (múltiples)", filename, f"{mal} detecciones", message.author, elemento_id=f"filehash:{file_hash}")
             for filename, tipo, _ in resultados_imagenes:
                 if tipo == "nsfw":
                     await enviar_log_guild(guild_id, "Imagen NSFW (múltiples)", filename, "Detectado en análisis múltiple", message.author)
@@ -1516,9 +1524,9 @@ async def on_message_edit(before, after):
         url_original = url
         url = await expandir_url(url)
         clave = f"url:{url_original}"
-        tipo, embed = get_from_cache_mem(clave)
+        tipo, embed, mal = get_from_cache_mem(clave)
         if embed is None:
-            tipo, embed = obtener_analisis_db(clave)
+            tipo, embed, mal = obtener_analisis_db(clave)
             if embed is not None:
                 set_cache_mem(clave, tipo, embed)
 
@@ -1531,23 +1539,44 @@ async def on_message_edit(before, after):
         await safe_add_reaction(after, EMOJI_LOADING)
 
         if embed is not None:
+            # Construir embed estandarizado para cache de edición
+            if tipo == "malicioso":
+                color = discord.Color.orange()
+                titulo = f"{EMOJI_WARNING} URL Maliciosa Detectada (edición)"
+                descripcion = f"Se encontraron **{mal}** detecciones en el enlace editado de {after.author.mention}."
+                vt_link = f"https://www.virustotal.com/gui/home/url?url={urllib.parse.quote_plus(url)}"
+                resultado_str = f"{EMOJI_WARNING} `{url_original}`\n{EMOJI_LINK} [Ver informe completo]({vt_link})"
+            elif tipo == "seguro":
+                color = discord.Color.green()
+                titulo = f"{EMOJI_CORRECTO} URL Segura (edición)"
+                descripcion = f"No se detectaron amenazas en el enlace editado de {after.author.mention}."
+                vt_link = f"https://www.virustotal.com/gui/home/url?url={urllib.parse.quote_plus(url)}"
+                resultado_str = f"{EMOJI_CORRECTO} `{url_original}`\n{EMOJI_LINK} [Ver en VirusTotal]({vt_link})"
+            else:
+                color = discord.Color.red()
+                titulo = f"{EMOJI_WARNING} Error en análisis (edición)"
+                descripcion = f"No se pudo analizar el enlace editado de {after.author.mention}."
+                resultado_str = f"{EMOJI_INCORRECTO} `{url_original}`"
+
             if url != url_original:
-                embed = embed.copy()
-                embed.add_field(name=f"{EMOJI_REPLY} Redirección", value=f"Original: `{url_original}`\nExpandida: `{url}`", inline=False)
+                resultado_str += f"\n{EMOJI_REPLY} Redirección: `{url}`"
+
+            nuevo_embed = discord.Embed(title=titulo, description=descripcion, color=color)
+            nuevo_embed.add_field(name="Resultados", value=resultado_str, inline=False)
 
             await safe_remove_loading(after)
             if tipo == "malicioso":
                 registrar_infraccion(guild_id, after.author.id, f"url:{url}")
                 await safe_add_reaction(after, EMOJI_WARNING)
-                await after.channel.send(embed=embed, reference=after)
+                await after.channel.send(embed=nuevo_embed, reference=after)
                 if log_channel_id:
-                    await enviar_log_guild(guild_id, "URL", url, "Detectado en edición", after.author, elemento_id=f"url:{url}")
+                    await enviar_log_guild(guild_id, "URL", url, f"{mal} detecciones (edición)", after.author, vt_link, elemento_id=f"url:{url}")
                 if strict_mode:
                     try: await after.delete()
                     except: pass
             elif not silent_mode:
                 await safe_add_reaction(after, EMOJI_CORRECTO)
-                await after.channel.send(embed=embed, reference=after)
+                await after.channel.send(embed=nuevo_embed, reference=after)
             else:
                 await safe_add_reaction(after, EMOJI_CORRECTO if tipo == "seguro" else EMOJI_INCORRECTO)
             return
@@ -1558,23 +1587,45 @@ async def on_message_edit(before, after):
             return
         bot.antispam_scan[after.author.id] = ahora
 
-        tipo, embed = await analizar_url(url, guild_id=guild_id, mensaje_original=after, guardar_cache=True)
+        tipo, embed, mal = await analizar_url(url, guild_id=guild_id, mensaje_original=after, guardar_cache=True)
         await safe_remove_loading(after)
 
+        # Estandarizar análisis fresco en edición
+        if tipo == "malicioso":
+            color = discord.Color.orange()
+            titulo = f"{EMOJI_WARNING} URL Maliciosa Detectada (edición)"
+            descripcion = f"Se encontraron **{mal}** detecciones en el enlace editado de {after.author.mention}."
+            vt_link = f"https://www.virustotal.com/gui/home/url?url={urllib.parse.quote_plus(url)}"
+            resultado_str = f"{EMOJI_WARNING} `{url_original}`\n{EMOJI_LINK} [Ver informe completo]({vt_link})"
+        elif tipo == "seguro":
+            color = discord.Color.green()
+            titulo = f"{EMOJI_CORRECTO} URL Segura (edición)"
+            descripcion = f"No se detectaron amenazas en el enlace editado de {after.author.mention}."
+            vt_link = f"https://www.virustotal.com/gui/home/url?url={urllib.parse.quote_plus(url)}"
+            resultado_str = f"{EMOJI_CORRECTO} `{url_original}`\n{EMOJI_LINK} [Ver en VirusTotal]({vt_link})"
+        else:
+            color = discord.Color.red()
+            titulo = f"{EMOJI_WARNING} Error en análisis (edición)"
+            descripcion = f"No se pudo analizar el enlace editado de {after.author.mention}."
+            resultado_str = f"{EMOJI_INCORRECTO} `{url_original}`"
+
         if url != url_original:
-            embed.add_field(name=f"{EMOJI_REPLY} Redirección", value=f"Original: `{url_original}`\nExpandida: `{url}`", inline=False)
+            resultado_str += f"\n{EMOJI_REPLY} Redirección: `{url}`"
+
+        nuevo_embed = discord.Embed(title=titulo, description=descripcion, color=color)
+        nuevo_embed.add_field(name="Resultados", value=resultado_str, inline=False)
 
         if tipo == "malicioso":
             await safe_add_reaction(after, EMOJI_WARNING)
-            await after.channel.send(embed=embed, reference=after)
+            await after.channel.send(embed=nuevo_embed, reference=after)
             if log_channel_id:
-                await enviar_log_guild(guild_id, "URL", url, "Detectado en edición", after.author, elemento_id=f"url:{url}")
+                await enviar_log_guild(guild_id, "URL", url, f"{mal} detecciones (edición)", after.author, vt_link, elemento_id=f"url:{url}")
             if strict_mode:
                 try: await after.delete()
                 except: pass
         elif not silent_mode:
             await safe_add_reaction(after, EMOJI_CORRECTO)
-            await after.channel.send(embed=embed, reference=after)
+            await after.channel.send(embed=nuevo_embed, reference=after)
         else:
             await safe_add_reaction(after, EMOJI_CORRECTO if tipo == "seguro" else EMOJI_INCORRECTO)
 
@@ -1626,19 +1677,37 @@ async def on_message_edit(before, after):
                 return
 
             clave_hash = f"filehash:{file_hash}"
-            tipo, embed = get_from_cache_mem(clave_hash)
+            tipo, embed, mal = get_from_cache_mem(clave_hash)
             if embed is None:
-                tipo, embed = obtener_analisis_db(clave_hash)
+                tipo, embed, mal = obtener_analisis_db(clave_hash)
                 if embed is not None:
                     set_cache_mem(clave_hash, tipo, embed)
 
             await safe_remove_loading(after)
             if embed is not None:
-                embed = embed.copy()
-                if doble_ext and not any("Doble extensión" in field.name for field in embed.fields):
-                    embed.add_field(name=f"{EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
-                if warning_mime and not any("Verificación MIME" in field.name for field in embed.fields):
-                    embed.add_field(name=f"{EMOJI_WARNING} Verificación MIME", value=warning_mime, inline=False)
+                # Construir embed estandarizado para archivo en edición (caché)
+                if tipo == "malicioso":
+                    color = discord.Color.orange()
+                    titulo = f"{EMOJI_WARNING} Archivo Malicioso Detectado (edición)"
+                    descripcion = f"**{mal}** antivirus detectaron {EMOJI_FILE} `{archivo.filename}` en un mensaje editado de {after.author.mention}."
+                elif tipo == "seguro":
+                    color = discord.Color.green()
+                    titulo = f"{EMOJI_CORRECTO} Archivo Seguro (edición)"
+                    descripcion = f"{EMOJI_FILE} `{archivo.filename}` parece limpio (0 detecciones) en un mensaje editado de {after.author.mention}."
+                else:
+                    color = discord.Color.red()
+                    titulo = f"{EMOJI_INCORRECTO} Error en análisis (edición)"
+                    descripcion = f"No se pudo analizar `{archivo.filename}`."
+
+                nuevo_embed = discord.Embed(title=titulo, description=descripcion, color=color)
+                resultado_str = f"{EMOJI_WARNING if tipo == 'malicioso' else EMOJI_CORRECTO if tipo == 'seguro' else EMOJI_INCORRECTO} `{archivo.filename}`\n"
+                if tipo == "malicioso":
+                    resultado_str += f"{EMOJI_LINK} [Ver informe completo](https://www.virustotal.com/gui/file/{file_hash})\n"
+                if doble_ext:
+                    resultado_str += f"{EMOJI_WARNING} Doble extensión detectada\n"
+                if warning_mime:
+                    resultado_str += f"{EMOJI_WARNING} {warning_mime}\n"
+                nuevo_embed.add_field(name="Resultados", value=resultado_str, inline=False)
 
                 if tipo == "malicioso" or doble_ext:
                     if tipo == "malicioso":
@@ -1646,10 +1715,10 @@ async def on_message_edit(before, after):
                         await safe_add_reaction(after, EMOJI_WARNING)
                     else:
                         await safe_add_reaction(after, EMOJI_CORRECTO)
-                    await after.channel.send(embed=embed, reference=after)
+                    await after.channel.send(embed=nuevo_embed, reference=after)
                 elif not silent_mode:
                     await safe_add_reaction(after, EMOJI_CORRECTO)
-                    await after.channel.send(embed=embed, reference=after)
+                    await after.channel.send(embed=nuevo_embed, reference=after)
                 else:
                     await safe_add_reaction(after, EMOJI_CORRECTO if tipo == "seguro" else EMOJI_INCORRECTO)
                 if tipo == "malicioso" and strict_mode:
@@ -1658,23 +1727,42 @@ async def on_message_edit(before, after):
                 return
 
             await safe_add_reaction(after, EMOJI_LOADING)
-            tipo, embed = await analizar_archivo(archivo, file_bytes=file_data, file_hash=file_hash, guild_id=guild_id, mensaje_original=after, guardar_cache=True)
+            tipo, embed, mal = await analizar_archivo(archivo, file_bytes=file_data, file_hash=file_hash, guild_id=guild_id, mensaje_original=after, guardar_cache=True)
             await safe_remove_loading(after)
 
+            # Construir embed estandarizado (análisis fresco en edición)
+            if tipo == "malicioso":
+                color = discord.Color.orange()
+                titulo = f"{EMOJI_WARNING} Archivo Malicioso Detectado (edición)"
+                descripcion = f"**{mal}** antivirus detectaron {EMOJI_FILE} `{archivo.filename}` en un mensaje editado de {after.author.mention}."
+            elif tipo == "seguro":
+                color = discord.Color.green()
+                titulo = f"{EMOJI_CORRECTO} Archivo Seguro (edición)"
+                descripcion = f"{EMOJI_FILE} `{archivo.filename}` parece limpio (0 detecciones) en un mensaje editado de {after.author.mention}."
+            else:
+                color = discord.Color.red()
+                titulo = f"{EMOJI_INCORRECTO} Error en análisis (edición)"
+                descripcion = f"No se pudo analizar `{archivo.filename}`."
+
+            nuevo_embed = discord.Embed(title=titulo, description=descripcion, color=color)
+            resultado_str = f"{EMOJI_WARNING if tipo == 'malicioso' else EMOJI_CORRECTO if tipo == 'seguro' else EMOJI_INCORRECTO} `{archivo.filename}`\n"
+            if tipo == "malicioso":
+                resultado_str += f"{EMOJI_LINK} [Ver informe completo](https://www.virustotal.com/gui/file/{file_hash})\n"
             if doble_ext:
-                embed.add_field(name=f"{EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
+                resultado_str += f"{EMOJI_WARNING} Doble extensión detectada\n"
             if warning_mime:
-                embed.add_field(name=f"{EMOJI_WARNING} Verificación MIME", value=warning_mime, inline=False)
+                resultado_str += f"{EMOJI_WARNING} {warning_mime}\n"
+            nuevo_embed.add_field(name="Resultados", value=resultado_str, inline=False)
 
             if tipo == "malicioso" or doble_ext:
                 if tipo == "malicioso":
                     await safe_add_reaction(after, EMOJI_WARNING)
                 else:
                     await safe_add_reaction(after, EMOJI_CORRECTO)
-                await after.channel.send(embed=embed, reference=after)
+                await after.channel.send(embed=nuevo_embed, reference=after)
             elif not silent_mode:
                 await safe_add_reaction(after, EMOJI_CORRECTO)
-                await after.channel.send(embed=embed, reference=after)
+                await after.channel.send(embed=nuevo_embed, reference=after)
             else:
                 await safe_add_reaction(after, EMOJI_CORRECTO if tipo == "seguro" else EMOJI_INCORRECTO)
 
@@ -1706,6 +1794,9 @@ bot.EMOJI_GUARDIAN = EMOJI_GUARDIAN
 bot.EMOJI_STATS = EMOJI_STATS
 bot.EMOJI_REPLY = EMOJI_REPLY
 bot.EMOJI_KEY = EMOJI_KEY
+bot.EMOJI_KICK = EMOJI_KICK
+bot.EMOJI_BAN = EMOJI_BAN
+bot.EMOJI_CLEAN = EMOJI_CLEAN
 bot.analizar_url = analizar_url
 bot.get_from_cache_mem = get_from_cache_mem
 bot.set_cache_mem = set_cache_mem
