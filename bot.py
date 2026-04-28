@@ -1,3 +1,6 @@
+# Threat - Sistema de seguridad para Discord
+# Versión final con escaneo múltiple, botones en logs y respeto a silent mode
+
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -96,25 +99,6 @@ async def safe_add_reaction(msg, emoji):
         await msg.add_reaction(emoji)
     except (discord.NotFound, discord.Forbidden):
         pass
-
-# ========== FUNCIONES AUXILIARES ==========
-def crear_embed_estandar(titulo, descripcion, color, valor, detalles, usuario=None, link_vt=None, footer_extra=""):
-    """
-    Crea un embed con formato estándar para todos los análisis.
-    """
-    embed = discord.Embed(
-        title=titulo,
-        description=descripcion,
-        color=color
-    )
-    embed.add_field(name=f"{EMOJI_FINGERPRINT} Valor", value=f"`{valor}`", inline=False)
-    if usuario:
-        embed.add_field(name=f"{EMOJI_GUARDIAN} Usuario", value=usuario.mention, inline=True)
-    embed.add_field(name=f"{EMOJI_SHIELD} Detalles", value=detalles, inline=False)
-    if link_vt:
-        embed.add_field(name=f"{EMOJI_LINK} VirusTotal", value=f"[Ver informe]({link_vt})", inline=False)
-    embed.set_footer(text=f"ID: {usuario.id if usuario else 'N/A'} • {time.strftime('%Y-%m-%d %H:%M:%S')} {footer_extra}")
-    return embed
 
 # ========== SEGUIMIENTO DE USO DE APIs ==========
 # VirusTotal
@@ -521,15 +505,18 @@ async def enviar_log_guild(guild_id, tipo, valor, detalles, usuario, url_vt=None
     channel = bot.get_channel(log_channel_id)
     if channel is None:
         return
-    embed = crear_embed_estandar(
-        titulo=f"{EMOJI_WARNING} Amenaza Detectada",
-        descripcion=f"**{tipo}** analizado resultó **malicioso**",
-        color=discord.Color.red(),
-        valor=valor,
-        detalles=detalles,
-        usuario=usuario,
-        link_vt=url_vt
+    embed = discord.Embed(
+        title=f"{EMOJI_WARNING} Amenaza Detectada",
+        description=f"**{tipo}** analizado resultó **malicioso**",
+        color=discord.Color.red()
     )
+    embed.add_field(name=f"{EMOJI_FINGERPRINT} Valor", value=f"`{valor}`", inline=False)
+    embed.add_field(name=f"{EMOJI_GUARDIAN} Usuario", value=usuario.mention, inline=True)
+    embed.add_field(name=f"{EMOJI_SHIELD} Detalles", value=detalles, inline=True)
+    if url_vt:
+        embed.add_field(name=f"{EMOJI_LINK} VirusTotal", value=f"[Ver informe]({url_vt})", inline=False)
+    embed.set_footer(text=f"ID: {usuario.id} • {time.strftime('%Y-%m-%d %H:%M:%S')}")
+
     view = LogActionView(bot, guild_id, usuario.id, elemento_id=elemento_id)
     await channel.send(embed=embed, view=view)
 
@@ -560,13 +547,7 @@ def tiene_doble_extension(filename):
 async def analizar_url(url, guild_id=None, mensaje_original=None, guardar_cache=True):
     key = obtener_siguiente_key()
     if not key:
-        embed = crear_embed_estandar(
-            titulo="Error de configuración",
-            descripcion="No hay claves de VirusTotal disponibles.",
-            color=discord.Color.red(),
-            valor=url,
-            detalles="No hay claves API de VirusTotal configuradas."
-        )
+        embed = discord.Embed(title="Error de configuración", description="No hay claves de VirusTotal disponibles.", color=discord.Color.red())
         return "error", embed
     headers = {"x-apikey": key}
     try:
@@ -586,15 +567,13 @@ async def analizar_url(url, guild_id=None, mensaje_original=None, guardar_cache=
                                 if guild_id: update_stats_guild(guild_id, "malicioso")
                                 if mensaje_original and guild_id:
                                     registrar_infraccion(guild_id, mensaje_original.author.id, f"url:{url}")
-                                embed = crear_embed_estandar(
-                                    titulo=f"{EMOJI_WARNING} URL Maliciosa Detectada",
-                                    descripcion=f"Se encontraron **{mal}** detecciones",
-                                    color=discord.Color.orange(),
-                                    valor=url,
-                                    detalles=f"{mal} antivirus reportaron amenaza.",
-                                    usuario=mensaje_original.author if mensaje_original else None,
-                                    link_vt=vt_link
+                                embed = discord.Embed(
+                                    title=f"{EMOJI_WARNING} URL Maliciosa Detectada",
+                                    description=f"Se encontraron **{mal}** detecciones",
+                                    color=discord.Color.orange()
                                 )
+                                embed.add_field(name="URL", value=f"`{url}`", inline=False)
+                                embed.add_field(name="\u200b", value=f"{EMOJI_LINK} [Ver informe completo]({vt_link})", inline=False)
                                 if mensaje_original and guild_id:
                                     await enviar_log_guild(guild_id, "URL", url, f"{mal} detecciones", mensaje_original.author, vt_link, elemento_id=f"url:{url}")
                                     config = obtener_config_guild(guild_id)
@@ -608,15 +587,13 @@ async def analizar_url(url, guild_id=None, mensaje_original=None, guardar_cache=
                                 return "malicioso", embed
                             else:
                                 if guild_id: update_stats_guild(guild_id, "seguro")
-                                embed = crear_embed_estandar(
-                                    titulo=f"{EMOJI_CORRECTO} URL Segura",
-                                    descripcion="No se detectaron amenazas",
-                                    color=discord.Color.green(),
-                                    valor=url,
-                                    detalles="No se encontraron reportes maliciosos.",
-                                    usuario=mensaje_original.author if mensaje_original else None,
-                                    link_vt=vt_link
+                                embed = discord.Embed(
+                                    title=f"{EMOJI_CORRECTO} URL Segura",
+                                    description="No se detectaron amenazas",
+                                    color=discord.Color.green()
                                 )
+                                embed.add_field(name="URL", value=f"`{url}`", inline=False)
+                                embed.add_field(name="\u200b", value=f"{EMOJI_LINK} [Ver informe completo]({vt_link})", inline=False)
                                 if guardar_cache:
                                     clave = f"url:{url}"
                                     guardar_analisis_db(clave, "url", "seguro", embed)
@@ -624,14 +601,7 @@ async def analizar_url(url, guild_id=None, mensaje_original=None, guardar_cache=
                                 return "seguro", embed
                         else:
                             if guild_id: update_stats_guild(guild_id, "error")
-                            embed = crear_embed_estandar(
-                                titulo=f"{EMOJI_INCORRECTO} Error en análisis",
-                                descripcion="Error al obtener resultado del análisis",
-                                color=discord.Color.red(),
-                                valor=url,
-                                detalles="No se pudo obtener el resultado del análisis.",
-                                usuario=mensaje_original.author if mensaje_original else None
-                            )
+                            embed = discord.Embed(title=f"{EMOJI_INCORRECTO} Error en análisis", description="Error al obtener resultado del análisis", color=discord.Color.red())
                             if guardar_cache:
                                 clave = f"url:{url}"
                                 guardar_analisis_db(clave, "url", "error", embed)
@@ -639,14 +609,7 @@ async def analizar_url(url, guild_id=None, mensaje_original=None, guardar_cache=
                             return "error", embed
                 else:
                     if guild_id: update_stats_guild(guild_id, "error")
-                    embed = crear_embed_estandar(
-                        titulo=f"{EMOJI_INCORRECTO} Error al analizar URL",
-                        descripcion="VirusTotal no procesó la solicitud",
-                        color=discord.Color.red(),
-                        valor=url,
-                        detalles="VirusTotal rechazó la solicitud.",
-                        usuario=mensaje_original.author if mensaje_original else None
-                    )
+                    embed = discord.Embed(title=f"{EMOJI_INCORRECTO} Error al analizar URL", description="VirusTotal no procesó la solicitud", color=discord.Color.red())
                     if guardar_cache:
                         clave = f"url:{url}"
                         guardar_analisis_db(clave, "url", "error", embed)
@@ -655,14 +618,7 @@ async def analizar_url(url, guild_id=None, mensaje_original=None, guardar_cache=
     except Exception as e:
         if guild_id: update_stats_guild(guild_id, "error")
         print(f"Error en analizar_url: {e}")
-        embed = crear_embed_estandar(
-            titulo=f"{EMOJI_INCORRECTO} Error de conexión",
-            descripcion="No se pudo contactar con VirusTotal",
-            color=discord.Color.red(),
-            valor=url,
-            detalles="Error de comunicación con la API de VirusTotal.",
-            usuario=mensaje_original.author if mensaje_original else None
-        )
+        embed = discord.Embed(title=f"{EMOJI_INCORRECTO} Error de conexión", description="No se pudo contactar con VirusTotal", color=discord.Color.red())
         if guardar_cache:
             clave = f"url:{url}"
             guardar_analisis_db(clave, "url", "error", embed)
@@ -672,13 +628,7 @@ async def analizar_url(url, guild_id=None, mensaje_original=None, guardar_cache=
 async def analizar_hash(hash_valor, guild_id=None, mensaje_original=None, guardar_cache=True):
     key = obtener_siguiente_key()
     if not key:
-        embed = crear_embed_estandar(
-            titulo="Error de configuración",
-            descripcion="No hay claves de VirusTotal disponibles.",
-            color=discord.Color.red(),
-            valor=hash_valor,
-            detalles="No hay claves API de VirusTotal configuradas."
-        )
+        embed = discord.Embed(title="Error de configuración", description="No hay claves de VirusTotal disponibles.", color=discord.Color.red())
         return "error", embed
     headers = {"x-apikey": key}
     try:
@@ -696,15 +646,14 @@ async def analizar_hash(hash_valor, guild_id=None, mensaje_original=None, guarda
                             registrar_infraccion(guild_id, mensaje_original.author.id, f"hash:{hash_valor}")
                         top = obtener_top_antivirus(results)
                         top_text = ", ".join(top) if top else "Varios antivirus"
-                        embed = crear_embed_estandar(
-                            titulo=f"{EMOJI_WARNING} Hash Malicioso Detectado",
-                            descripcion=f"**{mal}** antivirus lo identificaron",
-                            color=discord.Color.orange(),
-                            valor=hash_valor,
-                            detalles=f"Detectado por: {top_text}",
-                            usuario=mensaje_original.author if mensaje_original else None,
-                            link_vt=vt_link
+                        embed = discord.Embed(
+                            title=f"{EMOJI_WARNING} Hash Malicioso Detectado",
+                            description=f"**{mal}** antivirus lo identificaron",
+                            color=discord.Color.orange()
                         )
+                        embed.add_field(name="Hash", value=f"`{hash_valor}`", inline=False)
+                        embed.add_field(name="Detectado por", value=f"`{top_text}`", inline=False)
+                        embed.add_field(name="\u200b", value=f"{EMOJI_LINK} [Ver informe completo]({vt_link})", inline=False)
                         if mensaje_original and guild_id:
                             await enviar_log_guild(guild_id, "Hash", hash_valor, f"{mal} detecciones (top: {top_text})", mensaje_original.author, vt_link, elemento_id=f"hash:{hash_valor}")
                             config = obtener_config_guild(guild_id)
@@ -718,15 +667,13 @@ async def analizar_hash(hash_valor, guild_id=None, mensaje_original=None, guarda
                         return "malicioso", embed
                     else:
                         if guild_id: update_stats_guild(guild_id, "seguro")
-                        embed = crear_embed_estandar(
-                            titulo=f"{EMOJI_CORRECTO} Hash Seguro",
-                            descripcion="No se encontraron amenazas",
-                            color=discord.Color.green(),
-                            valor=hash_valor,
-                            detalles="No se encontraron reportes maliciosos.",
-                            usuario=mensaje_original.author if mensaje_original else None,
-                            link_vt=vt_link
+                        embed = discord.Embed(
+                            title=f"{EMOJI_CORRECTO} Hash Seguro",
+                            description="No se encontraron amenazas",
+                            color=discord.Color.green()
                         )
+                        embed.add_field(name="Hash", value=f"`{hash_valor}`", inline=False)
+                        embed.add_field(name="\u200b", value=f"{EMOJI_LINK} [Ver informe completo]({vt_link})", inline=False)
                         if guardar_cache:
                             clave = f"hash:{hash_valor}"
                             guardar_analisis_db(clave, "hash", "seguro", embed)
@@ -734,14 +681,7 @@ async def analizar_hash(hash_valor, guild_id=None, mensaje_original=None, guarda
                         return "seguro", embed
                 else:
                     if guild_id: update_stats_guild(guild_id, "error")
-                    embed = crear_embed_estandar(
-                        titulo=f"{EMOJI_INCORRECTO} Hash no encontrado",
-                        descripcion="No existe en VirusTotal",
-                        color=discord.Color.red(),
-                        valor=hash_valor,
-                        detalles="El hash no fue encontrado en la base de datos de VirusTotal.",
-                        usuario=mensaje_original.author if mensaje_original else None
-                    )
+                    embed = discord.Embed(title=f"{EMOJI_INCORRECTO} Hash no encontrado", description="No existe en VirusTotal", color=discord.Color.red())
                     if guardar_cache:
                         clave = f"hash:{hash_valor}"
                         guardar_analisis_db(clave, "hash", "error", embed)
@@ -750,14 +690,7 @@ async def analizar_hash(hash_valor, guild_id=None, mensaje_original=None, guarda
     except Exception as e:
         if guild_id: update_stats_guild(guild_id, "error")
         print(f"Error en analizar_hash: {e}")
-        embed = crear_embed_estandar(
-            titulo=f"{EMOJI_INCORRECTO} Error",
-            descripcion="No se pudo consultar el hash",
-            color=discord.Color.red(),
-            valor=hash_valor,
-            detalles="Error al consultar el hash en VirusTotal.",
-            usuario=mensaje_original.author if mensaje_original else None
-        )
+        embed = discord.Embed(title=f"{EMOJI_INCORRECTO} Error", description="No se pudo consultar el hash", color=discord.Color.red())
         if guardar_cache:
             clave = f"hash:{hash_valor}"
             guardar_analisis_db(clave, "hash", "error", embed)
@@ -767,13 +700,7 @@ async def analizar_hash(hash_valor, guild_id=None, mensaje_original=None, guarda
 async def analizar_ip(ip, guild_id=None, mensaje_original=None, guardar_cache=True):
     key = obtener_siguiente_key()
     if not key:
-        embed = crear_embed_estandar(
-            titulo="Error de configuración",
-            descripcion="No hay claves de VirusTotal disponibles.",
-            color=discord.Color.red(),
-            valor=ip,
-            detalles="No hay claves API de VirusTotal configuradas."
-        )
+        embed = discord.Embed(title="Error de configuración", description="No hay claves de VirusTotal disponibles.", color=discord.Color.red())
         return "error", embed
     headers = {"x-apikey": key}
     try:
@@ -788,15 +715,13 @@ async def analizar_ip(ip, guild_id=None, mensaje_original=None, guardar_cache=Tr
                         if guild_id: update_stats_guild(guild_id, "malicioso")
                         if mensaje_original and guild_id:
                             registrar_infraccion(guild_id, mensaje_original.author.id, f"ip:{ip}")
-                        embed = crear_embed_estandar(
-                            titulo=f"{EMOJI_WARNING} IP Maliciosa Detectada",
-                            descripcion=f"**{mal}** fuentes reportan actividad sospechosa",
-                            color=discord.Color.orange(),
-                            valor=ip,
-                            detalles=f"{mal} fuentes reportaron actividad sospechosa.",
-                            usuario=mensaje_original.author if mensaje_original else None,
-                            link_vt=vt_link
+                        embed = discord.Embed(
+                            title=f"{EMOJI_WARNING} IP Maliciosa Detectada",
+                            description=f"**{mal}** fuentes reportan actividad sospechosa",
+                            color=discord.Color.orange()
                         )
+                        embed.add_field(name="IP", value=f"`{ip}`", inline=False)
+                        embed.add_field(name="\u200b", value=f"{EMOJI_LINK} [Ver informe completo]({vt_link})", inline=False)
                         if mensaje_original and guild_id:
                             await enviar_log_guild(guild_id, "IP", ip, f"{mal} fuentes reportan", mensaje_original.author, vt_link, elemento_id=f"ip:{ip}")
                             config = obtener_config_guild(guild_id)
@@ -810,15 +735,13 @@ async def analizar_ip(ip, guild_id=None, mensaje_original=None, guardar_cache=Tr
                         return "malicioso", embed
                     else:
                         if guild_id: update_stats_guild(guild_id, "seguro")
-                        embed = crear_embed_estandar(
-                            titulo=f"{EMOJI_CORRECTO} IP Segura",
-                            descripcion="No se encontraron reportes",
-                            color=discord.Color.green(),
-                            valor=ip,
-                            detalles="No se encontraron reportes maliciosos.",
-                            usuario=mensaje_original.author if mensaje_original else None,
-                            link_vt=vt_link
+                        embed = discord.Embed(
+                            title=f"{EMOJI_CORRECTO} IP Segura",
+                            description="No se encontraron reportes",
+                            color=discord.Color.green()
                         )
+                        embed.add_field(name="IP", value=f"`{ip}`", inline=False)
+                        embed.add_field(name="\u200b", value=f"{EMOJI_LINK} [Ver informe completo]({vt_link})", inline=False)
                         if guardar_cache:
                             clave = f"ip:{ip}"
                             guardar_analisis_db(clave, "ip", "seguro", embed)
@@ -826,14 +749,7 @@ async def analizar_ip(ip, guild_id=None, mensaje_original=None, guardar_cache=Tr
                         return "seguro", embed
                 else:
                     if guild_id: update_stats_guild(guild_id, "error")
-                    embed = crear_embed_estandar(
-                        titulo=f"{EMOJI_INCORRECTO} IP no encontrada",
-                        descripcion="No se pudo analizar la IP",
-                        color=discord.Color.red(),
-                        valor=ip,
-                        detalles="La IP no fue encontrada en la base de datos de VirusTotal.",
-                        usuario=mensaje_original.author if mensaje_original else None
-                    )
+                    embed = discord.Embed(title=f"{EMOJI_INCORRECTO} IP no encontrada", description="No se pudo analizar la IP", color=discord.Color.red())
                     if guardar_cache:
                         clave = f"ip:{ip}"
                         guardar_analisis_db(clave, "ip", "error", embed)
@@ -842,14 +758,7 @@ async def analizar_ip(ip, guild_id=None, mensaje_original=None, guardar_cache=Tr
     except Exception as e:
         if guild_id: update_stats_guild(guild_id, "error")
         print(f"Error en analizar_ip: {e}")
-        embed = crear_embed_estandar(
-            titulo=f"{EMOJI_INCORRECTO} Error",
-            descripcion="No se pudo contactar con VirusTotal",
-            color=discord.Color.red(),
-            valor=ip,
-            detalles="Error de conexión con la API de VirusTotal.",
-            usuario=mensaje_original.author if mensaje_original else None
-        )
+        embed = discord.Embed(title=f"{EMOJI_INCORRECTO} Error", description="No se pudo contactar con VirusTotal", color=discord.Color.red())
         if guardar_cache:
             clave = f"ip:{ip}"
             guardar_analisis_db(clave, "ip", "error", embed)
@@ -865,13 +774,10 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
                 async with session.get(archivo.url, headers=headers) as resp:
                     if resp.status != 200:
                         if guild_id: update_stats_guild(guild_id, "error")
-                        embed = crear_embed_estandar(
-                            titulo=f"{EMOJI_INCORRECTO} Error al descargar archivo",
-                            descripcion="No se pudo obtener el archivo",
-                            color=discord.Color.red(),
-                            valor=archivo.filename,
-                            detalles="No se pudo descargar el archivo desde el servidor.",
-                            usuario=mensaje_original.author if mensaje_original else None
+                        embed = discord.Embed(
+                            title=f"{EMOJI_INCORRECTO} Error al descargar archivo",
+                            description="No se pudo obtener el archivo",
+                            color=discord.Color.red()
                         )
                         return "error", embed
                     file_bytes = await resp.read()
@@ -879,38 +785,29 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
         except Exception as e:
             if guild_id: update_stats_guild(guild_id, "error")
             print(f"Error descargando archivo: {e}")
-            embed = crear_embed_estandar(
-                titulo=f"{EMOJI_INCORRECTO} Error",
-                descripcion="Error al descargar el archivo",
-                color=discord.Color.red(),
-                valor=archivo.filename,
-                detalles="Error durante la descarga del archivo.",
-                usuario=mensaje_original.author if mensaje_original else None
+            embed = discord.Embed(
+                title=f"{EMOJI_INCORRECTO} Error",
+                description="Error al descargar el archivo",
+                color=discord.Color.red()
             )
             return "error", embed
 
     if archivo.size > MAX_FILE_SIZE:
         if guild_id: update_stats_guild(guild_id, "error")
-        embed = crear_embed_estandar(
-            titulo=f"{EMOJI_INCORRECTO} Archivo demasiado grande",
-            descripcion=f"{EMOJI_FILE} `{archivo.filename}` excede 32 MB",
-            color=discord.Color.red(),
-            valor=archivo.filename,
-            detalles="El archivo supera el tamaño máximo permitido (32 MB).",
-            usuario=mensaje_original.author if mensaje_original else None
+        embed = discord.Embed(
+            title=f"{EMOJI_INCORRECTO} Archivo demasiado grande",
+            description=f"{EMOJI_FILE} `{archivo.filename}` excede 32 MB",
+            color=discord.Color.red()
         )
         return "error", embed
 
     clave = f"filehash:{file_hash}"
     key = obtener_siguiente_key()
     if not key:
-        embed = crear_embed_estandar(
-            titulo="Error de configuración",
-            descripcion="No hay claves de VirusTotal disponibles.",
-            color=discord.Color.red(),
-            valor=archivo.filename,
-            detalles="No hay claves API de VirusTotal configuradas.",
-            usuario=mensaje_original.author if mensaje_original else None
+        embed = discord.Embed(
+            title="Error de configuración",
+            description="No hay claves de VirusTotal disponibles.",
+            color=discord.Color.red()
         )
         return "error", embed
     headers = {"x-apikey": key}
@@ -931,14 +828,10 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
                                 if guild_id: update_stats_guild(guild_id, "malicioso")
                                 if mensaje_original and guild_id:
                                     registrar_infraccion(guild_id, mensaje_original.author.id, f"filehash:{file_hash}")
-                                embed = crear_embed_estandar(
-                                    titulo=f"{EMOJI_WARNING} Archivo Malicioso Detectado",
-                                    descripcion=f"**{mal}** antivirus detectaron {EMOJI_FILE} `{archivo.filename}`",
-                                    color=discord.Color.orange(),
-                                    valor=archivo.filename,
-                                    detalles=f"{mal} antivirus reportaron amenaza.",
-                                    usuario=mensaje_original.author if mensaje_original else None,
-                                    link_vt=vt_link
+                                embed = discord.Embed(
+                                    title=f"{EMOJI_WARNING} Archivo Malicioso Detectado",
+                                    description=f"**{mal}** antivirus detectaron {EMOJI_FILE} `{archivo.filename}`",
+                                    color=discord.Color.orange()
                                 )
                                 if mensaje_original and guild_id:
                                     await enviar_log_guild(guild_id, "Archivo", archivo.filename, f"{mal} detecciones", mensaje_original.author, elemento_id=f"filehash:{file_hash}")
@@ -955,14 +848,10 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
                                 return "malicioso", embed
                             else:
                                 if guild_id: update_stats_guild(guild_id, "seguro")
-                                embed = crear_embed_estandar(
-                                    titulo=f"{EMOJI_CORRECTO} Archivo Seguro",
-                                    descripcion=f"{EMOJI_FILE} `{archivo.filename}` parece limpio (0 detecciones)",
-                                    color=discord.Color.green(),
-                                    valor=archivo.filename,
-                                    detalles="No se detectaron amenazas en el archivo.",
-                                    usuario=mensaje_original.author if mensaje_original else None,
-                                    link_vt=vt_link
+                                embed = discord.Embed(
+                                    title=f"{EMOJI_CORRECTO} Archivo Seguro",
+                                    description=f"{EMOJI_FILE} `{archivo.filename}` parece limpio (0 detecciones)",
+                                    color=discord.Color.green()
                                 )
                                 if guardar_cache:
                                     guardar_analisis_db(clave, "file", "seguro", embed)
@@ -973,13 +862,10 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
                                 return "seguro", embed
                         else:
                             if guild_id: update_stats_guild(guild_id, "error")
-                            embed = crear_embed_estandar(
-                                titulo=f"{EMOJI_INCORRECTO} Error en análisis",
-                                descripcion="No se pudo obtener resultado",
-                                color=discord.Color.red(),
-                                valor=archivo.filename,
-                                detalles="No se pudo obtener el resultado del análisis.",
-                                usuario=mensaje_original.author if mensaje_original else None
+                            embed = discord.Embed(
+                                title=f"{EMOJI_INCORRECTO} Error en análisis",
+                                description="No se pudo obtener resultado",
+                                color=discord.Color.red()
                             )
                             if guardar_cache:
                                 guardar_analisis_db(clave, "file", "error", embed)
@@ -987,13 +873,10 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
                             return "error", embed
                 else:
                     if guild_id: update_stats_guild(guild_id, "error")
-                    embed = crear_embed_estandar(
-                        titulo=f"{EMOJI_INCORRECTO} Error al subir archivo",
-                        descripcion="VirusTotal rechazó el archivo",
-                        color=discord.Color.red(),
-                        valor=archivo.filename,
-                        detalles="VirusTotal rechazó la subida del archivo.",
-                        usuario=mensaje_original.author if mensaje_original else None
+                    embed = discord.Embed(
+                        title=f"{EMOJI_INCORRECTO} Error al subir archivo",
+                        description="VirusTotal rechazó el archivo",
+                        color=discord.Color.red()
                     )
                     if guardar_cache:
                         guardar_analisis_db(clave, "file", "error", embed)
@@ -1002,13 +885,10 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
     except Exception as e:
         if guild_id: update_stats_guild(guild_id, "error")
         print(f"Error en analizar_archivo: {e}")
-        embed = crear_embed_estandar(
-            titulo=f"{EMOJI_INCORRECTO} Error",
-            descripcion="No se pudo analizar el archivo",
-            color=discord.Color.red(),
-            valor=archivo.filename,
-            detalles="Error durante el análisis del archivo.",
-            usuario=mensaje_original.author if mensaje_original else None
+        embed = discord.Embed(
+            title=f"{EMOJI_INCORRECTO} Error",
+            description="No se pudo analizar el archivo",
+            color=discord.Color.red()
         )
         if guardar_cache:
             guardar_analisis_db(clave, "file", "error", embed)
@@ -1199,7 +1079,7 @@ async def on_message(message):
                                         embed_log = discord.Embed(title=f"{EMOJI_WARNING} Contenido Inapropiado", description=f"{detalles_str} " + ("(cache)" if from_cache else ""), color=discord.Color.red())
                                         embed_log.add_field(name="Usuario", value=message.author.mention, inline=True)
                                         embed_log.add_field(name="Enlace", value=f"[Ver imagen]({url})", inline=True)
-                                        embed_log.set_footer(text=f"ID: {message.author.id} • {time.strftime('%Y-%m-%d %H:%M:%S')}") 
+                                        embed_log.set_footer(text=f"ID: {message.author.id} • {time.strftime('%Y-%m-%d %H:%M:%S')}")
                                         channel = bot.get_channel(log_channel_id)
                                         if channel: await channel.send(embed=embed_log)
                                     if strict_mode:
