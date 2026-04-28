@@ -1,3 +1,6 @@
+# Threat - Sistema de seguridad para Discord
+# Versión con escaneo múltiple de archivos/imágenes, botones en logs y límites reales
+
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -39,8 +42,8 @@ if not SE_API_KEYS_PAIRS:
     print("⚠️ ADVERTENCIA: No se encontraron pares válidos de Sightengine. La detección NSFW no funcionará.")
 # ========================================
 
-MAX_FILE_SIZE = 32 * 1024 * 1024  # 32 MB
-MAX_IMAGE_SIZE = 2 * 1024 * 1024  # 2 MB
+MAX_FILE_SIZE = 32 * 1024 * 1024  # 32 MB (VirusTotal acepta hasta 32 MB)
+MAX_IMAGE_SIZE = 2 * 1024 * 1024  # 2 MB para Sightengine (plan gratuito)
 CACHE_DURATION = 3600
 DATA_FILE = "data.json"
 DB_FILE = "analisis.db"
@@ -975,7 +978,7 @@ async def on_ready():
     print("Comandos slash sincronizados correctamente")
     print("Bot Ready")
 
-# ========== EVENTO ON_MESSAGE (Caché prioritaria, avisos unificados) ==========
+# ========== EVENTO ON_MESSAGE (Caché prioritaria, avisos unificados, múltiples adjuntos) ==========
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
@@ -1006,7 +1009,6 @@ async def on_message(message):
             if dominio not in whitelist:
                 todas_urls.append(url)
             else:
-                # Mostrar reacción whitelist aunque haya otras URLs
                 await safe_add_reaction(message, EMOJI_WHITELIST)
 
         if not todas_urls:
@@ -1015,12 +1017,10 @@ async def on_message(message):
             await bot.process_commands(message)
             return
 
-        # --- Si solo hay una URL, mantener comportamiento detallado anterior ---
+        # --- Si solo hay una URL, mantener comportamiento detallado ---
         if len(todas_urls) == 1:
             url = todas_urls[0]
-            # --- URL es imagen ---
             if url_es_imagen(url):
-                print(f"[DEBUG] URL detectada como imagen: {url}")
                 await safe_add_reaction(message, EMOJI_LOADING)
                 headers = {"Authorization": f"Bot {TOKEN}"}
                 try:
@@ -1100,7 +1100,7 @@ async def on_message(message):
                         embed = discord.Embed(title=f"{EMOJI_WARNING} Descarga lenta", description="La descarga de la imagen ha tardado demasiado.", color=discord.Color.orange())
                         await message.channel.send(embed=embed, reference=message)
                 except Exception as e:
-                    print(f"[DEBUG] Excepción al procesar URL de imagen: {e}")
+                    print(f"Excepción al procesar URL de imagen: {e}")
                     await safe_remove_loading(message)
                     await safe_add_reaction(message, EMOJI_WARNING)
                     if not silent_mode:
@@ -1109,8 +1109,7 @@ async def on_message(message):
                 await bot.process_commands(message)
                 return
             else:
-                # --- URL no imagen (comportamiento detallado existente) ---
-                print(f"[DEBUG] URL no es imagen, analizando con VirusTotal: {url}")
+                # --- URL no imagen (comportamiento detallado) ---
                 url_original = url
                 url = await expandir_url(url)
                 clave = f"url:{url_original}"
@@ -1176,16 +1175,12 @@ async def on_message(message):
                 await bot.process_commands(message)
                 return
 
-        # --- MÚLTIPLES URLs (NUEVA FUNCIONALIDAD) ---
-        print(f"[DEBUG] Múltiples URLs detectadas: {len(todas_urls)}")
+        # --- MÚLTIPLES URLs ---
         await safe_add_reaction(message, EMOJI_LOADING)
-
-        # Quitar duplicados preservando orden
         todas_urls = list(dict.fromkeys(todas_urls))
-        # Limitar a 5 URLs máximo para no sobrecargar
         urls_a_analizar = todas_urls[:5]
 
-        resultados = []  # Lista de (url, tipo, embed)
+        resultados = []
         total = len(urls_a_analizar)
         maliciosas = 0
         seguras = 0
@@ -1194,14 +1189,13 @@ async def on_message(message):
         for url in urls_a_analizar:
             url_original = url
             url_exp = await expandir_url(url)
-            clave = f"url:{url_original}"
+            clase = f"url:{url_original}"
 
-            # Caché
-            tipo, embed = get_from_cache_mem(clave)
+            tipo, embed = get_from_cache_mem(clase)
             if embed is None:
-                tipo, embed = obtener_analisis_db(clave)
+                tipo, embed = obtener_analisis_db(clase)
                 if tipo is not None:
-                    set_cache_mem(clave, tipo, embed)
+                    set_cache_mem(clase, tipo, embed)
 
             if embed is not None:
                 resultados.append((url_original, tipo, embed))
@@ -1214,10 +1208,7 @@ async def on_message(message):
                     errores += 1
                 continue
 
-            # Anti-spam rápido (no bloqueante, solo un delay)
-            await asyncio.sleep(1)  # pequeña pausa entre análisis para no saturar
-
-            # Análisis fresco
+            await asyncio.sleep(1)
             tipo, embed = await analizar_url(url_exp, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
             resultados.append((url_original, tipo, embed))
             if tipo == "malicioso":
@@ -1229,7 +1220,6 @@ async def on_message(message):
 
         await safe_remove_loading(message)
 
-        # Construir embed resumen
         if maliciosas > 0:
             color = discord.Color.orange()
             titulo = f"{EMOJI_WARNING} ¡Amenazas detectadas en múltiples enlaces!"
@@ -1249,7 +1239,6 @@ async def on_message(message):
             color=color
         )
 
-        # Mostrar detalle de cada URL
         valor_campo = ""
         for url_orig, tipo, embed in resultados:
             if tipo == "malicioso":
@@ -1258,10 +1247,8 @@ async def on_message(message):
                 valor_campo += f"{EMOJI_CORRECTO} `{url_orig}`\n"
             else:
                 valor_campo += f"{EMOJI_INCORRECTO} `{url_orig}`\n"
-
         embed_resumen.add_field(name="Resultados", value=valor_campo[:1024], inline=False)
 
-        # Listar las maliciosas con enlace a VT
         if maliciosas > 0:
             maliciosas_str = ""
             for url_orig, tipo, embed in resultados:
@@ -1271,25 +1258,16 @@ async def on_message(message):
                     maliciosas_str += f"• `{url_orig}` {EMOJI_LINK} [Ver informe]({vt_link})\n"
             embed_resumen.add_field(name=f"{EMOJI_WARNING} Enlaces maliciosos", value=maliciosas_str[:1024], inline=False)
 
-        # Enviar logs por cada URL maliciosa
         if maliciosas > 0 and log_channel_id:
             for url_orig, tipo, embed in resultados:
                 if tipo == "malicioso":
                     await enviar_log_guild(guild_id, "URL (múltiples)", url_orig, f"Detectado en análisis múltiple", message.author, elemento_id=f"url:{url_orig}")
 
-        # Enviar logs por cada URL maliciosa
-        if maliciosas > 0 and log_channel_id:
-            for url_orig, tipo, embed in resultados:
-                if tipo == "malicioso":
-                    await enviar_log_guild(guild_id, "URL (múltiples)", url_orig, f"Detectado en análisis múltiple", message.author, elemento_id=f"url:{url_orig}")
-
-        # Enviar resumen (protegido contra mensaje eliminado)
         try:
             await message.channel.send(embed=embed_resumen, reference=message)
         except (discord.HTTPException, discord.NotFound):
-            await message.channel.send(embed=embed_resumen)  # sin referencia
+            await message.channel.send(embed=embed_resumen)
 
-        # Reacción según resultado (segura, ignora si el mensaje ya no existe)
         if maliciosas > 0:
             await safe_add_reaction(message, EMOJI_WARNING)
         elif errores > 0:
@@ -1297,7 +1275,6 @@ async def on_message(message):
         else:
             await safe_add_reaction(message, EMOJI_CORRECTO)
 
-        # Modo estricto (eliminar mensaje original después de responder)
         if maliciosas > 0 and strict_mode:
             try:
                 await message.delete()
@@ -1307,247 +1284,193 @@ async def on_message(message):
         await bot.process_commands(message)
         return
 
+    # ========== ADJUNTOS MÚLTIPLES ==========
     if message.attachments:
-        archivo = message.attachments[0]
-        if es_imagen(archivo):
-            if archivo.size > MAX_IMAGE_SIZE:
-                await safe_add_reaction(message, EMOJI_INCORRECTO)
-                if not silent_mode:
-                    embed = discord.Embed(title=f"{EMOJI_INCORRECTO} Imagen demasiado grande", description="No se puede analizar (>2 MB)", color=discord.Color.red())
-                    await message.channel.send(embed=embed, reference=message)
-                await bot.process_commands(message)
-                return
+        total_adjuntos = len(message.attachments)
+        # Limitar a 5 archivos como máximo para no saturar
+        adjuntos_a_procesar = message.attachments[:5]
 
-            print(f"[DEBUG] Archivo adjunto es imagen: {archivo.filename}")
-            await safe_add_reaction(message, EMOJI_LOADING)
-            headers = {"Authorization": f"Bot {TOKEN}"}
+        imagenes = []
+        otros = []
+        for archivo in adjuntos_a_procesar:
+            if es_imagen(archivo):
+                imagenes.append(archivo)
+            else:
+                otros.append(archivo)
+
+        await safe_add_reaction(message, EMOJI_LOADING)
+
+        resultados_imagenes = []   # (filename, is_nsfw, details)
+        resultados_archivos = []   # (filename, tipo, embed o mensaje)
+
+        # --- Procesar imágenes (NSFW) ---
+        for img in imagenes:
+            if img.size > MAX_IMAGE_SIZE:
+                resultados_imagenes.append((img.filename, "error", {"error": "too_large"}))
+                continue
+
             try:
-                timeout = aiohttp.ClientTimeout(total=30)
-                async with aiohttp.ClientSession(timeout=timeout) as session:
-                    async with session.get(archivo.url, headers=headers) as resp:
-                        if resp.status == 200:
-                            img_data = await resp.read()
-                            if len(img_data) > MAX_IMAGE_SIZE:
-                                await safe_remove_loading(message)
-                                await safe_add_reaction(message, EMOJI_INCORRECTO)
-                                if not silent_mode:
-                                    embed = discord.Embed(title=f"{EMOJI_INCORRECTO} Imagen demasiado grande", description="No se puede analizar (>2 MB)", color=discord.Color.red())
-                                    await message.channel.send(embed=embed, reference=message)
-                                await bot.process_commands(message)
-                                return
-                            content_hash = hashlib.sha256(img_data).hexdigest()
-                            is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(content_hash, img_data)
-                            await safe_remove_loading(message)
+                headers = {"Authorization": f"Bot {TOKEN}"}
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(img.url, headers=headers) as resp:
+                        if resp.status != 200:
+                            resultados_imagenes.append((img.filename, "error", {}))
+                            continue
+                        img_data = await resp.read()
+                        content_hash = hashlib.sha256(img_data).hexdigest()
+                        is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(content_hash, img_data)
+                        if is_nsfw and guild_id:
+                            registrar_infraccion(guild_id, message.author.id, f"nsfw:{content_hash}")
+                        resultados_imagenes.append((img.filename, "nsfw" if is_nsfw else "seguro", models))
+            except:
+                resultados_imagenes.append((img.filename, "error", {}))
 
-                            if models.get("error") == "too_large":
-                                await safe_add_reaction(message, EMOJI_WARNING)
-                                if not silent_mode:
-                                    embed = discord.Embed(
-                                        title=f"{EMOJI_WARNING} Imagen no analizada",
-                                        description="La imagen supera el límite de 2 MB permitido por Sightengine.\nNo se pudo verificar el contenido.",
-                                        color=discord.Color.orange()
-                                    )
-                                    await message.channel.send(embed=embed, reference=message)
-                                await bot.process_commands(message)
-                                return
-
-                            if is_nsfw:
-                                if guild_id:
-                                    registrar_infraccion(guild_id, message.author.id, f"nsfw:{content_hash}")
-                                await safe_add_reaction(message, EMOJI_WARNING)
-                                detectados = []
-                                if models.get('nudity', 0.0) >= 0.5: detectados.append(f"Desnudez {models['nudity']*100:.0f}%")
-                                if models.get('weapon', 0.0) >= 0.5: detectados.append(f"Armas {models['weapon']*100:.0f}%")
-                                if models.get('offensive', 0.0) >= 0.7: detectados.append(f"Ofensivo {models['offensive']*100:.0f}%")
-                                if models.get('alcohol', 0.0) >= 0.7: detectados.append(f"Alcohol {models['alcohol']*100:.0f}%")
-                                detalles_str = ", ".join(detectados) if detectados else "Contenido inapropiado"
-                                embed = discord.Embed(title=f"{EMOJI_WARNING} Contenido Inapropiado Detectado", description=f"{detalles_str}", color=discord.Color.orange())
-                                embed.add_field(name="Archivo", value=archivo.filename, inline=False)
-                                await message.channel.send(embed=embed, reference=message)
-                                if log_channel_id:
-                                    embed_log = discord.Embed(title=f"{EMOJI_WARNING} Contenido Inapropiado", description=f"{detalles_str} " + ("(cache)" if from_cache else ""), color=discord.Color.red())
-                                    embed_log.add_field(name="Usuario", value=message.author.mention, inline=True)
-                                    embed_log.add_field(name="Archivo", value=archivo.filename, inline=True)
-                                    embed_log.set_footer(text=f"ID: {message.author.id} • {time.strftime('%Y-%m-%d %H:%M:%S')}")
-                                    channel = bot.get_channel(log_channel_id)
-                                    if channel: await channel.send(embed=embed_log)
-                                if strict_mode:
-                                    try: await message.delete()
-                                    except: pass
-                            else:
-                                await safe_add_reaction(message, EMOJI_CORRECTO)
-                                if not silent_mode:
-                                    embed = discord.Embed(title=f"{EMOJI_CORRECTO} Imagen Segura", description="No se detectó contenido inapropiado.", color=discord.Color.green())
-                                    embed.add_field(name="Archivo", value=archivo.filename, inline=False)
-                                    await message.channel.send(embed=embed, reference=message)
-                        else:
-                            await safe_remove_loading(message)
-            except asyncio.TimeoutError:
-                await safe_remove_loading(message)
-                await safe_add_reaction(message, EMOJI_WARNING)
-                if not silent_mode:
-                    embed = discord.Embed(title=f"{EMOJI_WARNING} Descarga lenta", description="La descarga de la imagen ha tardado demasiado.", color=discord.Color.orange())
-                    await message.channel.send(embed=embed, reference=message)
-            except Exception as e:
-                print(f"[DEBUG] Excepción al procesar imagen adjunta: {e}")
-                await safe_remove_loading(message)
-                await safe_add_reaction(message, EMOJI_WARNING)
-                if not silent_mode:
-                    embed = discord.Embed(title=f"{EMOJI_WARNING} Error de descarga", description="No se pudo descargar la imagen.", color=discord.Color.red())
-                    await message.channel.send(embed=embed, reference=message)
-            await bot.process_commands(message)
-            return
-        else:
-            # Archivo no imagen – descargar primero y cachear por hash
-            ahora = time.time()
-            user_id = message.author.id
-            if user_id not in bot.user_scan_history:
-                bot.user_scan_history[user_id] = []
-            bot.user_scan_history[user_id] = [t for t in bot.user_scan_history[user_id] if ahora - t < 3600]
-            if len(bot.user_scan_history[user_id]) >= 30:
-                await safe_add_reaction(message, EMOJI_COOLDOWN)
-                return
-            if user_id in bot.antispam_scan:
-                if ahora - bot.antispam_scan[user_id] < 10:
-                    await safe_add_reaction(message, EMOJI_COOLDOWN)
-                    return
-            bot.antispam_scan[user_id] = ahora
-            bot.user_scan_history[user_id].append(ahora)
-
-            print(f"[DEBUG] Archivo adjunto no es imagen: {archivo.filename}")
-
+        # --- Procesar otros archivos (VirusTotal) ---
+        for archivo in otros:
             doble_ext = tiene_doble_extension(archivo.filename)
             warning_mime = ""
-
             if doble_ext:
                 await safe_add_reaction(message, EMOJI_WARNING)
 
-            # 1. Descargar el archivo para obtener el hash
+            if archivo.size > MAX_FILE_SIZE:
+                resultados_archivos.append((archivo.filename, "error", None))
+                continue
+
             headers = {"Authorization": f"Bot {TOKEN}"}
             try:
-                timeout = aiohttp.ClientTimeout(total=30)
-                async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with aiohttp.ClientSession() as session:
                     async with session.get(archivo.url, headers=headers) as resp:
                         if resp.status != 200:
-                            error_embed = discord.Embed(
-                                title=f"{EMOJI_INCORRECTO} Error",
-                                description="No se pudo descargar el archivo.",
-                                color=discord.Color.red()
-                            )
-                            if doble_ext:
-                                error_embed.add_field(
-                                    name=f"{EMOJI_WARNING} Doble extensión",
-                                    value=f"`{archivo.filename}` podría ser peligroso.",
-                                    inline=False
-                                )
-                            if not silent_mode or doble_ext:
-                                await message.channel.send(embed=error_embed, reference=message)
-                            await bot.process_commands(message)
-                            return
-
+                            resultados_archivos.append((archivo.filename, "error", None))
+                            continue
                         file_data = await resp.read()
                         file_hash = hashlib.sha256(file_data).hexdigest()
 
+                        # Verificación MIME
                         content_type = resp.headers.get('Content-Type', '')
                         if archivo.filename.endswith('.jpg') and content_type not in ('image/jpeg', 'image/jpg'):
-                            warning_mime = f"El archivo tiene extensión .jpg pero el tipo real es {content_type}."
+                            warning_mime = f"Extensión .jpg pero tipo real {content_type}"
                         elif archivo.filename.endswith('.png') and content_type != 'image/png':
-                            warning_mime = f"El archivo tiene extensión .png pero el tipo real es {content_type}."
+                            warning_mime = f"Extensión .png pero tipo real {content_type}"
 
-            except Exception as e:
-                print(f"[DEBUG] Excepción al descargar archivo: {e}")
-                error_embed = discord.Embed(
-                    title=f"{EMOJI_INCORRECTO} Error",
-                    description="Error al descargar el archivo.",
-                    color=discord.Color.red()
-                )
-                if doble_ext:
-                    error_embed.add_field(
-                        name=f"{EMOJI_WARNING} Doble extensión",
-                        value=f"`{archivo.filename}` podría ser peligroso.",
-                        inline=False
-                    )
-                if not silent_mode or doble_ext:
-                    await message.channel.send(embed=error_embed, reference=message)
-                await bot.process_commands(message)
-                return
+            except:
+                resultados_archivos.append((archivo.filename, "error", None))
+                continue
 
-            # 2. Mirar si ya tenemos el análisis por HASH en caché/DB
-            clave_hash = f"filehash:{file_hash}"
-            tipo, embed = get_from_cache_mem(clave_hash)
+            # Caché por hash
+            clase_hash = f"filehash:{file_hash}"
+            tipo, embed = get_from_cache_mem(clase_hash)
             if embed is None:
-                tipo, embed = obtener_analisis_db(clave_hash)
+                tipo, embed = obtener_analisis_db(clase_hash)
                 if embed is not None:
-                    set_cache_mem(clave_hash, tipo, embed)
+                    set_cache_mem(clase_hash, tipo, embed)
 
             if embed is not None:
-                embed = embed.copy()
-                if doble_ext and not any("Doble extensión" in field.name for field in embed.fields):
-                    embed.add_field(
-                        name=f"{EMOJI_WARNING} Doble extensión",
-                        value=f"`{archivo.filename}` podría ser peligroso.",
-                        inline=False
-                    )
-                if warning_mime and not any("Verificación MIME" in field.name for field in embed.fields):
-                    embed.add_field(
-                        name=f"{EMOJI_WARNING} Verificación MIME",
-                        value=warning_mime,
-                        inline=False
-                    )
-
-                if tipo == "malicioso" or doble_ext:
-                    if tipo == "malicioso":
-                        registrar_infraccion(guild_id, message.author.id, f"filehash:{file_hash}")
-                        if log_channel_id:
-                            await enviar_log_guild(guild_id, "Archivo", archivo.filename, "Amenaza detectada (cache)", message.author, elemento_id=f"filehash:{file_hash}")
-                    await message.channel.send(embed=embed, reference=message)
-                elif not silent_mode:
-                    await message.channel.send(embed=embed, reference=message)
-
                 if tipo == "malicioso":
-                    await safe_add_reaction(message, EMOJI_WARNING)
-                    if strict_mode:
-                        try: await message.delete()
-                        except: pass
-                elif tipo == "seguro":
-                    await safe_add_reaction(message, EMOJI_CORRECTO)
-                else:
-                    await safe_add_reaction(message, EMOJI_INCORRECTO)
-                await bot.process_commands(message)
-                return
+                    registrar_infraccion(guild_id, message.author.id, f"filehash:{file_hash}")
+                resultados_archivos.append((archivo.filename, tipo, embed))
+            else:
+                tipo, embed = await analizar_archivo(archivo, file_bytes=file_data, file_hash=file_hash, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
+                resultados_archivos.append((archivo.filename, tipo, embed))
 
-            # 3. No está en caché → analizar con VT
-            await safe_add_reaction(message, EMOJI_LOADING)
-            tipo, embed = await analizar_archivo(archivo, file_bytes=file_data, file_hash=file_hash, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
-            await safe_remove_loading(message)
+        await safe_remove_loading(message)
 
-            if doble_ext:
-                embed.add_field(
-                    name=f"{EMOJI_WARNING} Doble extensión",
-                    value=f"`{archivo.filename}` podría ser peligroso.",
-                    inline=False
-                )
-            if warning_mime:
-                embed.add_field(
-                    name=f"{EMOJI_WARNING} Verificación MIME",
-                    value=warning_mime,
-                    inline=False
-                )
-
-            if tipo == "malicioso" or doble_ext:
-                await message.channel.send(embed=embed, reference=message)
-            elif not silent_mode:
-                await message.channel.send(embed=embed, reference=message)
-
-            try:
-                if tipo == "seguro": await safe_add_reaction(message, EMOJI_CORRECTO)
-                elif tipo == "malicioso": await safe_add_reaction(message, EMOJI_WARNING)
-                else: await safe_add_reaction(message, EMOJI_INCORRECTO)
-            except discord.NotFound:
-                pass
-
+        # --- Construir embed resumen de todos los adjuntos ---
+        total = len(resultados_imagenes) + len(resultados_archivos)
+        if total == 0:
             await bot.process_commands(message)
             return
+
+        maliciosos = 0
+        seguros = 0
+        errores = 0
+        nsfw = 0
+
+        for _, tipo, _ in resultados_imagenes:
+            if tipo == "nsfw":
+                nsfw += 1
+                maliciosos += 1
+            elif tipo == "seguro":
+                seguros += 1
+            else:
+                errores += 1
+
+        for _, tipo, _ in resultados_archivos:
+            if tipo == "malicioso":
+                maliciosos += 1
+            elif tipo == "seguro":
+                seguros += 1
+            else:
+                errores += 1
+
+        if maliciosos > 0 or nsfw > 0:
+            color = discord.Color.orange()
+            titulo = f"{EMOJI_WARNING} ¡Amenazas detectadas en archivos adjuntos!"
+        elif errores > 0:
+            color = discord.Color.red()
+            titulo = f"{EMOJI_WARNING} Análisis completado con errores"
+        else:
+            color = discord.Color.green()
+            titulo = f"{EMOJI_CORRECTO} Todos los archivos son seguros"
+
+        descripcion = f"**{total}** archivo(s) analizado(s) en el mensaje de {message.author.mention}:\n"
+        descripcion += f"{EMOJI_CORRECTO} Seguros: **{seguros}**\n"
+        descripcion += f"{EMOJI_WARNING} Maliciosos/NSFW: **{maliciosos}**\n"
+        descripcion += f"{EMOJI_INCORRECTO} Errores: **{errores}**"
+
+        embed_resumen = discord.Embed(title=titulo, description=descripcion, color=color)
+
+        campo_archivos = ""
+        for filename, tipo, _ in resultados_imagenes:
+            if tipo == "nsfw":
+                campo_archivos += f"{EMOJI_WARNING} `{filename}` (NSFW)\n"
+            elif tipo == "seguro":
+                campo_archivos += f"{EMOJI_CORRECTO} `{filename}` (imagen)\n"
+            else:
+                campo_archivos += f"{EMOJI_INCORRECTO} `{filename}` (error)\n"
+
+        for filename, tipo, _ in resultados_archivos:
+            if tipo == "malicioso":
+                campo_archivos += f"{EMOJI_WARNING} `{filename}`\n"
+            elif tipo == "seguro":
+                campo_archivos += f"{EMOJI_CORRECTO} `{filename}`\n"
+            else:
+                campo_archivos += f"{EMOJI_INCORRECTO} `{filename}`\n"
+
+        embed_resumen.add_field(name="Resultados", value=campo_archivos[:1024], inline=False)
+
+        # Enviar logs individuales por archivo malicioso
+        if log_channel_id:
+            for filename, tipo, _ in resultados_archivos:
+                if tipo == "malicioso":
+                    await enviar_log_guild(guild_id, "Archivo (múltiples)", filename, f"Detectado en análisis múltiple", message.author, elemento_id=f"file:{filename}:{0}")
+            for filename, tipo, _ in resultados_imagenes:
+                if tipo == "nsfw":
+                    await enviar_log_guild(guild_id, "Imagen NSFW (múltiples)", filename, "Detectado en análisis múltiple", message.author)
+
+        # Enviar resumen
+        try:
+            await message.channel.send(embed=embed_resumen, reference=message)
+        except (discord.HTTPException, discord.NotFound):
+            await message.channel.send(embed=embed_resumen)
+
+        # Reacción según resultado
+        if maliciosos > 0:
+            await safe_add_reaction(message, EMOJI_WARNING)
+        elif errores > 0:
+            await safe_add_reaction(message, EMOJI_WARNING)
+        else:
+            await safe_add_reaction(message, EMOJI_CORRECTO)
+
+        # Modo estricto
+        if maliciosos > 0 and strict_mode:
+            try:
+                await message.delete()
+            except:
+                pass
+
+        await bot.process_commands(message)
+        return
 
     # Procesar comandos para mensajes sin URL ni archivo adjunto
     await bot.process_commands(message)
@@ -1560,39 +1483,29 @@ async def on_message_edit(before, after):
     if not after.guild:
         return
 
-    print(f"[DEBUG] on_message_edit detectado: {before.content!r} -> {after.content!r}")
-
     guild_id = after.guild.id
     config = obtener_config_guild(guild_id)
     silent_mode = config["silent_mode"]
     strict_mode = config["strict_mode"]
     log_channel_id = config["log_channel_id"]
 
-    # --- URLs añadidas o cambiadas en la edición ---
     url_pattern = r'https?://[^\s]+'
     urls_before = set(re.findall(url_pattern, before.content))
     urls_after = set(re.findall(url_pattern, after.content))
     nuevas_urls = urls_after - urls_before
 
-    print(f"[DEBUG] URLs antes: {urls_before}, después: {urls_after}, nuevas: {nuevas_urls}")
-
     if nuevas_urls:
-        url = list(nuevas_urls)[0]  # analizar la primera URL nueva
-        print(f"[DEBUG] Analizando nueva URL: {url}")
+        url = list(nuevas_urls)[0]
 
         from urllib.parse import urlparse
         parsed = urlparse(url)
         dominio = parsed.netloc.lower().removeprefix("www.")
         whitelist = config.get("whitelist", [])
         if dominio in whitelist:
-            print(f"[DEBUG] Dominio en whitelist, ignorado.")
             return
-
         if url_es_imagen(url):
-            print(f"[DEBUG] URL es imagen, ignorada en ediciones.")
             return
 
-        # --- URL no imagen ---
         url_original = url
         url = await expandir_url(url)
         clave = f"url:{url_original}"
@@ -1602,18 +1515,15 @@ async def on_message_edit(before, after):
             if embed is not None:
                 set_cache_mem(clave, tipo, embed)
 
-        # --- Limpiar reacciones previas del bot ---
         emoji_bot = {EMOJI_CORRECTO, EMOJI_INCORRECTO, EMOJI_WARNING, EMOJI_LOADING, EMOJI_COOLDOWN, EMOJI_WHITELIST}
         for emoji in emoji_bot:
             try:
                 await after.remove_reaction(emoji, bot.user)
-                print(f"[DEBUG] Reacción {emoji} eliminada.")
             except (discord.NotFound, discord.Forbidden, discord.HTTPException):
                 pass
         await safe_add_reaction(after, EMOJI_LOADING)
 
         if embed is not None:
-            print(f"[DEBUG] Resultado en caché: {tipo}")
             if url != url_original:
                 embed = embed.copy()
                 embed.add_field(name=f"{EMOJI_REPLY} Redirección", value=f"Original: `{url_original}`\nExpandida: `{url}`", inline=False)
@@ -1635,15 +1545,12 @@ async def on_message_edit(before, after):
                 await safe_add_reaction(after, EMOJI_CORRECTO if tipo == "seguro" else EMOJI_INCORRECTO)
             return
 
-        # Anti‑spam / cooldown
         ahora = time.time()
         if after.author.id in bot.antispam_scan and ahora - bot.antispam_scan[after.author.id] < 10:
             await safe_remove_loading(after)
-            print("[DEBUG] Cooldown activo, análisis saltado.")
             return
         bot.antispam_scan[after.author.id] = ahora
 
-        # Análisis fresco
         tipo, embed = await analizar_url(url, guild_id=guild_id, mensaje_original=after, guardar_cache=True)
         await safe_remove_loading(after)
 
@@ -1664,13 +1571,10 @@ async def on_message_edit(before, after):
         else:
             await safe_add_reaction(after, EMOJI_CORRECTO if tipo == "seguro" else EMOJI_INCORRECTO)
 
-    # --- Archivos añadidos en la edición (solo si no había adjuntos antes) ---
+    # --- Archivos añadidos en la edición (solo se procesa el primero nuevo) ---
     if after.attachments and not before.attachments:
         archivo = after.attachments[0]
-        print(f"[DEBUG] Archivo añadido en edición: {archivo.filename}")
-
         if not es_imagen(archivo):
-            # Anti‑spam / cooldown
             ahora = time.time()
             user_id = after.author.id
             if user_id not in bot.user_scan_history:
@@ -1678,11 +1582,9 @@ async def on_message_edit(before, after):
             bot.user_scan_history[user_id] = [t for t in bot.user_scan_history[user_id] if ahora - t < 3600]
             if len(bot.user_scan_history[user_id]) >= 30:
                 await safe_add_reaction(after, EMOJI_COOLDOWN)
-                print("[DEBUG] Cooldown diario de archivos alcanzado.")
                 return
             if user_id in bot.antispam_scan and ahora - bot.antispam_scan[user_id] < 10:
                 await safe_add_reaction(after, EMOJI_COOLDOWN)
-                print("[DEBUG] Cooldown por edición rápida.")
                 return
             bot.antispam_scan[user_id] = ahora
             bot.user_scan_history[user_id].append(ahora)
@@ -1690,7 +1592,6 @@ async def on_message_edit(before, after):
             doble_ext = tiene_doble_extension(archivo.filename)
             warning_mime = ""
 
-            # --- Limpiar reacciones previas del bot ---
             emoji_bot = {EMOJI_CORRECTO, EMOJI_INCORRECTO, EMOJI_WARNING, EMOJI_LOADING, EMOJI_COOLDOWN, EMOJI_WHITELIST}
             for emoji in emoji_bot:
                 try:
@@ -1699,48 +1600,24 @@ async def on_message_edit(before, after):
                     pass
             await safe_add_reaction(after, EMOJI_LOADING)
 
-            # 1. Descargar el archivo para obtener el hash y verificar MIME
             headers = {"Authorization": f"Bot {TOKEN}"}
             try:
                 async with aiohttp.ClientSession() as session:
                     async with session.get(archivo.url, headers=headers) as resp:
                         if resp.status != 200:
                             await safe_remove_loading(after)
-                            error_embed = discord.Embed(
-                                title=f"{EMOJI_INCORRECTO} Error",
-                                description="No se pudo descargar el archivo.",
-                                color=discord.Color.red()
-                            )
-                            if doble_ext:
-                                error_embed.add_field(name=f"{EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
-                            if not silent_mode or doble_ext:
-                                await after.channel.send(embed=error_embed, reference=after)
                             return
-
                         file_data = await resp.read()
                         file_hash = hashlib.sha256(file_data).hexdigest()
-                        print(f"[DEBUG] Archivo hash: {file_hash}")
-
                         content_type = resp.headers.get('Content-Type', '')
                         if archivo.filename.endswith('.jpg') and content_type not in ('image/jpeg', 'image/jpg'):
-                            warning_mime = f"El archivo tiene extensión .jpg pero el tipo real es {content_type}."
+                            warning_mime = f"Extensión .jpg pero tipo real {content_type}"
                         elif archivo.filename.endswith('.png') and content_type != 'image/png':
-                            warning_mime = f"El archivo tiene extensión .png pero el tipo real es {content_type}."
-
-            except Exception as e:
+                            warning_mime = f"Extensión .png pero tipo real {content_type}"
+            except:
                 await safe_remove_loading(after)
-                error_embed = discord.Embed(
-                    title=f"{EMOJI_INCORRECTO} Error",
-                    description="Error al descargar el archivo.",
-                    color=discord.Color.red()
-                )
-                if doble_ext:
-                    error_embed.add_field(name=f"{EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
-                if not silent_mode or doble_ext:
-                    await after.channel.send(embed=error_embed, reference=after)
                 return
 
-            # 2. Caché / DB (por hash)
             clave_hash = f"filehash:{file_hash}"
             tipo, embed = get_from_cache_mem(clave_hash)
             if embed is None:
@@ -1750,7 +1627,6 @@ async def on_message_edit(before, after):
 
             await safe_remove_loading(after)
             if embed is not None:
-                print(f"[DEBUG] Archivo en caché: {tipo}")
                 embed = embed.copy()
                 if doble_ext and not any("Doble extensión" in field.name for field in embed.fields):
                     embed.add_field(name=f"{EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
@@ -1761,8 +1637,6 @@ async def on_message_edit(before, after):
                     if tipo == "malicioso":
                         registrar_infraccion(guild_id, after.author.id, f"filehash:{file_hash}")
                         await safe_add_reaction(after, EMOJI_WARNING)
-                        if log_channel_id:
-                            await enviar_log_guild(guild_id, "Archivo", archivo.filename, "Amenaza detectada en edición (cache)", after.author, elemento_id=f"filehash:{file_hash}")
                     else:
                         await safe_add_reaction(after, EMOJI_CORRECTO)
                     await after.channel.send(embed=embed, reference=after)
@@ -1771,13 +1645,11 @@ async def on_message_edit(before, after):
                     await after.channel.send(embed=embed, reference=after)
                 else:
                     await safe_add_reaction(after, EMOJI_CORRECTO if tipo == "seguro" else EMOJI_INCORRECTO)
-
                 if tipo == "malicioso" and strict_mode:
                     try: await after.delete()
                     except: pass
                 return
 
-            # 3. Análisis fresco con VT
             await safe_add_reaction(after, EMOJI_LOADING)
             tipo, embed = await analizar_archivo(archivo, file_bytes=file_data, file_hash=file_hash, guild_id=guild_id, mensaje_original=after, guardar_cache=True)
             await safe_remove_loading(after)
@@ -1790,8 +1662,6 @@ async def on_message_edit(before, after):
             if tipo == "malicioso" or doble_ext:
                 if tipo == "malicioso":
                     await safe_add_reaction(after, EMOJI_WARNING)
-                    if log_channel_id:
-                        await enviar_log_guild(guild_id, "Archivo", archivo.filename, "Amenaza detectada en edición", after.author, elemento_id=f"filehash:{file_hash}")
                 else:
                     await safe_add_reaction(after, EMOJI_CORRECTO)
                 await after.channel.send(embed=embed, reference=after)
