@@ -1,5 +1,5 @@
 # Threat - Sistema de seguridad para Discord
-# Versión optimizada con caché ahorrativa, silent mode estricto, ediciones seguras y logs robustos
+# Versión con embudo de ahorro máximo (Nivel 0: RAM, Nivel 1: DB metadatos, Nivel 2: descarga + API)
 
 import discord
 from discord.ext import commands
@@ -380,6 +380,41 @@ def get_from_cache_mem(key):
 
 def set_cache_mem(key, tipo, embed):
     cache_mem[key] = (tipo, embed, time.time())
+
+# ========== NUEVA FUNCIÓN AUXILIAR: Obtener hash desde metadatos ==========
+def obtener_hash_desde_metadatos(clave_metadatos):
+    """
+    Busca en la DB un registro de metadatos (nombre+size) que contenga el hash real.
+    Devuelve el hash (str) o None si no existe.
+    """
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    now = time.time()
+    c.execute('SELECT resultado, expira FROM analisis WHERE clave = ?', (clave_metadatos,))
+    row = c.fetchone()
+    conn.close()
+    if row:
+        resultado, expira = row
+        if now < expira:
+            # resultado es una cadena json que contiene el hash
+            try:
+                data = json.loads(resultado)
+                return data.get("hash")
+            except:
+                return None
+    return None
+
+def guardar_metadatos_hash(clave_metadatos, file_hash):
+    """Guarda en DB la relación nombre+size -> hash."""
+    data = json.dumps({"hash": file_hash})
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    now = time.time()
+    expira = now + EXPIRACION.get("file", 30*24*3600)
+    c.execute('''INSERT OR REPLACE INTO analisis (clave, tipo, resultado, embed_json, timestamp, expira) VALUES (?, ?, ?, ?, ?, ?)''', 
+              (clave_metadatos, "metadata", data, None, now, expira))
+    conn.commit()
+    conn.close()
 
 # ========== FUNCIONES AUXILIARES ==========
 def es_imagen(archivo: discord.Attachment) -> bool:
@@ -842,9 +877,9 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
                                 if guardar_cache:
                                     guardar_analisis_db(clave, "file", "malicioso", embed)
                                     set_cache_mem(clave, "malicioso", embed)
-                                    clave_nombre = f"file:{archivo.filename}:{archivo.size}"
-                                    guardar_analisis_db(clave_nombre, "file", "malicioso", embed)
-                                    set_cache_mem(clave_nombre, "malicioso", embed)
+                                    # 🆕 Guardar metadatos nombre+size -> hash
+                                    clave_meta = f"file:{archivo.filename}:{archivo.size}"
+                                    guardar_metadatos_hash(clave_meta, file_hash)
                                 return "malicioso", embed, mal
                             else:
                                 if guild_id: update_stats_guild(guild_id, "seguro")
@@ -856,9 +891,8 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
                                 if guardar_cache:
                                     guardar_analisis_db(clave, "file", "seguro", embed)
                                     set_cache_mem(clave, "seguro", embed)
-                                    clave_nombre = f"file:{archivo.filename}:{archivo.size}"
-                                    guardar_analisis_db(clave_nombre, "file", "seguro", embed)
-                                    set_cache_mem(clave_nombre, "seguro", embed)
+                                    clave_meta = f"file:{archivo.filename}:{archivo.size}"
+                                    guardar_metadatos_hash(clave_meta, file_hash)
                                 return "seguro", embed, 0
                         else:
                             if guild_id: update_stats_guild(guild_id, "error")
@@ -1016,6 +1050,7 @@ async def on_message(message):
             await bot.process_commands(message)
             return
 
+        # --- Una sola URL (imagen o no) ---
         if len(todas_urls) == 1:
             url = todas_urls[0]
             if url_es_imagen(url):
@@ -1048,6 +1083,7 @@ async def on_message(message):
                                 is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(content_hash, img_data)
                                 await safe_remove_loading(message)
 
+                                # Guardar metadatos nombre+size -> hash para imágenes (aunque sea URL, no tenemos nombre; omitimos)
                                 if models.get("error") == "too_large":
                                     await safe_add_reaction(message, EMOJI_WARNING)
                                     if not silent_mode:
@@ -1107,6 +1143,7 @@ async def on_message(message):
                 await bot.process_commands(message)
                 return
             else:
+                # URL no imagen (código existente)
                 url_original = url
                 url = await expandir_url(url)
                 clave = f"url:{url_original}"
@@ -1172,7 +1209,7 @@ async def on_message(message):
                 await bot.process_commands(message)
                 return
 
-        # --- MÚLTIPLES URLs (código ya existente, sin cambios) ---
+        # --- MÚLTIPLES URLs (sin cambios) ---
         await safe_add_reaction(message, EMOJI_LOADING)
         todas_urls = list(dict.fromkeys(todas_urls))
         urls_a_analizar = todas_urls[:5]
@@ -1281,7 +1318,7 @@ async def on_message(message):
         await bot.process_commands(message)
         return
 
-    # ========== ADJUNTOS MÚLTIPLES ==========
+    # ========== ADJUNTOS MÚLTIPLES (AHORRO MÁXIMO) ==========
     if message.attachments:
         total_adjuntos = len(message.attachments)
         adjuntos_a_procesar = message.attachments[:5]
@@ -1299,22 +1336,35 @@ async def on_message(message):
         resultados_imagenes = []   # (filename, tipo, models, content_hash)
         resultados_archivos = []   # (filename, tipo, mal, file_hash, warning_mime)
 
-        # --- Procesar imágenes (NSFW) ---
+        # --- Procesar imágenes (NSFW) con ahorro máximo ---
         for img in imagenes:
             if img.size > MAX_IMAGE_SIZE:
                 resultados_imagenes.append((img.filename, "error", {"error": "too_large"}, ""))
                 continue
 
-            # Verificar caché de nombre/tamaño (ahorrativa)
-            cache_key = f"nsfw_filename:{img.filename}:{img.size}"
-            tipo_cache, _ = get_from_cache_mem(cache_key)
-            if tipo_cache is None:
-                tipo_cache, _ = obtener_analisis_db(cache_key)
-            if tipo_cache is not None:
-                # Si ya existe caché, usamos el hash precalculado? No, necesitamos el hash real. Pero podemos guardar el hash junto con el resultado.
-                # Para simplicidad, descargamos igual porque necesitamos el content_hash para infracciones.
-                pass  # Seguimos con la descarga
+            # Nivel 0: Caché en RAM de metadatos
+            clave_meta = f"nsfw_filename:{img.filename}:{img.size}"
+            tipo_meta, embed_meta = get_from_cache_mem(clave_meta)
+            if embed_meta is not None:
+                try:
+                    content_hash = json.loads(tipo_meta).get("hash")
+                    if content_hash:
+                        is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(content_hash, b"")  # bytes vacíos porque no se descargará si está en caché
+                        if from_cache:
+                            resultados_imagenes.append((img.filename, "nsfw" if is_nsfw else "seguro", models, content_hash))
+                            continue
+                except:
+                    pass
 
+            # Nivel 1: DB de metadatos
+            content_hash = obtener_hash_desde_metadatos(clave_meta)
+            if content_hash:
+                is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(content_hash, b"")
+                if from_cache:
+                    resultados_imagenes.append((img.filename, "nsfw" if is_nsfw else "seguro", models, content_hash))
+                    continue
+
+            # Nivel 2: Descarga y análisis
             try:
                 headers = {"Authorization": f"Bot {TOKEN}"}
                 async with aiohttp.ClientSession() as session:
@@ -1331,14 +1381,14 @@ async def on_message(message):
                         if is_nsfw and guild_id:
                             registrar_infraccion(guild_id, message.author.id, f"nsfw:{content_hash}")
                         resultados_imagenes.append((img.filename, "nsfw" if is_nsfw else "seguro", models, content_hash))
-                        # Guardar caché por nombre/tamaño (con tipo)
-                        dummy_embed = discord.Embed(title="cache")
-                        guardar_analisis_db(cache_key, "nsfw", "nsfw" if is_nsfw else "seguro", dummy_embed)
-                        set_cache_mem(cache_key, "nsfw" if is_nsfw else "seguro", dummy_embed)
+                        # Guardar metadatos
+                        dummy_embed = discord.Embed(title="NSFW Meta")
+                        set_cache_mem(clave_meta, json.dumps({"hash": content_hash}), dummy_embed)
+                        guardar_metadatos_hash(clave_meta, content_hash)
             except:
                 resultados_imagenes.append((img.filename, "error", {}, ""))
 
-        # --- Procesar otros archivos (VirusTotal) ---
+        # --- Procesar otros archivos (VirusTotal) con ahorro máximo ---
         for archivo in otros:
             doble_ext = tiene_doble_extension(archivo.filename)
             warning_mime = ""
@@ -1349,24 +1399,43 @@ async def on_message(message):
                 resultados_archivos.append((archivo.filename, "error", 0, "", ""))
                 continue
 
-            # Caché ahorrativa: buscar por nombre/tamaño
-            cache_clave_nombre = f"file:{archivo.filename}:{archivo.size}"
-            tipo_cache, embed_cache = get_from_cache_mem(cache_clave_nombre)
-            if embed_cache is None:
-                tipo_cache, embed_cache = obtener_analisis_db(cache_clave_nombre)
-
-            if embed_cache is not None:
-                # Ya tenemos resultado; no descargamos
-                if tipo_cache == "malicioso":
-                    registrar_infraccion(guild_id, message.author.id, f"filehash:{embed_cache.footer.text}" if embed_cache.footer.text else "")  # Necesitamos el hash real. Mejor almacenar hash junto con el resultado.
-                    # Para no complicar, descargamos igual para obtener hash. O podemos ignorar este intento de ahorro por nombre/tamaño y seguir con descarga.
-                    # Optamos por descargar igual, ya que necesitamos el hash exacto para el elemento_id de infracciones y logs.
+            # Nivel 0: RAM metadatos
+            clave_meta = f"file:{archivo.filename}:{archivo.size}"
+            tipo_meta, embed_meta = get_from_cache_mem(clave_meta)
+            if embed_meta is not None:
+                try:
+                    file_hash = json.loads(tipo_meta).get("hash")
+                    if file_hash:
+                        clase_hash = f"filehash:{file_hash}"
+                        tipo, embed = get_from_cache_mem(clase_hash)
+                        if embed is None:
+                            tipo, embed = obtener_analisis_db(clase_hash)
+                            if embed is not None:
+                                set_cache_mem(clase_hash, tipo, embed)
+                        if embed is not None:
+                            if tipo == "malicioso":
+                                registrar_infraccion(guild_id, message.author.id, f"filehash:{file_hash}")
+                            resultados_archivos.append((archivo.filename, tipo, 0, file_hash, warning_mime))
+                            continue
+                except:
                     pass
-                else:
-                    # Podemos usar el embed directamente, pero sin hash no podemos dar elemento_id preciso.
-                    # Por simplicidad, seguiremos con la descarga para obtener el hash real.
-                    pass
 
+            # Nivel 1: DB metadatos
+            file_hash = obtener_hash_desde_metadatos(clave_meta)
+            if file_hash:
+                clase_hash = f"filehash:{file_hash}"
+                tipo, embed = get_from_cache_mem(clase_hash)
+                if embed is None:
+                    tipo, embed = obtener_analisis_db(clase_hash)
+                    if embed is not None:
+                        set_cache_mem(clase_hash, tipo, embed)
+                if embed is not None:
+                    if tipo == "malicioso":
+                        registrar_infraccion(guild_id, message.author.id, f"filehash:{file_hash}")
+                    resultados_archivos.append((archivo.filename, tipo, 0, file_hash, warning_mime))
+                    continue
+
+            # Nivel 2: Descarga y análisis
             headers = {"Authorization": f"Bot {TOKEN}"}
             try:
                 async with aiohttp.ClientSession() as session:
@@ -1387,7 +1456,6 @@ async def on_message(message):
                 resultados_archivos.append((archivo.filename, "error", 0, "", ""))
                 continue
 
-            # Caché por hash (más precisa)
             clase_hash = f"filehash:{file_hash}"
             tipo, embed = get_from_cache_mem(clase_hash)
             if embed is None:
@@ -1432,13 +1500,7 @@ async def on_message(message):
                 seguros += 1
             else:
                 errores += 1
-            if tiene_doble_extension(filename):  # pero filename no está disponible aquí; usamos el nombre de archivo del resultado que ya tenemos. Deberíamos tener el filename en la tupla. Lo añadimos.
-                has_doble_ext = True
 
-        # Para simplificar, asumimos que el bucle de arriba ya tiene los filenames. Reconstruiremos has_doble_ext después.
-
-        # Recalculamos con los resultados completos:
-        has_doble_ext = False
         for info in resultados_archivos:
             filename = info[0]
             if tiene_doble_extension(filename):
@@ -1489,14 +1551,13 @@ async def on_message(message):
 
         # Logs individuales con elemento_id correcto
         if log_channel_id:
-            for _, tipo, _, content_hash in resultados_imagenes:
+            for filename, tipo, models, content_hash in resultados_imagenes:
                 if tipo == "nsfw" and content_hash:
                     await enviar_log_guild(guild_id, "Imagen NSFW (múltiples)", filename, "Detectado en análisis múltiple", message.author, elemento_id=f"nsfw:{content_hash}")
             for filename, tipo, mal, file_hash, wm in resultados_archivos:
                 if tipo == "malicioso" and file_hash:
                     await enviar_log_guild(guild_id, "Archivo (múltiples)", filename, f"{mal} detecciones", message.author, elemento_id=f"filehash:{file_hash}")
 
-        # Enviar resumen (respetando modo silencioso)
         if maliciosos > 0 or nsfw > 0 or not silent_mode:
             try:
                 await message.channel.send(embed=embed_resumen, reference=message)
@@ -1510,7 +1571,6 @@ async def on_message(message):
         else:
             await safe_add_reaction(message, EMOJI_CORRECTO)
 
-        # Modo estricto reforzado (incluye doble extensión)
         if (maliciosos > 0 or has_doble_ext) and strict_mode:
             try:
                 await message.delete()
@@ -1551,7 +1611,7 @@ async def on_message_edit(before, after):
         if dominio in whitelist:
             return
 
-        # Ahora procesamos también imágenes
+        # Procesar imagen en edición
         if url_es_imagen(url):
             await safe_add_reaction(after, EMOJI_LOADING)
             headers = {"Authorization": f"Bot {TOKEN}"}
@@ -1632,7 +1692,7 @@ async def on_message_edit(before, after):
                     await after.channel.send(embed=embed, reference=after)
             return
 
-        # URL no imagen
+        # URL no imagen (código existente)
         url_original = url
         url = await expandir_url(url)
         clave = f"url:{url_original}"
@@ -1698,7 +1758,7 @@ async def on_message_edit(before, after):
         else:
             await safe_add_reaction(after, EMOJI_CORRECTO if tipo == "seguro" else EMOJI_INCORRECTO)
 
-    # --- Archivos añadidos en la edición (incluye imágenes) ---
+    # --- Adjuntos añadidos en edición (imagen o archivo) con ahorro máximo ---
     if after.attachments and not before.attachments:
         archivo = after.attachments[0]
         ahora = time.time()
@@ -1715,8 +1775,8 @@ async def on_message_edit(before, after):
         bot.antispam_scan[user_id] = ahora
         bot.user_scan_history[user_id].append(ahora)
 
+        # Para imagen, aplicar ahorro máximo
         if es_imagen(archivo):
-            # Procesar imagen en edición
             await safe_add_reaction(after, EMOJI_LOADING)
             if archivo.size > MAX_IMAGE_SIZE:
                 await safe_remove_loading(after)
@@ -1725,6 +1785,50 @@ async def on_message_edit(before, after):
                     embed = discord.Embed(title=f"{EMOJI_INCORRECTO} Imagen demasiado grande", description="No se puede analizar (>2 MB)", color=discord.Color.red())
                     await after.channel.send(embed=embed, reference=after)
                 return
+
+            # Nivel 0/1: Metadatos
+            clave_meta = f"nsfw_filename:{archivo.filename}:{archivo.size}"
+            content_hash = None
+            tipo_meta, embed_meta = get_from_cache_mem(clave_meta)
+            if embed_meta is not None:
+                try:
+                    content_hash = json.loads(tipo_meta).get("hash")
+                except:
+                    pass
+            if not content_hash:
+                content_hash = obtener_hash_desde_metadatos(clave_meta)
+
+            if content_hash:
+                is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(content_hash, b"")
+                if from_cache:
+                    await safe_remove_loading(after)
+                    if is_nsfw:
+                        if guild_id:
+                            registrar_infraccion(guild_id, after.author.id, f"nsfw:{content_hash}")
+                        await safe_add_reaction(after, EMOJI_WARNING)
+                        detectados = []
+                        if models.get('nudity', 0.0) >= 0.5: detectados.append(f"Desnudez {models['nudity']*100:.0f}%")
+                        if models.get('weapon', 0.0) >= 0.5: detectados.append(f"Armas {models['weapon']*100:.0f}%")
+                        if models.get('offensive', 0.0) >= 0.7: detectados.append(f"Ofensivo {models['offensive']*100:.0f}%")
+                        if models.get('alcohol', 0.0) >= 0.7: detectados.append(f"Alcohol {models['alcohol']*100:.0f}%")
+                        detalles_str = ", ".join(detectados) if detectados else "Contenido inapropiado"
+                        embed = discord.Embed(title=f"{EMOJI_WARNING} Contenido Inapropiado (Edición)", description=f"{detalles_str}", color=discord.Color.orange())
+                        embed.add_field(name="Archivo", value=archivo.filename, inline=False)
+                        await after.channel.send(embed=embed, reference=after)
+                        if log_channel_id:
+                            await enviar_log_guild(guild_id, "Imagen NSFW (edición)", archivo.filename, detalles_str, after.author, elemento_id=f"nsfw:{content_hash}")
+                        if strict_mode:
+                            try: await after.delete()
+                            except: pass
+                    else:
+                        await safe_add_reaction(after, EMOJI_CORRECTO)
+                        if not silent_mode:
+                            embed = discord.Embed(title=f"{EMOJI_CORRECTO} Imagen Segura (Edición)", description="No se detectó contenido inapropiado.", color=discord.Color.green())
+                            embed.add_field(name="Archivo", value=archivo.filename, inline=False)
+                            await after.channel.send(embed=embed, reference=after)
+                    return
+
+            # Nivel 2: Descarga
             try:
                 headers = {"Authorization": f"Bot {TOKEN}"}
                 async with aiohttp.ClientSession() as session:
@@ -1743,6 +1847,10 @@ async def on_message_edit(before, after):
                         content_hash = hashlib.sha256(img_data).hexdigest()
                         is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(content_hash, img_data)
                         await safe_remove_loading(after)
+                        # Guardar metadatos
+                        dummy_embed = discord.Embed(title="NSFW Meta")
+                        set_cache_mem(clave_meta, json.dumps({"hash": content_hash}), dummy_embed)
+                        guardar_metadatos_hash(clave_meta, content_hash)
 
                         if models.get("error") == "too_large":
                             await safe_add_reaction(after, EMOJI_WARNING)
@@ -1795,15 +1903,54 @@ async def on_message_edit(before, after):
                 pass
         await safe_add_reaction(after, EMOJI_LOADING)
 
-        # Caché ahorrativa por nombre/tamaño
-        cache_clave_nombre = f"file:{archivo.filename}:{archivo.size}"
-        tipo_cache, embed_cache = get_from_cache_mem(cache_clave_nombre)
-        if embed_cache is None:
-            tipo_cache, embed_cache = obtener_analisis_db(cache_clave_nombre)
-        if embed_cache is not None:
-            # Podríamos usar el resultado cacheado, pero no tenemos hash. Optamos por descargar.
-            pass
+        # Ahorro máximo para archivo
+        clave_meta = f"file:{archivo.filename}:{archivo.size}"
+        file_hash = None
+        tipo_meta, embed_meta = get_from_cache_mem(clave_meta)
+        if embed_meta is not None:
+            try:
+                file_hash = json.loads(tipo_meta).get("hash")
+            except:
+                pass
+        if not file_hash:
+            file_hash = obtener_hash_desde_metadatos(clave_meta)
 
+        if file_hash:
+            clase_hash = f"filehash:{file_hash}"
+            tipo, embed = get_from_cache_mem(clase_hash)
+            if embed is None:
+                tipo, embed = obtener_analisis_db(clase_hash)
+                if embed is not None:
+                    set_cache_mem(clase_hash, tipo, embed)
+            if embed is not None:
+                embed = embed.copy()
+                if doble_ext and not any("Doble extensión" in field.name for field in embed.fields):
+                    embed.add_field(name=f"{EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
+                if warning_mime and not any("Verificación MIME" in field.name for field in embed.fields):
+                    embed.add_field(name=f"{EMOJI_WARNING} Verificación MIME", value=warning_mime, inline=False)
+
+                await safe_remove_loading(after)
+                if tipo == "malicioso" or doble_ext:
+                    if tipo == "malicioso":
+                        registrar_infraccion(guild_id, after.author.id, f"filehash:{file_hash}")
+                        await safe_add_reaction(after, EMOJI_WARNING)
+                    else:
+                        await safe_add_reaction(after, EMOJI_CORRECTO)
+                    await after.channel.send(embed=embed, reference=after)
+                    if log_channel_id and tipo == "malicioso":
+                        await enviar_log_guild(guild_id, "Archivo (edición)", archivo.filename, "Amenaza detectada en edición (cache)", after.author, elemento_id=f"filehash:{file_hash}")
+                elif not silent_mode:
+                    await safe_add_reaction(after, EMOJI_CORRECTO)
+                    await after.channel.send(embed=embed, reference=after)
+                else:
+                    await safe_add_reaction(after, EMOJI_CORRECTO if tipo == "seguro" else EMOJI_INCORRECTO)
+
+                if (tipo == "malicioso" or doble_ext) and strict_mode:
+                    try: await after.delete()
+                    except: pass
+                return
+
+        # Nivel 2: Descarga
         headers = {"Authorization": f"Bot {TOKEN}"}
         try:
             async with aiohttp.ClientSession() as session:
@@ -1852,7 +1999,6 @@ async def on_message_edit(before, after):
             else:
                 await safe_add_reaction(after, EMOJI_CORRECTO if tipo == "seguro" else EMOJI_INCORRECTO)
 
-            # Strict mode reforzado
             if (tipo == "malicioso" or doble_ext) and strict_mode:
                 try: await after.delete()
                 except: pass
