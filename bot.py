@@ -1,5 +1,5 @@
 # Threat - Sistema de seguridad para Discord
-# Versión con escaneo múltiple de archivos/imágenes, botones en logs y límites reales
+# Versión final con escaneo múltiple, botones en logs y respeto a silent mode
 
 import discord
 from discord.ext import commands
@@ -1287,8 +1287,7 @@ async def on_message(message):
     # ========== ADJUNTOS MÚLTIPLES ==========
     if message.attachments:
         total_adjuntos = len(message.attachments)
-        # Limitar a 5 archivos como máximo para no saturar
-        adjuntos_a_procesar = message.attachments[:5]
+        adjuntos_a_procesar = message.attachments[:5]  # límite para no saturar
 
         imagenes = []
         otros = []
@@ -1300,7 +1299,7 @@ async def on_message(message):
 
         await safe_add_reaction(message, EMOJI_LOADING)
 
-        resultados_imagenes = []   # (filename, is_nsfw, details)
+        resultados_imagenes = []   # (filename, is_nsfw, models dict o info)
         resultados_archivos = []   # (filename, tipo, embed o mensaje)
 
         # --- Procesar imágenes (NSFW) ---
@@ -1386,7 +1385,7 @@ async def on_message(message):
         errores = 0
         nsfw = 0
 
-        for _, tipo, _ in resultados_imagenes:
+        for _, tipo, models in resultados_imagenes:
             if tipo == "nsfw":
                 nsfw += 1
                 maliciosos += 1
@@ -1421,9 +1420,16 @@ async def on_message(message):
         embed_resumen = discord.Embed(title=titulo, description=descripcion, color=color)
 
         campo_archivos = ""
-        for filename, tipo, _ in resultados_imagenes:
+        for filename, tipo, models in resultados_imagenes:
             if tipo == "nsfw":
-                campo_archivos += f"{EMOJI_WARNING} `{filename}` (NSFW)\n"
+                # Añadir detalles de modelos
+                detalles_modelos = []
+                if models.get('nudity', 0.0) >= 0.5: detalles_modelos.append(f"Desnudez {models['nudity']*100:.0f}%")
+                if models.get('weapon', 0.0) >= 0.5: detalles_modelos.append(f"Armas {models['weapon']*100:.0f}%")
+                if models.get('offensive', 0.0) >= 0.7: detalles_modelos.append(f"Ofensivo {models['offensive']*100:.0f}%")
+                if models.get('alcohol', 0.0) >= 0.7: detalles_modelos.append(f"Alcohol {models['alcohol']*100:.0f}%")
+                detalle_str = ", ".join(detalles_modelos) if detalles_modelos else "Contenido inapropiado"
+                campo_archivos += f"{EMOJI_WARNING} `{filename}` (NSFW: {detalle_str})\n"
             elif tipo == "seguro":
                 campo_archivos += f"{EMOJI_CORRECTO} `{filename}` (imagen)\n"
             else:
@@ -1448,11 +1454,12 @@ async def on_message(message):
                 if tipo == "nsfw":
                     await enviar_log_guild(guild_id, "Imagen NSFW (múltiples)", filename, "Detectado en análisis múltiple", message.author)
 
-        # Enviar resumen
-        try:
-            await message.channel.send(embed=embed_resumen, reference=message)
-        except (discord.HTTPException, discord.NotFound):
-            await message.channel.send(embed=embed_resumen)
+        # Enviar resumen (respetando modo silencioso)
+        if maliciosos > 0 or nsfw > 0 or not silent_mode:
+            try:
+                await message.channel.send(embed=embed_resumen, reference=message)
+            except (discord.HTTPException, discord.NotFound):
+                await message.channel.send(embed=embed_resumen)
 
         # Reacción según resultado
         if maliciosos > 0:
@@ -1462,7 +1469,7 @@ async def on_message(message):
         else:
             await safe_add_reaction(message, EMOJI_CORRECTO)
 
-        # Modo estricto
+        # Modo estricto (solo elimina el mensaje si hay amenazas)
         if maliciosos > 0 and strict_mode:
             try:
                 await message.delete()
