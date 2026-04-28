@@ -2,7 +2,6 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import hashlib
-import aiohttp
 import asyncio
 
 class AnalisisCog(commands.Cog):
@@ -59,7 +58,7 @@ class AnalisisCog(commands.Cog):
         # 1. Revisar Caché (Memoria y DB)
         tipo_res, embed = self.bot.get_from_cache_mem(clave)
         if embed is None:
-            tipo_res, embed = self.bot.obtener_analisis_db(clave)
+            tipo_res, embed = await self.bot.obtener_analisis_db(clave)      # ← await añadido
             if embed is not None:
                 self.bot.set_cache_mem(clave, tipo_res, embed)
 
@@ -70,10 +69,8 @@ class AnalisisCog(commands.Cog):
                     value=f"Original: `{url_original}`\nExpandida: `{valor}`",
                     inline=False
                 )
-            # Trabajar sobre una copia del embed para no alterar la caché
             embed = embed.copy()
 
-            # Añadir advertencia de doble extensión si procede (solo si no existe)
             if tipo.value == "file" and archivo is not None:
                 if self.bot.tiene_doble_extension(archivo.filename):
                     if not any("Doble extensión" in field.name for field in embed.fields):
@@ -85,9 +82,9 @@ class AnalisisCog(commands.Cog):
             await interaction.edit_original_response(content=None, embed=embed)
             return
 
-        # 2. Análisis real
+        # 2. Análisis real (ahora devuelven 3 valores: tipo, embed, mal)
         if tipo.value == "url":
-            _, embed = await self.bot.analizar_url(valor, guild_id=guild_id, guardar_cache=True)
+            tipo_res, embed, _ = await self.bot.analizar_url(valor, guild_id=guild_id, guardar_cache=True)
             if expanded and expanded != url_original:
                 embed.add_field(
                     name=f"{self.bot.EMOJI_REPLY} Redirección",
@@ -95,41 +92,36 @@ class AnalisisCog(commands.Cog):
                     inline=False
                 )
         elif tipo.value == "ip":
-            _, embed = await self.bot.analizar_ip(valor, guild_id=guild_id, guardar_cache=True)
+            tipo_res, embed, _ = await self.bot.analizar_ip(valor, guild_id=guild_id, guardar_cache=True)
         elif tipo.value == "hash":
-            _, embed = await self.bot.analizar_hash(valor, guild_id=guild_id, guardar_cache=True)
+            tipo_res, embed, _ = await self.bot.analizar_hash(valor, guild_id=guild_id, guardar_cache=True)
         elif tipo.value == "file":
-            # Flag para doble extensión
             doble_ext = self.bot.tiene_doble_extension(archivo.filename)
-
-            # Descargar y verificar MIME
             warning_mime = ""
             try:
                 headers = {"Authorization": f"Bot {self.bot.TOKEN}"}
-                timeout = aiohttp.ClientTimeout(total=30)
-                async with aiohttp.ClientSession(timeout=timeout) as session:
-                    async with session.get(archivo.url, headers=headers) as resp:
-                        if resp.status != 200:
-                            embed = discord.Embed(
-                                title=f"{self.bot.EMOJI_INCORRECTO} Error",
-                                description="No se pudo descargar el archivo.",
-                                color=discord.Color.red()
-                            )
-                            if doble_ext:
-                                embed.add_field(name=f"{self.bot.EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
-                            await interaction.edit_original_response(content=None, embed=embed)
-                            return
-                        file_bytes = await resp.read()
-                        file_hash = hashlib.sha256(file_bytes).hexdigest()
+                # Usar la sesión global del bot
+                async with self.bot.session.get(archivo.url, headers=headers) as resp:
+                    if resp.status != 200:
+                        embed = discord.Embed(
+                            title=f"{self.bot.EMOJI_INCORRECTO} Error",
+                            description="No se pudo descargar el archivo.",
+                            color=discord.Color.red()
+                        )
+                        if doble_ext:
+                            embed.add_field(name=f"{self.bot.EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
+                        await interaction.edit_original_response(content=None, embed=embed)
+                        return
+                    file_bytes = await resp.read()
+                    file_hash = hashlib.sha256(file_bytes).hexdigest()
 
-                        # Verificación MIME vs extensión
-                        content_type = resp.headers.get('Content-Type', '')
-                        if archivo.filename.lower().endswith('.jpg') or archivo.filename.lower().endswith('.jpeg'):
-                            if content_type not in ('image/jpeg', 'image/jpg'):
-                                warning_mime = f"El archivo tiene extensión .jpg pero el tipo real es `{content_type}`."
-                        elif archivo.filename.lower().endswith('.png'):
-                            if content_type != 'image/png':
-                                warning_mime = f"El archivo tiene extensión .png pero el tipo real es `{content_type}`."
+                    content_type = resp.headers.get('Content-Type', '')
+                    if archivo.filename.lower().endswith('.jpg') or archivo.filename.lower().endswith('.jpeg'):
+                        if content_type not in ('image/jpeg', 'image/jpg'):
+                            warning_mime = f"El archivo tiene extensión .jpg pero el tipo real es `{content_type}`."
+                    elif archivo.filename.lower().endswith('.png'):
+                        if content_type != 'image/png':
+                            warning_mime = f"El archivo tiene extensión .png pero el tipo real es `{content_type}`."
 
             except Exception as e:
                 embed = discord.Embed(
@@ -142,19 +134,17 @@ class AnalisisCog(commands.Cog):
                 await interaction.edit_original_response(content=None, embed=embed)
                 return
 
-            # Llamar a analizar_archivo con los bytes y hash ya calculados
-            _, embed = await self.bot.analizar_archivo(
+            # analizar_archivo ahora devuelve (tipo, embed, mal)
+            tipo_res, embed, _ = await self.bot.analizar_archivo(
                 archivo, file_bytes=file_bytes, file_hash=file_hash,
                 guild_id=guild_id, guardar_cache=True
             )
 
-            # Añadir advertencias al embed del resultado
             if doble_ext:
                 embed.add_field(name=f"{self.bot.EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
             if warning_mime:
                 embed.add_field(name=f"{self.bot.EMOJI_WARNING} Verificación MIME", value=warning_mime, inline=False)
 
-            # Mostrar el resultado final (ya incluye advertencias si las hay)
             await interaction.edit_original_response(content=None, embed=embed)
             return
 

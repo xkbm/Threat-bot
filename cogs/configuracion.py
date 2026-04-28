@@ -16,7 +16,7 @@ class ConfiguracionCog(commands.Cog):
             return
         config = self.bot.obtener_config_guild(interaction.guild.id)
         config["silent_mode"] = estado
-        self.bot.guardar_datos()
+        await self.bot.guardar_datos()                          # ← await añadido
         await interaction.followup.send(f"{self.bot.EMOJI_CORRECTO} Modo silencioso {'activado' if estado else 'desactivado'}.", ephemeral=True)
 
     @app_commands.command(name="strictmode", description="Activa/desactiva el modo estricto (solo admins)")
@@ -29,7 +29,7 @@ class ConfiguracionCog(commands.Cog):
             return
         config = self.bot.obtener_config_guild(interaction.guild.id)
         config["strict_mode"] = estado
-        self.bot.guardar_datos()
+        await self.bot.guardar_datos()                          # ← await añadido
         await interaction.followup.send(f"{self.bot.EMOJI_CORRECTO} Modo estricto {'activado' if estado else 'desactivado'}.", ephemeral=True)
 
     @app_commands.command(name="setlogchannel", description="Establece el canal para logs de amenazas (solo admins)")
@@ -42,7 +42,7 @@ class ConfiguracionCog(commands.Cog):
             return
         config = self.bot.obtener_config_guild(interaction.guild.id)
         config["log_channel_id"] = canal.id
-        self.bot.guardar_datos()
+        await self.bot.guardar_datos()                          # ← await añadido
         await interaction.followup.send(f"{self.bot.EMOJI_CORRECTO} Canal de logs establecido a {canal.mention}.", ephemeral=True)
 
     @app_commands.command(name="disablelogchannel", description="Desactiva el envío de logs (solo admins)")
@@ -54,7 +54,7 @@ class ConfiguracionCog(commands.Cog):
             return
         config = self.bot.obtener_config_guild(interaction.guild.id)
         config["log_channel_id"] = None
-        self.bot.guardar_datos()
+        await self.bot.guardar_datos()                          # ← await añadido
         await interaction.followup.send(f"{self.bot.EMOJI_CORRECTO} Logs desactivados.", ephemeral=True)
 
 async def setup(bot):
