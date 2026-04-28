@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from urllib.parse import urlparse
+import asyncio
 
 # ========== DOMINIOS PROTEGIDOS (NO ELIMINABLES) ==========
 DOMINIOS_PROTEGIDOS = [
@@ -19,13 +19,14 @@ class WhitelistCog(commands.Cog):
         config = self.bot.obtener_config_guild(guild_id)
         if "whitelist" not in config:
             config["whitelist"] = DOMINIOS_PROTEGIDOS.copy()
-            self.bot.guardar_datos()
+            # guardar_datos es async, lo programamos sin esperar
+            asyncio.create_task(self.bot.guardar_datos())
         return config["whitelist"]
 
-    def guardar_whitelist(self, guild_id, whitelist):
+    async def guardar_whitelist(self, guild_id, whitelist):
         config = self.bot.obtener_config_guild(guild_id)
         config["whitelist"] = whitelist
-        self.bot.guardar_datos()
+        await self.bot.guardar_datos()
 
     @app_commands.command(name="whitelist", description="Gestiona la lista de dominios seguros (solo admins)")
     @app_commands.default_permissions(administrator=True)
@@ -50,7 +51,7 @@ class WhitelistCog(commands.Cog):
                 await interaction.response.send_message(f"{self.bot.EMOJI_INCORRECTO} `{dominio}` ya está en la whitelist.", ephemeral=True)
                 return
             whitelist.append(dominio)
-            self.guardar_whitelist(interaction.guild.id, whitelist)
+            await self.guardar_whitelist(interaction.guild.id, whitelist)
             await interaction.response.send_message(f"{self.bot.EMOJI_CORRECTO} Dominio `{dominio}` añadido a la whitelist.", ephemeral=True)
 
         elif accion.value == "remove":
@@ -65,7 +66,7 @@ class WhitelistCog(commands.Cog):
                 await interaction.response.send_message(f"{self.bot.EMOJI_WARNING} `{dominio}` es un dominio protegido y no puede eliminarse.", ephemeral=True)
                 return
             whitelist.remove(dominio)
-            self.guardar_whitelist(interaction.guild.id, whitelist)
+            await self.guardar_whitelist(interaction.guild.id, whitelist)
             await interaction.response.send_message(f"{self.bot.EMOJI_CORRECTO} Dominio `{dominio}` eliminado de la whitelist.", ephemeral=True)
 
         elif accion.value == "list":
