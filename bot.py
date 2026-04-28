@@ -1,5 +1,5 @@
-# Threat - Sistema de seguridad para Discord (Refactorizado)
-# Sesión global, función unificada, aiosqlite, reintentos VT, emojis finally, whitelist robusta
+# Threat - Sistema de seguridad para Discord
+# Versión refactorizada final: sesión global, procesar_analisis unificada, aiosqlite, reintentos VT, envío seguro, whitelist mejorada.
 
 import discord
 from discord.ext import commands
@@ -87,21 +87,28 @@ bot = commands.Bot(command_prefix="-", intents=intents, allowed_mentions=discord
 
 # ========== FUNCIONES GLOBALES ==========
 async def safe_remove_loading(msg):
-    """Elimina de forma segura la reacción de carga, ignorando si el mensaje ya no existe."""
     try:
         await msg.remove_reaction(EMOJI_LOADING, bot.user)
     except discord.NotFound:
         pass
 
 async def safe_add_reaction(msg, emoji):
-    """Añade una reacción de forma segura, ignorando si el mensaje ya no existe o no se permite."""
     try:
         await msg.add_reaction(emoji)
     except (discord.NotFound, discord.Forbidden):
         pass
 
+async def safe_send(msg, embed, reference=None):
+    """Envía un embed intentando usar referencia al mensaje; si falla, envía sin referencia."""
+    try:
+        if reference:
+            await msg.channel.send(embed=embed, reference=reference)
+        else:
+            await msg.channel.send(embed=embed)
+    except (discord.HTTPException, discord.NotFound):
+        await msg.channel.send(embed=embed)
+
 def dominio_en_whitelist(dominio: str, whitelist: list) -> bool:
-    """Comprueba si el dominio (sin www.) está en la whitelist de forma robusta."""
     dominio = dominio.lower().strip()
     for d in whitelist:
         d = d.lower().strip()
@@ -172,30 +179,33 @@ def registrar_uso_se(api_key):
     bot.se_key_total_requests[api_key] += 4
     asyncio.create_task(guardar_datos())
 
-# ========== BASE DE DATOS ASÍNCRONA ==========
+# ========== BASE DE DATOS ASÍNCRONA (con soporte para 'mal') ==========
 async def init_db():
     async with aiosqlite.connect(DB_FILE) as db:
         await db.execute('''CREATE TABLE IF NOT EXISTS analisis (clave TEXT PRIMARY KEY, tipo TEXT, resultado TEXT, embed_json TEXT, timestamp REAL, expira REAL)''')
         await db.execute('CREATE INDEX IF NOT EXISTS idx_expira ON analisis(expira)')
         await db.commit()
 
-async def guardar_analisis_db(clave, tipo_analisis, resultado, embed):
+async def guardar_analisis_db(clave, tipo_analisis, resultado, embed, mal=0):
+    """Guarda un registro con tipo, resultado (json con mal) y embed."""
     async with aiosqlite.connect(DB_FILE) as db:
         now = time.time()
         expira = now + EXPIRACION.get(tipo_analisis, 7*24*3600)
         embed_dict = embed.to_dict() if embed else None
         embed_json = json.dumps(embed_dict) if embed_dict else None
+        resultado_json = json.dumps({"tipo": resultado, "mal": mal})
         await db.execute('''INSERT OR REPLACE INTO analisis (clave, tipo, resultado, embed_json, timestamp, expira) VALUES (?, ?, ?, ?, ?, ?)''',
-                        (clave, tipo_analisis, resultado, embed_json, now, expira))
+                         (clave, tipo_analisis, resultado_json, embed_json, now, expira))
         await db.commit()
 
 async def obtener_analisis_db(clave):
+    """Devuelve (tipo, embed, mal) o (None, None, 0)"""
     async with aiosqlite.connect(DB_FILE) as db:
         now = time.time()
         async with db.execute('SELECT resultado, embed_json, expira FROM analisis WHERE clave = ?', (clave,)) as cursor:
             row = await cursor.fetchone()
     if row:
-        resultado, embed_json, expira = row
+        resultado_json, embed_json, expira = row
         if now < expira:
             embed = None
             if embed_json:
@@ -204,8 +214,15 @@ async def obtener_analisis_db(clave):
                     embed = discord.Embed.from_dict(embed_dict)
                 except:
                     pass
-            return resultado, embed
-    return None, None
+            try:
+                data = json.loads(resultado_json)
+                tipo = data.get("tipo")
+                mal = data.get("mal", 0)
+            except:
+                tipo = resultado_json
+                mal = 0
+            return tipo, embed, mal
+    return None, None, 0
 
 async def limpiar_db_expirados():
     async with aiosqlite.connect(DB_FILE) as db:
@@ -233,10 +250,10 @@ async def guardar_metadatos_hash(clave_metadatos, file_hash):
         now = time.time()
         expira = now + EXPIRACION.get("file", 30*24*3600)
         await db.execute('''INSERT OR REPLACE INTO analisis (clave, tipo, resultado, embed_json, timestamp, expira) VALUES (?, ?, ?, ?, ?, ?)''',
-                        (clave_metadatos, "metadata", data, None, now, expira))
+                         (clave_metadatos, "metadata", data, None, now, expira))
         await db.commit()
 
-# ========== JSON SINCRÓNICO (datos pequeños) ==========
+# ========== JSON SINCRÓNICO (configuración) ==========
 guilds_data = {}
 
 def cargar_datos():
@@ -337,21 +354,26 @@ def registrar_infraccion(guild_id, user_id, elemento_id):
     asyncio.create_task(guardar_datos())
     return config["infracciones"][uid]
 
-# Cache en memoria (mismo esquema)
+# ========== CACHÉ EN MEMORIA (con mal) ==========
 cache_mem = {}
 def get_from_cache_mem(key):
     if key in cache_mem:
-        tipo, embed, timestamp = cache_mem[key]
+        tipo, mal, embed, timestamp = cache_mem[key]
         if time.time() - timestamp < CACHE_DURATION:
-            return tipo, embed
+            return tipo, embed, mal
         else:
             del cache_mem[key]
-    return None, None
+    return None, None, 0
 
-def set_cache_mem(key, tipo, embed):
-    cache_mem[key] = (tipo, embed, time.time())
+def set_cache_mem(key, tipo, embed, mal=0):
+    cache_mem[key] = (tipo, mal, embed, time.time())
 
 # ========== FUNCIONES AUXILIARES ==========
+ANTIVIRUS_CONOCIDOS = [
+    "Kaspersky", "McAfee", "Avast", "Norton", "BitDefender", "ESET", "Symantec",
+    "Sophos", "TrendMicro", "AVG", "Panda", "F-Secure", "Malwarebytes", "Windows Defender"
+]
+
 def es_imagen(archivo: discord.Attachment) -> bool:
     extensiones_imagen = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.ico', '.heic', '.heif']
     if any(archivo.filename.lower().endswith(ext) for ext in extensiones_imagen):
@@ -362,8 +384,7 @@ def es_imagen(archivo: discord.Attachment) -> bool:
 
 def url_es_imagen(url: str) -> bool:
     ruta = url.split('?')[0]
-    extensiones_imagen = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.ico', '.heic', '.heif']
-    return any(ruta.lower().endswith(ext) for ext in extensiones_imagen)
+    return any(ruta.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.ico', '.heic', '.heif'])
 
 def obtener_top_antivirus(results):
     detectados = []
@@ -459,7 +480,7 @@ class LogActionView(discord.ui.View):
             child.disabled = True
         await interaction.message.edit(view=self)
 
-# ========== ENVIAR LOG ==========
+# ========== ENVIAR LOG (CON BOTONES) ==========
 async def enviar_log_guild(guild_id, tipo, valor, detalles, usuario, url_vt=None, elemento_id=None):
     config = obtener_config_guild(guild_id)
     log_channel_id = config["log_channel_id"]
@@ -515,7 +536,6 @@ async def analizar_url(url, guild_id=None, mensaje_original=None, guardar_cache=
             if resp.status == 200:
                 data = await resp.json()
                 scan_id = data["data"]["id"]
-                # Reintentos con verificación de estado
                 for _ in range(3):
                     await asyncio.sleep(10)
                     async with bot.session.get(f"https://www.virustotal.com/api/v3/analyses/{scan_id}", headers=headers) as resp2:
@@ -523,19 +543,15 @@ async def analizar_url(url, guild_id=None, mensaje_original=None, guardar_cache=
                             analysis = await resp2.json()
                             status = analysis["data"]["attributes"]["status"]
                             if status == "completed":
-                                stats_data = analysis["data"]["attributes"]["stats"]
-                                mal = stats_data["malicious"]
-                                encoded_url = urllib.parse.quote_plus(url)
-                                vt_link = f"https://www.virustotal.com/gui/home/url?url={encoded_url}"
+                                stats = analysis["data"]["attributes"]["stats"]
+                                mal = stats["malicious"]
+                                encoded = urllib.parse.quote_plus(url)
+                                vt_link = f"https://www.virustotal.com/gui/home/url?url={encoded}"
                                 if mal > 0:
                                     if guild_id: update_stats_guild(guild_id, "malicioso")
                                     if mensaje_original and guild_id:
                                         registrar_infraccion(guild_id, mensaje_original.author.id, f"url:{url}")
-                                    embed = discord.Embed(
-                                        title=f"{EMOJI_WARNING} URL Maliciosa Detectada",
-                                        description=f"Se encontraron **{mal}** detecciones",
-                                        color=discord.Color.orange()
-                                    )
+                                    embed = discord.Embed(title=f"{EMOJI_WARNING} URL Maliciosa Detectada", description=f"Se encontraron **{mal}** detecciones", color=discord.Color.orange())
                                     embed.add_field(name="URL", value=f"`{url}`", inline=False)
                                     embed.add_field(name="\u200b", value=f"{EMOJI_LINK} [Ver informe completo]({vt_link})", inline=False)
                                     if mensaje_original and guild_id:
@@ -546,26 +562,19 @@ async def analizar_url(url, guild_id=None, mensaje_original=None, guardar_cache=
                                             except: pass
                                     if guardar_cache:
                                         clave = f"url:{url}"
-                                        await guardar_analisis_db(clave, "url", "malicioso", embed)
-                                        set_cache_mem(clave, "malicioso", embed)
+                                        await guardar_analisis_db(clave, "url", "malicioso", embed, mal)
+                                        set_cache_mem(clave, "malicioso", embed, mal)
                                     return "malicioso", embed, mal
                                 else:
                                     if guild_id: update_stats_guild(guild_id, "seguro")
-                                    embed = discord.Embed(
-                                        title=f"{EMOJI_CORRECTO} URL Segura",
-                                        description="No se detectaron amenazas",
-                                        color=discord.Color.green()
-                                    )
+                                    embed = discord.Embed(title=f"{EMOJI_CORRECTO} URL Segura", description="No se detectaron amenazas", color=discord.Color.green())
                                     embed.add_field(name="URL", value=f"`{url}`", inline=False)
                                     embed.add_field(name="\u200b", value=f"{EMOJI_LINK} [Ver informe completo]({vt_link})", inline=False)
                                     if guardar_cache:
                                         clave = f"url:{url}"
-                                        await guardar_analisis_db(clave, "url", "seguro", embed)
-                                        set_cache_mem(clave, "seguro", embed)
+                                        await guardar_analisis_db(clave, "url", "seguro", embed, 0)
+                                        set_cache_mem(clave, "seguro", embed, 0)
                                     return "seguro", embed, 0
-                            elif status == "queued":
-                                continue  # reintentar
-                # Si salimos del bucle sin éxito
                 if guild_id: update_stats_guild(guild_id, "error")
                 embed = discord.Embed(title="Error en análisis", description="El análisis no se completó a tiempo.", color=discord.Color.red())
                 return "error", embed, 0
@@ -574,17 +583,17 @@ async def analizar_url(url, guild_id=None, mensaje_original=None, guardar_cache=
                 embed = discord.Embed(title="Error al analizar URL", description="VirusTotal no procesó la solicitud", color=discord.Color.red())
                 if guardar_cache:
                     clave = f"url:{url}"
-                    await guardar_analisis_db(clave, "url", "error", embed)
-                    set_cache_mem(clave, "error", embed)
+                    await guardar_analisis_db(clave, "url", "error", embed, 0)
+                    set_cache_mem(clave, "error", embed, 0)
                 return "error", embed, 0
     except Exception as e:
         if guild_id: update_stats_guild(guild_id, "error")
         print(f"Error en analizar_url: {e}")
-        embed = discord.Embed(title=f"{EMOJI_INCORRECTO} Error de conexión", description="No se pudo contactar con VirusTotal", color=discord.Color.red())
+        embed = discord.Embed(title="Error de conexión", description="No se pudo contactar con VirusTotal", color=discord.Color.red())
         if guardar_cache:
             clave = f"url:{url}"
-            await guardar_analisis_db(clave, "url", "error", embed)
-            set_cache_mem(clave, "error", embed)
+            await guardar_analisis_db(clave, "url", "error", embed, 0)
+            set_cache_mem(clave, "error", embed, 0)
         return "error", embed, 0
 
 async def analizar_hash(hash_valor, guild_id=None, mensaje_original=None, guardar_cache=True):
@@ -597,8 +606,8 @@ async def analizar_hash(hash_valor, guild_id=None, mensaje_original=None, guarda
         async with bot.session.get(f"https://www.virustotal.com/api/v3/files/{hash_valor}", headers=headers) as resp:
             if resp.status == 200:
                 data = await resp.json()
-                stats_data = data["data"]["attributes"]["last_analysis_stats"]
-                mal = stats_data["malicious"]
+                stats = data["data"]["attributes"]["last_analysis_stats"]
+                mal = stats["malicious"]
                 results = data["data"]["attributes"]["last_analysis_results"]
                 vt_link = f"https://www.virustotal.com/gui/file/{hash_valor}"
                 if mal > 0:
@@ -613,13 +622,14 @@ async def analizar_hash(hash_valor, guild_id=None, mensaje_original=None, guarda
                     embed.add_field(name="\u200b", value=f"{EMOJI_LINK} [Ver informe completo]({vt_link})", inline=False)
                     if mensaje_original and guild_id:
                         await enviar_log_guild(guild_id, "Hash", hash_valor, f"{mal} detecciones (top: {top_text})", mensaje_original.author, vt_link, elemento_id=f"hash:{hash_valor}")
-                        if (config := obtener_config_guild(guild_id))["strict_mode"]:
+                        config = obtener_config_guild(guild_id)
+                        if config["strict_mode"]:
                             try: await mensaje_original.delete()
                             except: pass
                     if guardar_cache:
                         clave = f"hash:{hash_valor}"
-                        await guardar_analisis_db(clave, "hash", "malicioso", embed)
-                        set_cache_mem(clave, "malicioso", embed)
+                        await guardar_analisis_db(clave, "hash", "malicioso", embed, mal)
+                        set_cache_mem(clave, "malicioso", embed, mal)
                     return "malicioso", embed, mal
                 else:
                     if guild_id: update_stats_guild(guild_id, "seguro")
@@ -628,25 +638,25 @@ async def analizar_hash(hash_valor, guild_id=None, mensaje_original=None, guarda
                     embed.add_field(name="\u200b", value=f"{EMOJI_LINK} [Ver informe completo]({vt_link})", inline=False)
                     if guardar_cache:
                         clave = f"hash:{hash_valor}"
-                        await guardar_analisis_db(clave, "hash", "seguro", embed)
-                        set_cache_mem(clave, "seguro", embed)
+                        await guardar_analisis_db(clave, "hash", "seguro", embed, 0)
+                        set_cache_mem(clave, "seguro", embed, 0)
                     return "seguro", embed, 0
             else:
                 if guild_id: update_stats_guild(guild_id, "error")
-                embed = discord.Embed(title=f"{EMOJI_INCORRECTO} Hash no encontrado", description="No existe en VirusTotal", color=discord.Color.red())
+                embed = discord.Embed(title="Hash no encontrado", description="No existe en VirusTotal", color=discord.Color.red())
                 if guardar_cache:
                     clave = f"hash:{hash_valor}"
-                    await guardar_analisis_db(clave, "hash", "error", embed)
-                    set_cache_mem(clave, "error", embed)
+                    await guardar_analisis_db(clave, "hash", "error", embed, 0)
+                    set_cache_mem(clave, "error", embed, 0)
                 return "error", embed, 0
     except Exception as e:
         if guild_id: update_stats_guild(guild_id, "error")
         print(f"Error en analizar_hash: {e}")
-        embed = discord.Embed(title=f"{EMOJI_INCORRECTO} Error", description="No se pudo consultar el hash", color=discord.Color.red())
+        embed = discord.Embed(title="Error", description="No se pudo consultar el hash", color=discord.Color.red())
         if guardar_cache:
             clave = f"hash:{hash_valor}"
-            await guardar_analisis_db(clave, "hash", "error", embed)
-            set_cache_mem(clave, "error", embed)
+            await guardar_analisis_db(clave, "hash", "error", embed, 0)
+            set_cache_mem(clave, "error", embed, 0)
         return "error", embed, 0
 
 async def analizar_ip(ip, guild_id=None, mensaje_original=None, guardar_cache=True):
@@ -671,13 +681,14 @@ async def analizar_ip(ip, guild_id=None, mensaje_original=None, guardar_cache=Tr
                     embed.add_field(name="\u200b", value=f"{EMOJI_LINK} [Ver informe completo]({vt_link})", inline=False)
                     if mensaje_original and guild_id:
                         await enviar_log_guild(guild_id, "IP", ip, f"{mal} fuentes reportan", mensaje_original.author, vt_link, elemento_id=f"ip:{ip}")
-                        if (config := obtener_config_guild(guild_id))["strict_mode"]:
+                        config = obtener_config_guild(guild_id)
+                        if config["strict_mode"]:
                             try: await mensaje_original.delete()
                             except: pass
                     if guardar_cache:
                         clave = f"ip:{ip}"
-                        await guardar_analisis_db(clave, "ip", "malicioso", embed)
-                        set_cache_mem(clave, "malicioso", embed)
+                        await guardar_analisis_db(clave, "ip", "malicioso", embed, mal)
+                        set_cache_mem(clave, "malicioso", embed, mal)
                     return "malicioso", embed, mal
                 else:
                     if guild_id: update_stats_guild(guild_id, "seguro")
@@ -686,17 +697,17 @@ async def analizar_ip(ip, guild_id=None, mensaje_original=None, guardar_cache=Tr
                     embed.add_field(name="\u200b", value=f"{EMOJI_LINK} [Ver informe completo]({vt_link})", inline=False)
                     if guardar_cache:
                         clave = f"ip:{ip}"
-                        await guardar_analisis_db(clave, "ip", "seguro", embed)
-                        set_cache_mem(clave, "seguro", embed)
+                        await guardar_analisis_db(clave, "ip", "seguro", embed, 0)
+                        set_cache_mem(clave, "seguro", embed, 0)
                     return "seguro", embed, 0
             else:
                 if guild_id: update_stats_guild(guild_id, "error")
-                embed = discord.Embed(title=f"{EMOJI_INCORRECTO} IP no encontrada", description="No se pudo analizar la IP", color=discord.Color.red())
+                embed = discord.Embed(title="IP no encontrada", description="No se pudo analizar la IP", color=discord.Color.red())
                 return "error", embed, 0
     except Exception as e:
         if guild_id: update_stats_guild(guild_id, "error")
         print(f"Error en analizar_ip: {e}")
-        embed = discord.Embed(title=f"{EMOJI_INCORRECTO} Error", description="No se pudo contactar con VirusTotal", color=discord.Color.red())
+        embed = discord.Embed(title="Error", description="No se pudo contactar con VirusTotal", color=discord.Color.red())
         return "error", embed, 0
 
 async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=None, mensaje_original=None, guardar_cache=True):
@@ -750,13 +761,14 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
                                     )
                                     if mensaje_original and guild_id:
                                         await enviar_log_guild(guild_id, "Archivo", archivo.filename, f"{mal} detecciones", mensaje_original.author, elemento_id=f"filehash:{file_hash}")
-                                        if (config := obtener_config_guild(guild_id))["strict_mode"]:
+                                        config = obtener_config_guild(guild_id)
+                                        if config["strict_mode"]:
                                             try: await mensaje_original.delete()
                                             except: pass
                                     if guardar_cache:
                                         clave = f"filehash:{file_hash}"
-                                        await guardar_analisis_db(clave, "file", "malicioso", embed)
-                                        set_cache_mem(clave, "malicioso", embed)
+                                        await guardar_analisis_db(clave, "file", "malicioso", embed, mal)
+                                        set_cache_mem(clave, "malicioso", embed, mal)
                                         clave_meta = f"file:{archivo.filename}:{archivo.size}"
                                         await guardar_metadatos_hash(clave_meta, file_hash)
                                     return "malicioso", embed, mal
@@ -769,13 +781,11 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
                                     )
                                     if guardar_cache:
                                         clave = f"filehash:{file_hash}"
-                                        await guardar_analisis_db(clave, "file", "seguro", embed)
-                                        set_cache_mem(clave, "seguro", embed)
+                                        await guardar_analisis_db(clave, "file", "seguro", embed, 0)
+                                        set_cache_mem(clave, "seguro", embed, 0)
                                         clave_meta = f"file:{archivo.filename}:{archivo.size}"
                                         await guardar_metadatos_hash(clave_meta, file_hash)
                                     return "seguro", embed, 0
-                            elif analysis["data"]["attributes"]["status"] == "queued":
-                                continue
                 if guild_id: update_stats_guild(guild_id, "error")
                 embed = discord.Embed(title="Error en análisis", description="El análisis no se completó a tiempo.", color=discord.Color.red())
                 return "error", embed, 0
@@ -792,18 +802,18 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
 # ========== ANÁLISIS NSFW MULTIMODELO ==========
 async def analizar_imagen_multimodelo(image_content_hash, image_bytes):
     clave = f"nsfw:{image_content_hash}"
-    tipo, details_json = get_from_cache_mem(clave)
-    if details_json:
+    tipo, embed_cache, mal = get_from_cache_mem(clave)
+    if embed_cache is not None:
         try:
-            details = json.loads(details_json)
+            details = json.loads(tipo) if isinstance(tipo, str) else tipo
             return details["is_nsfw"], details["max_confidence"], details["models"], True
         except:
             pass
-    resultado_db, _ = await obtener_analisis_db(clave)
-    if _:
+    tipo_db, embed_db, mal_db = await obtener_analisis_db(clave)
+    if embed_db is not None:
         try:
-            details = json.loads(resultado_db)
-            set_cache_mem(clave, resultado_db, None)
+            details = json.loads(tipo_db)
+            set_cache_mem(clave, tipo_db, embed_db, mal_db)
             return details["is_nsfw"], details["max_confidence"], details["models"], True
         except:
             pass
@@ -837,8 +847,8 @@ async def analizar_imagen_multimodelo(image_content_hash, image_bytes):
                 cache_details = {"is_nsfw": is_nsfw, "max_confidence": max_confidence, "models": models}
                 cache_json = json.dumps(cache_details)
                 dummy_embed = discord.Embed(title="NSFW Cache")
-                await guardar_analisis_db(clave, "nsfw", cache_json, dummy_embed)
-                set_cache_mem(clave, cache_json, None)
+                await guardar_analisis_db(clave, "nsfw", cache_json, dummy_embed, 1 if is_nsfw else 0)
+                set_cache_mem(clave, cache_json, dummy_embed, 1 if is_nsfw else 0)
                 await guardar_datos()
                 return is_nsfw, max_confidence, models, False
             else:
@@ -846,8 +856,8 @@ async def analizar_imagen_multimodelo(image_content_hash, image_bytes):
                     error_details = {"is_nsfw": False, "max_confidence": 0.0, "models": {}, "error": "sightengine_400"}
                     error_json = json.dumps(error_details)
                     dummy_embed = discord.Embed(title="NSFW Error Cache")
-                    await guardar_analisis_db(clave, "nsfw", error_json, dummy_embed)
-                    set_cache_mem(clave, error_json, None)
+                    await guardar_analisis_db(clave, "nsfw", error_json, dummy_embed, 0)
+                    set_cache_mem(clave, error_json, dummy_embed, 0)
                     return False, 0.0, {"error": "too_large"}, False
     except Exception as e:
         print(f"🔥 Excepción en análisis multimodelo: {e}")
@@ -894,7 +904,7 @@ async def procesar_analisis(message, silent_mode, strict_mode, log_channel_id, w
                             await safe_add_reaction(message, EMOJI_INCORRECTO)
                             if not silent_mode:
                                 embed = discord.Embed(title=f"{EMOJI_INCORRECTO} Imagen demasiado grande", description="No se puede analizar (>2 MB)", color=discord.Color.red())
-                                await message.channel.send(embed=embed, reference=message)
+                                await safe_send(message, embed, reference=message)
                             return
                         img_data = await resp.read()
                         if len(img_data) > MAX_IMAGE_SIZE:
@@ -902,7 +912,7 @@ async def procesar_analisis(message, silent_mode, strict_mode, log_channel_id, w
                             await safe_add_reaction(message, EMOJI_INCORRECTO)
                             if not silent_mode:
                                 embed = discord.Embed(title=f"{EMOJI_INCORRECTO} Imagen demasiado grande", description="No se puede analizar (>2 MB)", color=discord.Color.red())
-                                await message.channel.send(embed=embed, reference=message)
+                                await safe_send(message, embed, reference=message)
                             return
                         content_hash = hashlib.sha256(img_data).hexdigest()
                         is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(content_hash, img_data)
@@ -913,7 +923,7 @@ async def procesar_analisis(message, silent_mode, strict_mode, log_channel_id, w
                     await safe_add_reaction(message, EMOJI_WARNING)
                     if not silent_mode:
                         embed = discord.Embed(title=f"{EMOJI_WARNING} Imagen no analizada", description="Supera el límite de Sightengine", color=discord.Color.orange())
-                        await message.channel.send(embed=embed, reference=message)
+                        await safe_send(message, embed, reference=message)
                     return
 
                 if is_nsfw:
@@ -928,7 +938,7 @@ async def procesar_analisis(message, silent_mode, strict_mode, log_channel_id, w
                     detalles_str = ", ".join(detectados) if detectados else "Contenido inapropiado"
                     embed = discord.Embed(title=f"{EMOJI_WARNING} Contenido Inapropiado Detectado", description=f"{detalles_str}", color=discord.Color.orange())
                     embed.add_field(name="Resultados", value=f"{EMOJI_WARNING} Imagen NSFW\n{detalles_str}", inline=False)
-                    await message.channel.send(embed=embed, reference=message)
+                    await safe_send(message, embed, reference=message)
                     if log_channel_id:
                         await enviar_log_guild(guild_id, "Imagen NSFW", url, detalles_str, message.author, elemento_id=f"nsfw:{content_hash}")
                     if strict_mode:
@@ -939,67 +949,69 @@ async def procesar_analisis(message, silent_mode, strict_mode, log_channel_id, w
                     if not silent_mode:
                         embed = discord.Embed(title=f"{EMOJI_CORRECTO} Imagen Segura", description="No se detectó contenido inapropiado.", color=discord.Color.green())
                         embed.add_field(name="Resultados", value=f"{EMOJI_CORRECTO} Imagen segura", inline=False)
-                        await message.channel.send(embed=embed, reference=message)
+                        await safe_send(message, embed, reference=message)
                 return
             else:
                 # URL no imagen
                 url_original = url
                 url = await expandir_url(url)
                 clave = f"url:{url_original}"
-                tipo, embed = get_from_cache_mem(clave)
+                tipo, embed, mal = get_from_cache_mem(clave)
                 if embed is None:
-                    tipo, embed = await obtener_analisis_db(clave)
+                    tipo, embed, mal = await obtener_analisis_db(clave)
                     if embed is not None:
-                        set_cache_mem(clave, tipo, embed)
+                        set_cache_mem(clave, tipo, embed, mal)
 
                 if embed is not None:
                     if tipo == "malicioso":
                         registrar_infraccion(guild_id, message.author.id, f"url:{url}")
-                        await message.channel.send(embed=embed, reference=message)
+                        await safe_send(message, embed, reference=message)
                         if log_channel_id:
-                            await enviar_log_guild(guild_id, "URL", url, "Amenaza detectada (cache)", message.author, elemento_id=f"url:{url}")
+                            await enviar_log_guild(guild_id, "URL", url, f"{mal} detecciones (cache)", message.author, elemento_id=f"url:{url}")
                         if strict_mode:
                             try: await message.delete()
                             except: pass
                         await safe_add_reaction(message, EMOJI_WARNING)
                     elif tipo == "seguro":
                         if not silent_mode:
-                            await message.channel.send(embed=embed, reference=message)
+                            await safe_send(message, embed, reference=message)
                         await safe_add_reaction(message, EMOJI_CORRECTO)
                     else:
                         if not silent_mode:
-                            await message.channel.send(embed=embed, reference=message)
+                            await safe_send(message, embed, reference=message)
                         await safe_add_reaction(message, EMOJI_INCORRECTO)
                     return
 
                 # Anti-spam
                 ahora = time.time()
                 user_id = message.author.id
-                if user_id in bot.user_scan_history and len(bot.user_scan_history[user_id]) >= 30:
+                bot.user_scan_history.setdefault(user_id, [])
+                bot.user_scan_history[user_id] = [t for t in bot.user_scan_history[user_id] if ahora - t < 3600]
+                if len(bot.user_scan_history[user_id]) >= 30:
                     await safe_add_reaction(message, EMOJI_COOLDOWN)
                     return
                 if user_id in bot.antispam_scan and ahora - bot.antispam_scan[user_id] < 10:
                     await safe_add_reaction(message, EMOJI_COOLDOWN)
                     return
                 bot.antispam_scan[user_id] = ahora
-                bot.user_scan_history.setdefault(user_id, []).append(ahora)
+                bot.user_scan_history[user_id].append(ahora)
 
                 await safe_add_reaction(message, EMOJI_LOADING)
                 try:
-                    tipo, embed, _ = await analizar_url(url, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
+                    tipo, embed, mal = await analizar_url(url, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
                 finally:
                     await safe_remove_loading(message)
 
                 if tipo == "malicioso":
-                    await message.channel.send(embed=embed, reference=message)
+                    await safe_send(message, embed, reference=message)
                     await safe_add_reaction(message, EMOJI_WARNING)
                 elif tipo == "seguro":
                     if not silent_mode:
-                        await message.channel.send(embed=embed, reference=message)
+                        await safe_send(message, embed, reference=message)
                     await safe_add_reaction(message, EMOJI_CORRECTO)
                 else:
                     if not silent_mode:
-                        await message.channel.send(embed=embed, reference=message)
+                        await safe_send(message, embed, reference=message)
                     await safe_add_reaction(message, EMOJI_INCORRECTO)
                 return
 
@@ -1013,13 +1025,13 @@ async def procesar_analisis(message, silent_mode, strict_mode, log_channel_id, w
                 url_original = url
                 url_exp = await expandir_url(url)
                 clave = f"url:{url_original}"
-                tipo, embed = get_from_cache_mem(clave)
+                tipo, embed, mal = get_from_cache_mem(clave)
                 if embed is None:
-                    tipo, embed = await obtener_analisis_db(clave)
+                    tipo, embed, mal = await obtener_analisis_db(clave)
                     if tipo is not None:
-                        set_cache_mem(clave, tipo, embed)
+                        set_cache_mem(clave, tipo, embed, mal)
                 if embed is not None:
-                    resultados.append((url_original, tipo, embed))
+                    resultados.append((url_original, tipo, mal))
                     if tipo == "malicioso":
                         maliciosas += 1
                         registrar_infraccion(guild_id, message.author.id, f"url:{url_exp}")
@@ -1027,8 +1039,8 @@ async def procesar_analisis(message, silent_mode, strict_mode, log_channel_id, w
                     else: errores += 1
                     continue
                 await asyncio.sleep(1)
-                tipo, embed, _ = await analizar_url(url_exp, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
-                resultados.append((url_original, tipo, embed))
+                tipo, embed, mal = await analizar_url(url_exp, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
+                resultados.append((url_original, tipo, mal))
                 if tipo == "malicioso": maliciosas += 1
                 elif tipo == "seguro": seguras += 1
                 else: errores += 1
@@ -1055,7 +1067,7 @@ async def procesar_analisis(message, silent_mode, strict_mode, log_channel_id, w
                 for url_orig, tipo, _ in resultados:
                     if tipo == "malicioso":
                         await enviar_log_guild(guild_id, "URL (múltiples)", url_orig, "Detectado en análisis múltiple", message.author, elemento_id=f"url:{url_orig}")
-            await message.channel.send(embed=embed_resumen, reference=message)
+            await safe_send(message, embed_resumen, reference=message)
         finally:
             await safe_remove_loading(message)
         if maliciosas: await safe_add_reaction(message, EMOJI_WARNING)
@@ -1083,7 +1095,7 @@ async def procesar_analisis(message, silent_mode, strict_mode, log_channel_id, w
                     resultados_img.append((img.filename, "error", {"error": "too_large"}, ""))
                     continue
                 clave_meta = f"nsfw_filename:{img.filename}:{img.size}"
-                tipo_meta, embed_meta = get_from_cache_mem(clave_meta)
+                tipo_meta, embed_meta, _ = get_from_cache_mem(clave_meta)
                 content_hash = None
                 if embed_meta is not None:
                     try: content_hash = json.loads(tipo_meta).get("hash")
@@ -1111,7 +1123,7 @@ async def procesar_analisis(message, silent_mode, strict_mode, log_channel_id, w
                             registrar_infraccion(guild_id, message.author.id, f"nsfw:{content_hash}")
                         resultados_img.append((img.filename, "nsfw" if is_nsfw else "seguro", models, content_hash))
                         dummy = discord.Embed(title="NSFW Meta")
-                        set_cache_mem(clave_meta, json.dumps({"hash": content_hash}), dummy)
+                        set_cache_mem(clave_meta, json.dumps({"hash": content_hash}), dummy, 0)
                         await guardar_metadatos_hash(clave_meta, content_hash)
                 except:
                     resultados_img.append((img.filename, "error", {}, ""))
@@ -1126,7 +1138,7 @@ async def procesar_analisis(message, silent_mode, strict_mode, log_channel_id, w
                     resultados_arch.append((archivo.filename, "error", 0, "", ""))
                     continue
                 clave_meta = f"file:{archivo.filename}:{archivo.size}"
-                tipo_meta, embed_meta = get_from_cache_mem(clave_meta)
+                tipo_meta, embed_meta, _ = get_from_cache_mem(clave_meta)
                 file_hash = None
                 if embed_meta is not None:
                     try: file_hash = json.loads(tipo_meta).get("hash")
@@ -1134,15 +1146,15 @@ async def procesar_analisis(message, silent_mode, strict_mode, log_channel_id, w
                 if not file_hash:
                     file_hash = await obtener_hash_desde_metadatos(clave_meta)
                 if file_hash:
-                    tipo, embed = get_from_cache_mem(f"filehash:{file_hash}")
+                    tipo, embed, mal = get_from_cache_mem(f"filehash:{file_hash}")
                     if embed is None:
-                        tipo, embed = await obtener_analisis_db(f"filehash:{file_hash}")
+                        tipo, embed, mal = await obtener_analisis_db(f"filehash:{file_hash}")
                         if embed is not None:
-                            set_cache_mem(f"filehash:{file_hash}", tipo, embed)
+                            set_cache_mem(f"filehash:{file_hash}", tipo, embed, mal)
                     if embed is not None:
                         if tipo == "malicioso":
                             registrar_infraccion(guild_id, message.author.id, f"filehash:{file_hash}")
-                        resultados_arch.append((archivo.filename, tipo, 0, file_hash, wm))
+                        resultados_arch.append((archivo.filename, tipo, mal, file_hash, wm))
                         continue
                 # Descarga
                 try:
@@ -1160,15 +1172,15 @@ async def procesar_analisis(message, silent_mode, strict_mode, log_channel_id, w
                 except:
                     resultados_arch.append((archivo.filename, "error", 0, "", ""))
                     continue
-                tipo, embed = get_from_cache_mem(f"filehash:{file_hash}")
+                tipo, embed, mal = get_from_cache_mem(f"filehash:{file_hash}")
                 if embed is None:
-                    tipo, embed = await obtener_analisis_db(f"filehash:{file_hash}")
+                    tipo, embed, mal = await obtener_analisis_db(f"filehash:{file_hash}")
                     if embed is not None:
-                        set_cache_mem(f"filehash:{file_hash}", tipo, embed)
+                        set_cache_mem(f"filehash:{file_hash}", tipo, embed, mal)
                 if embed is not None:
                     if tipo == "malicioso":
                         registrar_infraccion(guild_id, message.author.id, f"filehash:{file_hash}")
-                    resultados_arch.append((archivo.filename, tipo, 0, file_hash, wm))
+                    resultados_arch.append((archivo.filename, tipo, mal, file_hash, wm))
                 else:
                     tipo, embed, mal = await analizar_archivo(archivo, file_bytes=file_data, file_hash=file_hash, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
                     resultados_arch.append((archivo.filename, tipo, mal, file_hash, wm))
@@ -1226,7 +1238,6 @@ async def procesar_analisis(message, silent_mode, strict_mode, log_channel_id, w
 
         embed_resumen.add_field(name="Resultados", value=campo[:1024], inline=False)
 
-        # Logs
         if log_channel_id:
             for filename, tipo, models, content_hash in resultados_img:
                 if tipo == "nsfw" and content_hash:
@@ -1236,8 +1247,7 @@ async def procesar_analisis(message, silent_mode, strict_mode, log_channel_id, w
                     await enviar_log_guild(guild_id, "Archivo (múltiples)", filename, f"{mal} detecciones", message.author, elemento_id=f"filehash:{file_hash}")
 
         if maliciosos or nsfw or not silent_mode:
-            try: await message.channel.send(embed=embed_resumen, reference=message)
-            except discord.HTTPException: await message.channel.send(embed=embed_resumen)
+            await safe_send(message, embed_resumen, reference=message)
 
         if maliciosos: await safe_add_reaction(message, EMOJI_WARNING)
         elif errores: await safe_add_reaction(message, EMOJI_WARNING)
@@ -1251,6 +1261,7 @@ async def procesar_analisis(message, silent_mode, strict_mode, log_channel_id, w
 @bot.event
 async def on_message(message):
     if message.author == bot.user or not message.guild:
+        await bot.process_commands(message)
         return
     config = obtener_config_guild(message.guild.id)
     await procesar_analisis(message, config["silent_mode"], config["strict_mode"], config["log_channel_id"], config.get("whitelist", []))
@@ -1260,7 +1271,6 @@ async def on_message(message):
 async def on_message_edit(before, after):
     if before.author == bot.user or not after.guild:
         return
-    # Solo si cambió el contenido o se añadieron adjuntos
     if before.content == after.content and len(before.attachments) == len(after.attachments):
         return
     config = obtener_config_guild(after.guild.id)
@@ -1330,6 +1340,7 @@ bot.barra_porcentaje = barra_porcentaje
 bot.expandir_url = expandir_url
 bot.tiene_doble_extension = tiene_doble_extension
 bot.dominio_en_whitelist = dominio_en_whitelist
+bot.safe_send = safe_send
 
 if __name__ == "__main__":
     if not TOKEN or not VT_API_KEYS or not SE_API_KEYS_PAIRS:
