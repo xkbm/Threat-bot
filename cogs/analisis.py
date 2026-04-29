@@ -56,11 +56,11 @@ class AnalisisCog(commands.Cog):
             clave = f"file:{archivo.filename}:{archivo.size}"
 
         # 1. Revisar Caché (Memoria y DB)
-        tipo_res, embed = self.bot.get_from_cache_mem(clave)
+        tipo_res, embed, _ = self.bot.get_from_cache_mem(clave)
         if embed is None:
-            tipo_res, embed = await self.bot.obtener_analisis_db(clave)      # ← await añadido
+            tipo_res, embed, _ = await self.bot.obtener_analisis_db(clave)
             if embed is not None:
-                self.bot.set_cache_mem(clave, tipo_res, embed)
+                self.bot.set_cache_mem(clave, tipo_res, embed, 0)   # mal = 0, se actualizará si es necesario
 
         if embed is not None:
             if tipo.value == "url" and expanded and expanded != url_original:
@@ -82,9 +82,9 @@ class AnalisisCog(commands.Cog):
             await interaction.edit_original_response(content=None, embed=embed)
             return
 
-        # 2. Análisis real (ahora devuelven 3 valores: tipo, embed, mal)
+        # 2. Análisis real (devuelven tipo, embed, mal)
         if tipo.value == "url":
-            tipo_res, embed, _ = await self.bot.analizar_url(valor, guild_id=guild_id, guardar_cache=True)
+            tipo_res, embed, mal = await self.bot.analizar_url(valor, guild_id=guild_id, guardar_cache=True)
             if expanded and expanded != url_original:
                 embed.add_field(
                     name=f"{self.bot.EMOJI_REPLY} Redirección",
@@ -92,15 +92,14 @@ class AnalisisCog(commands.Cog):
                     inline=False
                 )
         elif tipo.value == "ip":
-            tipo_res, embed, _ = await self.bot.analizar_ip(valor, guild_id=guild_id, guardar_cache=True)
+            tipo_res, embed, mal = await self.bot.analizar_ip(valor, guild_id=guild_id, guardar_cache=True)
         elif tipo.value == "hash":
-            tipo_res, embed, _ = await self.bot.analizar_hash(valor, guild_id=guild_id, guardar_cache=True)
+            tipo_res, embed, mal = await self.bot.analizar_hash(valor, guild_id=guild_id, guardar_cache=True)
         elif tipo.value == "file":
             doble_ext = self.bot.tiene_doble_extension(archivo.filename)
             warning_mime = ""
             try:
                 headers = {"Authorization": f"Bot {self.bot.TOKEN}"}
-                # Usar la sesión global del bot
                 async with self.bot.session.get(archivo.url, headers=headers) as resp:
                     if resp.status != 200:
                         embed = discord.Embed(
@@ -134,8 +133,7 @@ class AnalisisCog(commands.Cog):
                 await interaction.edit_original_response(content=None, embed=embed)
                 return
 
-            # analizar_archivo ahora devuelve (tipo, embed, mal)
-            tipo_res, embed, _ = await self.bot.analizar_archivo(
+            tipo_res, embed, mal = await self.bot.analizar_archivo(
                 archivo, file_bytes=file_bytes, file_hash=file_hash,
                 guild_id=guild_id, guardar_cache=True
             )
