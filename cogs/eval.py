@@ -20,6 +20,16 @@ class EvalCog(commands.Cog):
         if str(ctx.author.id) != OWNER_ID:
             return
 
+        # Verificar que se proporcione código
+        if not codigo or not codigo.strip():
+            embed = discord.Embed(
+                title=f"{self.bot.EMOJI_INCORRECTO} Uso incorrecto",
+                description="Uso: `-eval <código>`\n\nEjemplo:\n```\n-eval print('Hola mundo')\n```",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=embed)
+            return
+
         # Limpiar markdown si lo envuelven en ```
         if codigo.startswith("```python") and codigo.endswith("```"):
             codigo = codigo[9:-3].strip()
@@ -57,16 +67,26 @@ class EvalCog(commands.Cog):
         if len(output) > 1990:
             output = output[:1990] + "\n... (truncado)"
 
-        embed = discord.Embed(title="Resultado de eval", color=discord.Color.dark_blue())
-        embed.add_field(name="Código", value=f"```py\n{codigo[:500]}\n```", inline=False)
-        embed.add_field(name="Salida", value=f"```\n{output}\n```", inline=False)
+        embed = discord.Embed(title=f"{self.bot.EMOJI_KEY} Resultado de eval", color=discord.Color.dark_blue())
+        embed.add_field(name=f"{self.bot.EMOJI_FILE} Código", value=f"```py\n{codigo[:500]}\n```", inline=False)
+        embed.add_field(name=f"{self.bot.EMOJI_STATS} Salida", value=f"```\n{output}\n```", inline=False)
         await ctx.send(embed=embed)
 
     # ---------- Comando slash (/eval) por si aún lo quieres ----------
     @app_commands.command(name="eval", description="Ejecuta código Python (solo dueño)")
     async def eval_slash(self, interaction: discord.Interaction, codigo: str):
         if str(interaction.user.id) != OWNER_ID:
-            await interaction.response.send_message("❌ No tienes permiso para usar este comando.", ephemeral=True)
+            await interaction.response.send_message(f"{self.bot.EMOJI_INCORRECTO} No tienes permiso para usar este comando.", ephemeral=True)
+            return
+
+        # Verificar que se proporcione código
+        if not codigo or not codigo.strip():
+            embed = discord.Embed(
+                title=f"{self.bot.EMOJI_INCORRECTO} Uso incorrecto",
+                description="Uso: `/eval codigo:<código>`\n\nEjemplo:\n```\n/eval codigo:print('Hola mundo')\n```",
+                color=discord.Color.red()
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
             return
 
         await interaction.response.defer()
@@ -106,9 +126,9 @@ class EvalCog(commands.Cog):
         if len(output) > 1990:
             output = output[:1990] + "\n... (truncado)"
 
-        embed = discord.Embed(title="Resultado de eval", color=discord.Color.dark_blue())
-        embed.add_field(name="Código", value=f"```py\n{codigo[:500]}\n```", inline=False)
-        embed.add_field(name="Salida", value=f"```\n{output}\n```", inline=False)
+        embed = discord.Embed(title=f"{self.bot.EMOJI_KEY} Resultado de eval", color=discord.Color.dark_blue())
+        embed.add_field(name=f"{self.bot.EMOJI_FILE} Código", value=f"```py\n{codigo[:500]}\n```", inline=False)
+        embed.add_field(name=f"{self.bot.EMOJI_STATS} Salida", value=f"```\n{output}\n```", inline=False)
         await interaction.followup.send(embed=embed)
 
 async def setup(bot):
