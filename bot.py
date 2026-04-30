@@ -1322,6 +1322,7 @@ bot.EMOJI_KEY = EMOJI_KEY
 bot.EMOJI_KICK = EMOJI_KICK
 bot.EMOJI_BAN = EMOJI_BAN
 bot.EMOJI_CLEAN = EMOJI_CLEAN
+bot.EMOJI_COOLDOWN = EMOJI_COOLDOWN
 bot.analizar_url = analizar_url
 bot.get_from_cache_mem = get_from_cache_mem
 bot.set_cache_mem = set_cache_mem
