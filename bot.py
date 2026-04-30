@@ -1,6 +1,3 @@
-# Threat - Sistema de seguridad para Discord
-# Versión refactorizada final: sesión global, procesar_analisis unificada, aiosqlite, reintentos VT, envío seguro, whitelist mejorada.
-
 import discord
 from discord.ext import commands
 from discord import app_commands
