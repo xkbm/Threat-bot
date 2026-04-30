@@ -21,7 +21,7 @@ class HelpCog(commands.Cog):
             name=f"{self.bot.EMOJI_LUPA} Análisis",
             value=(
                 f"**`/scan`** — Analiza manualmente una URL, IP, hash o archivo.\n"
-                f"*Uso:* `/scan tipo:url valor:https://ejemplo.com`\n"
+                f"*Uso:* `/scan tipo:url valor:https://ejemplo.com`\n\n"
                 f"**Detección automática** — El bot analiza automáticamente:\n"
                 f"• Enlaces en mensajes (múltiples URLs a la vez)\n"
                 f"• Archivos e imágenes adjuntos\n"
@@ -50,7 +50,8 @@ class HelpCog(commands.Cog):
                 f"**`/strictmode <true/false>`** — Elimina automáticamente mensajes peligrosos.\n"
                 f"**`/whitelist <add/remove/list> <dominio>`** — Gestiona dominios de confianza.\n"
                 f"**`/setlogchannel #canal`** — Establece el canal para logs de amenazas.\n"
-                f"**`/disablelogchannel`** — Desactiva el envío de logs."
+                f"**`/disablelogchannel`** — Desactiva el envío de logs.\n"
+                f"**`/settings`** — Muestra la configuración actual del bot en este servidor."
             ),
             inline=False
         )
