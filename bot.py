@@ -1191,7 +1191,8 @@ async def procesar_analisis(message, silent_mode, strict_mode, log_channel_id, w
         maliciosos = sum(1 for _, t, _, _ in resultados_img if t == "nsfw") + sum(1 for _, t, _, _, _ in resultados_arch if t == "malicioso")
         nsfw = sum(1 for _, t, _, _ in resultados_img if t == "nsfw")
         seguros = sum(1 for _, t, _, _ in resultados_img if t == "seguro") + sum(1 for _, t, _, _, _ in resultados_arch if t == "seguro")
-        errores = total - maliciosos - nsfw - seguros
+        # CORRECCIÓN: errores = total - maliciosos - seguros   (maliciosos ya incluye nsfw)
+        errores = total - maliciosos - seguros
         has_doble_ext = any(tiene_doble_extension(a.filename) for a in adjuntos)
 
         if maliciosos or nsfw:
