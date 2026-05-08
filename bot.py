@@ -11,6 +11,11 @@ from core.config import TOKEN, VT_API_KEYS, SE_API_KEYS_PAIRS, OWNER_ID
 from core.database import init_db, cargar_datos
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(name)s: %(message)s")
+logging.getLogger("cache").setLevel(logging.DEBUG)
+logging.getLogger("db").setLevel(logging.DEBUG)
+logging.getLogger("handler").setLevel(logging.DEBUG)
+logging.getLogger("virustotal").setLevel(logging.DEBUG)
+logging.getLogger("sightengine").setLevel(logging.DEBUG)
 log = logging.getLogger("bot")
 
 load_dotenv()

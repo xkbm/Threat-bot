@@ -3,6 +3,7 @@ import asyncio
 import hashlib
 import json
 import urllib.parse
+import logging
 import aiohttp
 import discord
 from core import state
@@ -12,6 +13,8 @@ from core.database import guardar_analisis_db, obtener_analisis_db, guardar_meta
 from core.utils import obtener_top_antivirus, es_hash_valido
 from ui.views import LogActionView
 from core.guild_config import obtener_config_guild, update_stats, registrar_infraccion
+
+log = logging.getLogger("virustotal")
 
 # ========== ROTACIÓN DE CLAVES VT ==========
 def obtener_siguiente_key():
@@ -85,8 +88,10 @@ async def enviar_log_guild(guild_id, tipo, valor, detalles, usuario, url_vt=None
 
 # ========== ANÁLISIS URL ==========
 async def analizar_url(url, guild_id=None, mensaje_original=None, guardar_cache=True):
+    log.debug(f"VT URL → {url}")
     key = obtener_siguiente_key()
     if not key:
+        log.debug(f"VT URL ERROR → no hay keys disponibles")
         return "error", discord.Embed(title="Error de configuración", description="No hay claves de VirusTotal disponibles.", color=discord.Color.red()), 0
     headers = {"x-apikey": key}
     try:
@@ -101,19 +106,23 @@ async def analizar_url(url, guild_id=None, mensaje_original=None, guardar_cache=
                             analysis = await resp2.json()
                             if analysis["data"]["attributes"]["status"] == "completed":
                                 return await _procesar_resultado_vt(analysis, "url", url, guild_id, mensaje_original, guardar_cache)
+                log.debug(f"VT URL TIMEOUT → {url}")
                 await _finalizar_error(guild_id, "url", url)
                 return "error", discord.Embed(title="Error en análisis", description="El análisis no se completó a tiempo.", color=discord.Color.red()), 0
             else:
+                log.debug(f"VT URL ERROR → status={resp.status} url={url}")
                 await _finalizar_error(guild_id, "url", url)
                 return "error", discord.Embed(title="Error al analizar URL", description="VirusTotal no procesó la solicitud", color=discord.Color.red()), 0
     except Exception as e:
-        print(f"Error en analizar_url: {e}")
+        log.debug(f"VT URL EXCEPTION → {url}: {e}")
         await _finalizar_error(guild_id, "url", url)
         return "error", discord.Embed(title="Error de conexión", description="No se pudo contactar con VirusTotal", color=discord.Color.red()), 0
 
 # ========== ANÁLISIS HASH ==========
 async def analizar_hash(hash_valor, guild_id=None, mensaje_original=None, guardar_cache=True):
+    log.debug(f"VT HASH → {hash_valor}")
     if not es_hash_valido(hash_valor):
+        log.debug(f"VT HASH INVALIDO → {hash_valor}")
         await update_stats(guild_id, "error")
         return "error", discord.Embed(title=f"{EMOJI_INCORRECTO} Hash inválido", description=f"`{hash_valor}` no es un hash MD5, SHA-1 o SHA-256 válido.", color=discord.Color.red()), 0
     key = obtener_siguiente_key()
@@ -167,6 +176,7 @@ async def analizar_hash(hash_valor, guild_id=None, mensaje_original=None, guarda
 
 # ========== ANÁLISIS IP ==========
 async def analizar_ip(ip, guild_id=None, mensaje_original=None, guardar_cache=True):
+    log.debug(f"VT IP → {ip}")
     key = obtener_siguiente_key()
     if not key:
         return "error", discord.Embed(title="Error de configuración", description="No hay claves de VirusTotal disponibles.", color=discord.Color.red()), 0
@@ -206,6 +216,7 @@ async def analizar_ip(ip, guild_id=None, mensaje_original=None, guardar_cache=Tr
 
 # ========== ANÁLISIS ARCHIVO ==========
 async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=None, mensaje_original=None, guardar_cache=True):
+    log.debug(f"VT FILE → {archivo.filename} hash={file_hash}")
     if file_bytes is None:
         try:
             async with state.bot.session.get(archivo.url) as resp:
@@ -256,6 +267,7 @@ async def _procesar_resultado_vt(analysis, tipo, valor, guild_id, mensaje_origin
     stats = analysis["data"]["attributes"]["stats"]
     mal = stats["malicious"]
     clave = f"{tipo}:{valor}"
+    log.debug(f"VT RESULT → {tipo}={valor} mal={mal} harmless={stats.get('harmless',0)} undetected={stats.get('undetected',0)}")
     encoded = urllib.parse.quote_plus(valor)
     vt_link = f"https://www.virustotal.com/gui/home/url?url={encoded}"
 
@@ -281,6 +293,7 @@ async def _procesar_analisis_archivo(analysis, archivo, file_hash, guild_id, men
     stats = analysis["data"]["attributes"]["stats"]
     mal = stats["malicious"]
     clave = f"filehash:{file_hash}"
+    log.debug(f"VT FILE RESULT → {archivo.filename} hash={file_hash} mal={mal}")
 
     if mal > 0:
         await _on_threat_found("Archivo", archivo.filename, mal, guild_id, mensaje_original, None, elemento_id=f"filehash:{file_hash}")

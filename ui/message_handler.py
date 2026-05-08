@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import json
 import urllib.parse
+import logging
 import discord
 from core.config import MAX_IMAGE_SIZE, MAX_FILE_SIZE, EMOJI_CORRECTO, EMOJI_INCORRECTO, EMOJI_WARNING, EMOJI_WHITELIST, EMOJI_LOADING, EMOJI_LINK, EMOJI_FILE, EMOJI_COOLDOWN, ANTISPAM_URLS_PER_HOUR, ANTISPAM_COOLDOWN
 from core.utils import safe_remove_loading, safe_add_reaction, safe_send, dominio_en_whitelist, url_es_imagen, es_imagen, expandir_url, tiene_doble_extension, es_url_segura
@@ -12,6 +13,8 @@ from core.database import obtener_analisis_db, guardar_metadatos_hash, obtener_h
 from api.virustotal import analizar_url, analizar_archivo, enviar_log_guild
 from api.sightengine import analizar_imagen_multimodelo
 from core.guild_config import obtener_config_guild, registrar_infraccion
+
+log = logging.getLogger("handler")
 
 async def procesar_analisis(bot, message):
     guild_id = message.guild.id
@@ -23,6 +26,7 @@ async def procesar_analisis(bot, message):
 
     url_pattern = r'https?://[^\s]+'
     urls = re.findall(url_pattern, message.content)
+    log.debug(f"Mensaje de {message.author} en guild={guild_id}: {len(urls)} URLs, {len(message.attachments)} adjuntos")
 
     if urls:
         todas_urls = []
@@ -42,9 +46,13 @@ async def procesar_analisis(bot, message):
                 await message.reply(f"{EMOJI_WHITELIST} **Dominio(s) en whitelist.** No se requiere análisis.", mention_author=False)
             return
 
+        log.debug(f"URLs tras whitelist: {len(todas_urls)} de {len(urls)}")
+
         if len(todas_urls) == 1:
             url = todas_urls[0]
+            log.debug(f"URL única: {url}")
             if url_es_imagen(url):
+                log.debug(f"URL es imagen → SSRF check + Sightengine")
                 segura, err_msg = await es_url_segura(url)
                 if not segura:
                     await safe_add_reaction(message, EMOJI_INCORRECTO)
@@ -111,12 +119,19 @@ async def procesar_analisis(bot, message):
             else:
                 url_original = url
                 url = await expandir_url(bot, url)
+                if url != url_original:
+                    log.debug(f"URL expandida: {url_original} → {url}")
                 clave = f"url:{url_original}"
                 tipo, embed, mal = get_from_cache_mem(clave)
-                if embed is None:
+                if embed is not None:
+                    log.debug(f"Cache HIT (RAM) para URL → resultado={tipo}")
+                else:
                     tipo, embed, mal = await obtener_analisis_db(clave)
                     if embed is not None:
+                        log.debug(f"Cache HIT (SQLite) para URL → resultado={tipo}")
                         set_cache_mem(clave, tipo, embed, mal)
+                    else:
+                        log.debug(f"Cache MISS para URL → llamando VT")
 
                 if embed is not None:
                     if tipo == "malicioso":
@@ -173,20 +188,28 @@ async def procesar_analisis(bot, message):
                     await safe_add_reaction(message, EMOJI_INCORRECTO)
                 return
 
+        log.debug(f"Múltiples URLs ({len(todas_urls)})")
         await safe_add_reaction(message, EMOJI_LOADING)
         try:
             todas_urls = list(dict.fromkeys(todas_urls))[:5]
             resultados = []
             maliciosas = seguras = errores = 0
-            for url in todas_urls:
+            for i, url in enumerate(todas_urls, 1):
                 url_original = url
                 url_exp = await expandir_url(bot, url)
+                if url_exp != url_original:
+                    log.debug(f"[{i}/{len(todas_urls)}] URL expandida: {url_original} → {url_exp}")
                 clave = f"url:{url_original}"
                 tipo, embed, mal = get_from_cache_mem(clave)
-                if embed is None:
+                if embed is not None:
+                    log.debug(f"[{i}/{len(todas_urls)}] Cache HIT (RAM) → {url_original} resultado={tipo}")
+                else:
                     tipo, embed, mal = await obtener_analisis_db(clave)
-                    if tipo is not None:
+                    if embed is not None:
+                        log.debug(f"[{i}/{len(todas_urls)}] Cache HIT (SQLite) → {url_original} resultado={tipo}")
                         set_cache_mem(clave, tipo, embed, mal)
+                    else:
+                        log.debug(f"[{i}/{len(todas_urls)}] Cache MISS → {url_original} llamando VT")
                 if embed is not None:
                     resultados.append((url_original, tipo, mal))
                     if tipo == "malicioso":
@@ -252,6 +275,7 @@ async def procesar_analisis(bot, message):
         adjuntos = message.attachments[:5]
         imagenes = [a for a in adjuntos if es_imagen(a)]
         otros = [a for a in adjuntos if not es_imagen(a)]
+        log.debug(f"Adjuntos: {len(imagenes)} imágenes, {len(otros)} archivos")
 
         resultados_img = []
         resultados_arch = []
@@ -259,6 +283,7 @@ async def procesar_analisis(bot, message):
         await safe_add_reaction(message, EMOJI_LOADING)
         try:
             for img in imagenes:
+                log.debug(f"Imagen: {img.filename} ({img.size} bytes)")
                 if img.size > MAX_IMAGE_SIZE:
                     resultados_img.append((img.filename, "error", {"error": "too_large"}, ""))
                     continue
@@ -298,6 +323,7 @@ async def procesar_analisis(bot, message):
                     resultados_img.append((img.filename, "error", {}, ""))
 
             for archivo in otros:
+                log.debug(f"Archivo: {archivo.filename} ({archivo.size} bytes)")
                 doble_ext = tiene_doble_extension(archivo.filename)
                 wm = ""
                 if doble_ext:

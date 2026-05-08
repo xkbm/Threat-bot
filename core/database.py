@@ -4,8 +4,11 @@ import time
 import aiosqlite
 import discord
 import asyncio
+import logging
 from core import state
 from core.config import DB_FILE, DATA_FILE, EXPIRACION
+
+log = logging.getLogger("db")
 
 DB_LOCK = asyncio.Lock()
 
@@ -34,6 +37,7 @@ async def guardar_analisis_db(clave, tipo_analisis, resultado, embed, mal=0):
             (clave, tipo_analisis, resultado_json, embed_json, now, expira)
         )
         await state.bot.db.commit()
+        log.debug(f"SQLITE SAVE → clave={clave} tipo={tipo_analisis} resultado={resultado} mal={mal} expira={expira-now:.0f}s")
 
 async def obtener_analisis_db(clave):
     async with state.bot.db_lock:
@@ -59,7 +63,10 @@ async def obtener_analisis_db(clave):
             except Exception:
                 tipo = resultado_json
                 mal = 0
+            log.debug(f"SQLITE HIT → clave={clave} tipo={tipo} mal={mal}")
             return tipo, embed, mal
+        log.debug(f"SQLITE EXPIRED → clave={clave}")
+    log.debug(f"SQLITE MISS → clave={clave}")
     return None, None, 0
 
 async def limpiar_db_expirados():

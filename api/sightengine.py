@@ -1,4 +1,5 @@
 import json
+import logging
 import aiohttp
 import discord
 from core import state
@@ -7,12 +8,16 @@ from core.cache import get_from_cache_mem, set_cache_mem
 from core.database import guardar_analisis_db, obtener_analisis_db, guardar_datos
 from api.virustotal import obtener_siguiente_se_key, registrar_uso_se
 
+log = logging.getLogger("sightengine")
+
 async def analizar_imagen_multimodelo(image_content_hash, image_bytes):
     clave = f"nsfw:{image_content_hash}"
+    log.debug(f"SE check → hash={image_content_hash[:16]}... clave={clave}")
     tipo, embed_cache, mal = get_from_cache_mem(clave)
     if embed_cache is not None:
         try:
             details = json.loads(tipo) if isinstance(tipo, str) else tipo
+            log.debug(f"SE HIT (RAM) → {clave} is_nsfw={details['is_nsfw']}")
             return details["is_nsfw"], details["max_confidence"], details["models"], True
         except Exception:
             pass
@@ -20,10 +25,12 @@ async def analizar_imagen_multimodelo(image_content_hash, image_bytes):
     if embed_db is not None:
         try:
             details = json.loads(tipo_db)
+            log.debug(f"SE HIT (SQLite) → {clave} is_nsfw={details['is_nsfw']}")
             set_cache_mem(clave, tipo_db, embed_db, mal_db)
             return details["is_nsfw"], details["max_confidence"], details["models"], True
         except Exception:
             pass
+    log.debug(f"SE MISS → llamando API Sightengine para {clave}")
     if not SE_API_KEYS_PAIRS:
         print("Sightengine no configurado correctamente.")
         return False, 0.0, {}, False
@@ -55,6 +62,7 @@ async def analizar_imagen_multimodelo(image_content_hash, image_bytes):
                     or models.get('offensive', 0.0) >= 0.7
                 )
                 max_confidence = max(models.values()) if models else 0.0
+                log.debug(f"SE API OK → is_nsfw={is_nsfw} max_confidence={max_confidence:.2f} models={models}")
                 cache_details = {"is_nsfw": is_nsfw, "max_confidence": max_confidence, "models": models}
                 cache_json = json.dumps(cache_details)
                 dummy_embed = discord.Embed(title="NSFW Cache")
@@ -63,6 +71,7 @@ async def analizar_imagen_multimodelo(image_content_hash, image_bytes):
                 await guardar_datos(inmediato=True)
                 return is_nsfw, max_confidence, models, False
             else:
+                log.debug(f"SE API ERROR → status={resp.status}")
                 if resp.status == 400:
                     error_details = {"is_nsfw": False, "max_confidence": 0.0, "models": {}, "error": "sightengine_400"}
                     error_json = json.dumps(error_details)
