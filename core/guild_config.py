@@ -1,5 +1,6 @@
 import asyncio
 from core import state
+from core.config import DOMINIOS_PROTEGIDOS
 from core.database import guardar_datos
 
 GUILD_LOCK = asyncio.Lock()
@@ -10,12 +11,7 @@ def obtener_config_guild(guild_id):
             "silent_mode": False,
             "strict_mode": False,
             "log_channel_id": None,
-            "whitelist": [
-                "youtube.com", "youtu.be", "google.com", "wikipedia.org",
-                "github.com", "stackoverflow.com", "reddit.com", "twitter.com",
-                "x.com", "twitch.tv", "spotify.com", "microsoft.com",
-                "apple.com", "amazon.com", "discord.com",
-            ],
+            "whitelist": list(DOMINIOS_PROTEGIDOS),
             "stats": {"total_analisis": 0, "seguros": 0, "maliciosos": 0, "errores": 0},
             "infracciones": {},
             "infracciones_registradas": {},

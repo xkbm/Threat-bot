@@ -61,6 +61,13 @@ ANTIVIRUS_CONOCIDOS = [
     "Sophos", "TrendMicro", "AVG", "Panda", "F-Secure", "Malwarebytes", "Windows Defender",
 ]
 
+DOMINIOS_PROTEGIDOS = [
+    "youtube.com", "youtu.be", "google.com", "wikipedia.org",
+    "github.com", "stackoverflow.com", "reddit.com", "twitter.com",
+    "x.com", "twitch.tv", "spotify.com", "microsoft.com",
+    "apple.com", "amazon.com", "discord.com"
+]
+
 ANTISPAM_URLS_PER_HOUR = 30
 ANTISPAM_COOLDOWN = 10
 

@@ -113,6 +113,14 @@ async def procesar_analisis(bot, message):
                 url = await expandir_url(bot, url)
                 fue_expandida = url != url_original
                 if fue_expandida:
+                    from urllib.parse import urlparse
+                    parsed_exp = urlparse(url)
+                    dominio_exp = parsed_exp.netloc.lower()
+                    if dominio_exp.startswith("www."):
+                        dominio_exp = dominio_exp[4:]
+                    if dominio_en_whitelist(dominio_exp, whitelist):
+                        log.debug(f"URL expandida redirige a dominio en whitelist: {dominio_exp}")
+                        return
                     log.debug(f"URL expandida: {url_original} → {url}")
                 clave = f"url:{url}"
                 tipo, embed, mal = get_from_cache_mem(clave)
@@ -198,6 +206,14 @@ async def procesar_analisis(bot, message):
                 url_exp = await expandir_url(bot, url)
                 fue_exp = url_exp != url_original
                 if fue_exp:
+                    from urllib.parse import urlparse
+                    parsed_exp = urlparse(url_exp)
+                    dominio_exp = parsed_exp.netloc.lower()
+                    if dominio_exp.startswith("www."):
+                        dominio_exp = dominio_exp[4:]
+                    if dominio_en_whitelist(dominio_exp, whitelist):
+                        log.debug(f"[{i}/{len(todas_urls)}] URL expandida redirige a dominio en whitelist: {dominio_exp}")
+                        continue
                     log.debug(f"[{i}/{len(todas_urls)}] URL expandida: {url_original} → {url_exp}")
                 clave = f"url:{url_exp}"
                 tipo, embed, mal = get_from_cache_mem(clave)

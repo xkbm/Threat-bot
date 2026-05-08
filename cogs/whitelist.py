@@ -1,13 +1,10 @@
+import re
 import discord
 from discord.ext import commands
 from discord import app_commands
+from core.config import DOMINIOS_PROTEGIDOS
 
-DOMINIOS_PROTEGIDOS = [
-    "youtube.com", "youtu.be", "google.com", "wikipedia.org",
-    "github.com", "stackoverflow.com", "reddit.com", "twitter.com",
-    "x.com", "twitch.tv", "spotify.com", "microsoft.com",
-    "apple.com", "amazon.com", "discord.com"
-]
+PATRON_DOMINIO = re.compile(r'^([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$')
 
 class WhitelistCog(commands.Cog):
     def __init__(self, bot):
@@ -40,7 +37,12 @@ class WhitelistCog(commands.Cog):
             if not dominio:
                 await interaction.response.send_message(f"{self.bot.EMOJI_INCORRECTO} Especifica un dominio para añadir.", ephemeral=True)
                 return
-            dominio = dominio.lower().removeprefix("www.")
+            dominio = dominio.lower()
+            if dominio.startswith("www."):
+                dominio = dominio[4:]
+            if not PATRON_DOMINIO.match(dominio):
+                await interaction.response.send_message(f"{self.bot.EMOJI_INCORRECTO} `{dominio}` no es un dominio válido.", ephemeral=True)
+                return
             if dominio in whitelist:
                 await interaction.response.send_message(f"{self.bot.EMOJI_INCORRECTO} `{dominio}` ya está en la whitelist.", ephemeral=True)
                 return
@@ -52,7 +54,9 @@ class WhitelistCog(commands.Cog):
             if not dominio:
                 await interaction.response.send_message(f"{self.bot.EMOJI_INCORRECTO} Especifica un dominio para eliminar.", ephemeral=True)
                 return
-            dominio = dominio.lower().removeprefix("www.")
+            dominio = dominio.lower()
+            if dominio.startswith("www."):
+                dominio = dominio[4:]
             if dominio not in whitelist:
                 await interaction.response.send_message(f"{self.bot.EMOJI_INCORRECTO} `{dominio}` no está en la whitelist.", ephemeral=True)
                 return
