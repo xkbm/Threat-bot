@@ -1,4 +1,3 @@
-import os
 import sys
 import io
 import textwrap
@@ -6,8 +5,7 @@ import traceback
 import discord
 from discord.ext import commands
 from discord import app_commands
-
-OWNER_ID = os.getenv("OWNER_ID")
+from core.config import OWNER_ID
 
 class EvalCog(commands.Cog):
     def __init__(self, bot):

@@ -96,6 +96,44 @@ async def guardar_metadatos_hash(clave_metadatos, file_hash):
         await state.bot.db.commit()
 
 DATA_LOCK = asyncio.Lock()
+_guardar_datos_pendiente = False
+_guardar_datos_task = None
+_GUARDAR_DEBOUNCE = 3.0
+
+async def _flush_datos():
+    async with DATA_LOCK:
+        state.bot.guilds_data["__api_usage__"] = {
+            "total_requests": state.bot.vt_key_total_requests,
+            "daily_usage": state.bot.vt_key_daily_usage,
+            "sightengine": {
+                "total_requests": state.bot.se_key_total_requests,
+                "daily_usage": state.bot.se_key_daily_usage,
+            }
+        }
+        data_to_save = {str(gid): val for gid, val in state.bot.guilds_data.items()}
+        try:
+            with open(DATA_FILE, "w", encoding="utf-8") as f:
+                json.dump(data_to_save, f, indent=4)
+        except Exception as e:
+            print(f"Error al guardar datos: {e}")
+
+async def guardar_datos(inmediato=False):
+    global _guardar_datos_pendiente, _guardar_datos_task
+    if inmediato:
+        if _guardar_datos_task and not _guardar_datos_task.done():
+            _guardar_datos_task.cancel()
+        _guardar_datos_pendiente = False
+        await _flush_datos()
+        return
+    if not _guardar_datos_pendiente:
+        _guardar_datos_pendiente = True
+        async def _debounced():
+            global _guardar_datos_pendiente, _guardar_datos_task
+            await asyncio.sleep(_GUARDAR_DEBOUNCE)
+            if _guardar_datos_pendiente:
+                _guardar_datos_pendiente = False
+                await _flush_datos()
+        _guardar_datos_task = asyncio.create_task(_debounced())
 
 def cargar_datos():
     if os.path.exists(DATA_FILE):
@@ -123,20 +161,3 @@ def cargar_datos():
         except Exception as e:
             print(f"Error al cargar datos: {e}")
             state.bot.guilds_data = {}
-
-async def guardar_datos():
-    async with DATA_LOCK:
-        state.bot.guilds_data["__api_usage__"] = {
-            "total_requests": state.bot.vt_key_total_requests,
-            "daily_usage": state.bot.vt_key_daily_usage,
-            "sightengine": {
-                "total_requests": state.bot.se_key_total_requests,
-                "daily_usage": state.bot.se_key_daily_usage,
-            }
-        }
-        data_to_save = {str(gid): val for gid, val in state.bot.guilds_data.items()}
-        try:
-            with open(DATA_FILE, "w", encoding="utf-8") as f:
-                json.dump(data_to_save, f, indent=4)
-        except Exception as e:
-            print(f"Error al guardar datos: {e}")

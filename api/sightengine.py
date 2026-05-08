@@ -60,7 +60,7 @@ async def analizar_imagen_multimodelo(image_content_hash, image_bytes):
                 dummy_embed = discord.Embed(title="NSFW Cache")
                 await guardar_analisis_db(clave, "nsfw", cache_json, dummy_embed, 1 if is_nsfw else 0)
                 set_cache_mem(clave, cache_json, dummy_embed, 1 if is_nsfw else 0)
-                await guardar_datos()
+                await guardar_datos(inmediato=True)
                 return is_nsfw, max_confidence, models, False
             else:
                 if resp.status == 400:

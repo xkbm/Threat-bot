@@ -102,6 +102,11 @@ bot.CACHE_DURATION = CACHE_DURATION
 bot.DATA_FILE = DATA_FILE
 bot.DB_FILE = DB_FILE
 
+# ========== SETUP ==========
+@bot.event
+async def setup_hook():
+    await load_cogs()
+
 # ========== EVENTOS ==========
 @bot.event
 async def on_ready():
@@ -110,17 +115,20 @@ async def on_ready():
     bot.se_key_count = len(SE_API_KEYS_PAIRS)
     await init_db()
     cargar_datos()
+    await bot.tree.sync()
     asyncio.create_task(_limpiar_cron())
     log.info(f"Bot conectado como {bot.user}")
-    log.info("Comandos slash sincronizados")
-    log.info("Bot Ready")
+    log.info("Bot Ready - comandos slash sincronizados")
 
 async def _limpiar_cron():
     from core.database import limpiar_db_expirados
     while True:
         await asyncio.sleep(3600)
-        await limpiar_db_expirados()
-        log.debug("Caché expirada limpiada")
+        try:
+            await limpiar_db_expirados()
+            log.debug("Caché expirada limpiada")
+        except Exception as e:
+            log.error(f"Error limpiando caché: {e}")
 
 @bot.event
 async def on_message(message):
@@ -139,6 +147,20 @@ async def on_message_edit(before, after):
         return
     from ui.message_handler import procesar_analisis
     await procesar_analisis(bot, after)
+
+async def shutdown():
+    if bot.db:
+        await bot.db.close()
+        bot.db = None
+    if bot.session:
+        await bot.session.close()
+        bot.session = None
+
+original_close = bot.close
+async def close_with_cleanup():
+    await shutdown()
+    await original_close()
+bot.close = close_with_cleanup
 
 async def load_cogs():
     for archivo in os.listdir("./cogs"):

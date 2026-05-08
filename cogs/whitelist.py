@@ -1,9 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-import asyncio
 
-# ========== DOMINIOS PROTEGIDOS (NO ELIMINABLES) ==========
 DOMINIOS_PROTEGIDOS = [
     "youtube.com", "youtu.be", "google.com", "wikipedia.org",
     "github.com", "stackoverflow.com", "reddit.com", "twitter.com",
@@ -17,16 +15,12 @@ class WhitelistCog(commands.Cog):
 
     def obtener_whitelist(self, guild_id):
         config = self.bot.obtener_config_guild(guild_id)
-        if "whitelist" not in config:
-            config["whitelist"] = DOMINIOS_PROTEGIDOS.copy()
-            # guardar_datos es async, lo programamos sin esperar
-            asyncio.create_task(self.bot.guardar_datos())
         return config["whitelist"]
 
     async def guardar_whitelist(self, guild_id, whitelist):
         config = self.bot.obtener_config_guild(guild_id)
         config["whitelist"] = whitelist
-        await self.bot.guardar_datos()
+        await self.bot.guardar_datos(inmediato=True)
 
     @app_commands.command(name="whitelist", description="Gestiona la lista de dominios seguros (solo admins)")
     @app_commands.default_permissions(administrator=True)

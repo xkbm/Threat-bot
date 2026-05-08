@@ -1,11 +1,8 @@
-import os
 import sys
 import discord
 from discord.ext import commands
 from discord import app_commands
-
-# Solo necesita el ID del dueño
-OWNER_ID = os.getenv("OWNER_ID")
+from core.config import OWNER_ID
 
 class RebootCog(commands.Cog):
     def __init__(self, bot):

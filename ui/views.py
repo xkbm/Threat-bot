@@ -70,7 +70,7 @@ class LogActionView(discord.ui.View):
                 registradas.remove(self.elemento_id)
                 if uid in config["infracciones"]:
                     config["infracciones"][uid] = max(0, config["infracciones"].get(uid, 1) - 1)
-                await guardar_datos()
+                await guardar_datos(inmediato=True)
                 await interaction.response.send_message("Infracción eliminada.", ephemeral=True)
             else:
                 await interaction.response.send_message("Esa infracción ya no existe.", ephemeral=True)

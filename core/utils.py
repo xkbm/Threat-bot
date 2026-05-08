@@ -24,8 +24,13 @@ async def safe_send(msg, embed, reference=None):
             await msg.channel.send(embed=embed, reference=reference)
         else:
             await msg.channel.send(embed=embed)
-    except (discord.HTTPException, discord.NotFound):
-        await msg.channel.send(embed=embed)
+    except (discord.NotFound, discord.Forbidden):
+        pass
+    except discord.HTTPException:
+        try:
+            await msg.channel.send(embed=embed)
+        except (discord.HTTPException, discord.NotFound, discord.Forbidden):
+            pass
 
 def dominio_en_whitelist(dominio: str, whitelist: list) -> bool:
     dominio = dominio.lower().strip()
