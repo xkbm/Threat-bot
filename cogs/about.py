@@ -8,6 +8,8 @@ class InfoCog(commands.Cog):
 
     @app_commands.command(name="about", description="Información detallada sobre las capacidades y funcionamiento del bot de seguridad Threat")
     async def about(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        
         embed = discord.Embed(
             title=f"{self.bot.EMOJI_SHIELD} Acerca de Threat",
             description=(
@@ -52,7 +54,7 @@ class InfoCog(commands.Cog):
         )
 
         try:
-            await interaction.response.send_message(embed=embed)
+            await interaction.edit_original_response(embed=embed)
         except discord.errors.NotFound:
             # La interacción expiró - no hay nada que hacer
             pass

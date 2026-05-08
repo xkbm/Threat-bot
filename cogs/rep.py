@@ -11,6 +11,8 @@ class ReputacionCog(commands.Cog):
     @app_commands.describe(usuario="Usuario a consultar")
     async def usercheck(self, interaction: discord.Interaction, usuario: discord.Member):
         """Consulta el número de infracciones acumuladas por un usuario."""
+        await interaction.response.defer(ephemeral=True)
+        
         guild_id = interaction.guild.id
         config = self.bot.obtener_config_guild(guild_id)
         infracciones = config.get("infracciones", {})
@@ -31,7 +33,7 @@ class ReputacionCog(commands.Cog):
         embed.set_footer(text=f"Servidor: {interaction.guild.name}  •  Usa /help para ver otros comandos")
 
         try:
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            await interaction.edit_original_response(embed=embed)
         except discord.errors.NotFound:
             # La interacción expiró - no hay nada que hacer
             pass

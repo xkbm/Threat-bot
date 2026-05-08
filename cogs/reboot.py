@@ -10,12 +10,13 @@ class RebootCog(commands.Cog):
 
     @app_commands.command(name="reboot", description="Reinicia el bot de forma interna (solo dueño)")
     async def reboot(self, interaction: discord.Interaction):
-        # Verificar que solo el dueño pueda usar el comando
+        await interaction.response.defer(ephemeral=True)
+        
+# Verificar que solo el dueño pueda usar el comando
         if str(interaction.user.id) != OWNER_ID:
             try:
-                await interaction.response.send_message("❌ No tienes permiso para reiniciar el bot.", ephemeral=True)
+                await interaction.edit_original_response(content="❌ No tienes permiso para reiniciar el bot.")
             except discord.errors.NotFound:
-                # La interacción expiró - no hay nada que hacer
                 pass
             return
 
@@ -46,11 +47,10 @@ class RebootCog(commands.Cog):
         view.add_item(cancel_btn)
 
         try:
-            await interaction.response.send_message(
-                "⚠️ **¿Estás seguro de que deseas reiniciar el bot?**\n"
+            await interaction.edit_original_response(
+                content="⚠️ **¿Estás seguro de que deseas reiniciar el bot?**\n"
                 "El bot se desconectará y el panel lo reiniciará automáticamente.",
-                view=view,
-                ephemeral=True
+                view=view
             )
         except discord.errors.NotFound:
             # La interacción expiró - no hay nada que hacer

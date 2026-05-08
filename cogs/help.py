@@ -8,6 +8,8 @@ class HelpCog(commands.Cog):
 
     @app_commands.command(name="help", description="Lista completa de comandos y funcionalidades del bot de seguridad Threat")
     async def help_command(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        
         embed = discord.Embed(
             title=f"{self.bot.EMOJI_SHIELD} Comandos de Threat",
             description=(
@@ -80,7 +82,7 @@ class HelpCog(commands.Cog):
         )
 
         try:
-            await interaction.response.send_message(embed=embed)
+            await interaction.edit_original_response(embed=embed)
         except discord.errors.NotFound:
             # La interacción expiró antes de que pudieramos responder - no hay nada que hacer
             pass
