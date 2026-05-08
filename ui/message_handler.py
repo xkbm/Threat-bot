@@ -121,7 +121,7 @@ async def procesar_analisis(bot, message):
                 url = await expandir_url(bot, url)
                 if url != url_original:
                     log.debug(f"URL expandida: {url_original} → {url}")
-                clave = f"url:{url_original}"
+                clave = f"url:{url}"
                 tipo, embed, mal = get_from_cache_mem(clave)
                 if embed is not None:
                     log.debug(f"Cache HIT (RAM) para URL → resultado={tipo}")
@@ -199,7 +199,7 @@ async def procesar_analisis(bot, message):
                 url_exp = await expandir_url(bot, url)
                 if url_exp != url_original:
                     log.debug(f"[{i}/{len(todas_urls)}] URL expandida: {url_original} → {url_exp}")
-                clave = f"url:{url_original}"
+                clave = f"url:{url_exp}"
                 tipo, embed, mal = get_from_cache_mem(clave)
                 if embed is not None:
                     log.debug(f"[{i}/{len(todas_urls)}] Cache HIT (RAM) → {url_original} resultado={tipo}")
