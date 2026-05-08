@@ -121,13 +121,29 @@ async def on_ready():
     await init_db()
     cargar_datos()
     await bot.tree.sync()
-    await bot.change_presence(
-        activity=discord.Activity(type=discord.ActivityType.watching, name="Viendo enlaces - /help"),
-        status=discord.Status.dnd
-    )
+    asyncio.create_task(_rotar_estado())
     asyncio.create_task(_limpiar_cron())
     log.info(f"Bot conectado como {bot.user}")
     log.info("Bot Ready - comandos slash sincronizados")
+
+async def _rotar_estado():
+    """Rota el estado del bot cada 30 segundos."""
+    estados = [
+        "Escaneando malware - /help",
+        "Protegiendo servidores - /help",
+        "Analizando enlaces - /help",
+        "Detectando amenazas - /help",
+        "Vigilando la red - /help",
+    ]
+    indice = 0
+    while True:
+        await bot.change_presence(
+            activity=discord.Activity(type=discord.ActivityType.watching, name=estados[indice]),
+            status=discord.Status.dnd
+        )
+        log.debug(f"Estado rotated: {estados[indice]}")
+        indice = (indice + 1) % len(estados)
+        await asyncio.sleep(30)
 
 async def _limpiar_cron():
     from core.database import limpiar_db_expirados
