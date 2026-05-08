@@ -5,16 +5,16 @@ Bot de Discord para análisis de seguridad (URLs, IPs, hashes, archivos, imágen
 Usa VirusTotal v3 y Sightengine.
 
 ## Stack
-- Python 3.8+ (compatible hasta 3.13)
+- Python 3.8+ (compatible hasta 3.14)
 - discord.py >= 2.3.0
 - aiohttp, aiosqlite, python-dotenv, psutil
 
 ## Estructura
 ```
-bot.py                  → Entry point, intents, eventos on_message/on_message_edit
+bot.py                  → Entry point, on_ready, change_presence
 api/
-  virustotal.py         → VT API (URL, hash, IP, file analysis)
-  sightengine.py       → NSFW image detection
+  virustotal.py         → VT API (URL, hash, IP, file)
+  sightengine.py       → NSFW detection
 cogs/
   about.py            → /about
   analisis.py        → /scan
@@ -24,35 +24,46 @@ cogs/
   reboot.py           → /reboot (owner only)
   rep.py              → /usercheck
   stats.py            → /stats
-  whitelist.py        → /whitelist add/remove/list
+  whitelist.py        → /whitelist
 core/
-  config.py           → Constantes, emojis, API keys desde .env
-  database.py        → SQLite + JSON persistence
-  cache.py           → LRU cache in-memory
-  guild_config.py    → Per-guild config, stats, infracciones
-  utils.py           → URL resolution, SSRF check, helpers
+  config.py           → Constantes, emojis, API keys
+  database.py        → SQLite + JSON
+  cache.py           → LRU cache
+  guild_config.py    → Per-guild config
+  utils.py           → URL resolution, SSRF check
 ui/
   message_handler.py  → Auto-scan pipeline
-  views.py          → Discord UI views
+  views.py          → UI buttons
 ```
 
-## ERROR 10062: Unknown interaction
-**CRÍTICO**: Error común cuando comandos slash responden a interacciones expiradas o ya respondidas.
+## Comandos slash con defer()
+**CRÍTICO**: Todo comando slash DEBE usar defer() al inicio para evitar timeout.
 
-**Patrón de corrección** (usar en todos los cogs):
 ```python
-try:
-    await interaction.response.send_message(embed=embed)
-except discord.errors.NotFound:
+@app_commands.command(name="help", description="...")
+async def help_command(self, interaction: discord.Interaction):
+    await interaction.response.defer()  # ← Importante!
+
+    # ... procesamiento ...
+
     try:
-        await interaction.followup.send(embed=embed)
-    except Exception as e:
-        print(f"Error al responder: {e}")
+        await interaction.edit_original_response(embed=embed)
+    except discord.errors.NotFound:
+        pass  # Ignorar si expiró
 ```
 
-**Alternativa correcta**: Usar `defer()` + `followup.send()` (ya implementado en configuracion.py, stats.py, eval.py).
+Errores comunes:
+- **10062** (Unknown interaction): Interacción expiró → ignore con `pass`
+- **10015** (Unknown webhook): Usa `defer()` + `edit_original_response()` desde el inicio
+
+## Actividad del bot
+```
+Tipo: Watching
+Mensaje: "Viendo enlaces - /help"
+```
 
 ## Intents requeridos
+En Discord Developer Portal:
 - message_content
 - members
 
@@ -65,11 +76,15 @@ SIGHTENGINE_API_USER=
 SIGHTENGINE_API_KEY=
 ```
 
+## CI/CD (GitHub Actions)
+Flujo automático:
+```
+push dev → test-bot.yml (sintaxis) → merge-to-main.yml (merge + restart Pterodactyl)
+```
+
+## Comandos
+- **Admin**: /silentmode, /strictmode, /setlogchannel, /settings, /whitelist, /usercheck
+- **Owner only**: /eval, /reboot
+
 ## Permisos bot
 Permission integer: 277025745990
-
-## Comandos admin
-- /silentmode, /strictmode, /setlogchannel, /settings, /whitelist, /usercheck
-
-## Owner only
-- /eval, /reboot
