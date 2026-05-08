@@ -119,7 +119,8 @@ async def procesar_analisis(bot, message):
             else:
                 url_original = url
                 url = await expandir_url(bot, url)
-                if url != url_original:
+                fue_expandida = url != url_original
+                if fue_expandida:
                     log.debug(f"URL expandida: {url_original} → {url}")
                 clave = f"url:{url}"
                 tipo, embed, mal = get_from_cache_mem(clave)
@@ -134,6 +135,9 @@ async def procesar_analisis(bot, message):
                         log.debug(f"Cache MISS para URL → llamando VT")
 
                 if embed is not None:
+                    embed = embed.copy()
+                    if fue_expandida:
+                        embed.add_field(name=f"{EMOJI_REPLY} Redirección", value=f"Original: `{url_original}`\nExpandida: `{url}`", inline=False)
                     if tipo == "malicioso":
                         await registrar_infraccion(guild_id, message.author.id, f"url:{url}")
                         await safe_send(message, embed, reference=message)
@@ -175,6 +179,8 @@ async def procesar_analisis(bot, message):
                 finally:
                     await safe_remove_loading(bot, message)
 
+                if fue_expandida:
+                    embed.add_field(name=f"{EMOJI_REPLY} Redirección", value=f"Original: `{url_original}`\nExpandida: `{url}`", inline=False)
                 if tipo == "malicioso":
                     await safe_send(message, embed, reference=message)
                     await safe_add_reaction(message, EMOJI_WARNING)
@@ -197,7 +203,8 @@ async def procesar_analisis(bot, message):
             for i, url in enumerate(todas_urls, 1):
                 url_original = url
                 url_exp = await expandir_url(bot, url)
-                if url_exp != url_original:
+                fue_exp = url_exp != url_original
+                if fue_exp:
                     log.debug(f"[{i}/{len(todas_urls)}] URL expandida: {url_original} → {url_exp}")
                 clave = f"url:{url_exp}"
                 tipo, embed, mal = get_from_cache_mem(clave)
@@ -211,7 +218,7 @@ async def procesar_analisis(bot, message):
                     else:
                         log.debug(f"[{i}/{len(todas_urls)}] Cache MISS → {url_original} llamando VT")
                 if embed is not None:
-                    resultados.append((url_original, tipo, mal))
+                    resultados.append((url_original, url_exp, tipo, mal))
                     if tipo == "malicioso":
                         maliciosas += 1
                         await registrar_infraccion(guild_id, message.author.id, f"url:{url_exp}")
@@ -222,7 +229,7 @@ async def procesar_analisis(bot, message):
                     continue
                 await asyncio.sleep(1)
                 tipo, embed, mal = await analizar_url(url_exp, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
-                resultados.append((url_original, tipo, mal))
+                resultados.append((url_original, url_exp, tipo, mal))
                 if tipo == "malicioso":
                     maliciosas += 1
                 elif tipo == "seguro":
@@ -236,25 +243,25 @@ async def procesar_analisis(bot, message):
                           f"{EMOJI_CORRECTO} Seguros: **{seguras}**\n{EMOJI_WARNING} Maliciosos: **{maliciosas}**\n{EMOJI_INCORRECTO} Errores: **{errores}**"
             embed_resumen = discord.Embed(title=titulo, description=descripcion, color=color)
             valor_campo = ""
-            for url_orig, tipo, _ in resultados:
-                if tipo == "malicioso":
-                    valor_campo += f"{EMOJI_WARNING} `{url_orig}`\n"
-                elif tipo == "seguro":
-                    valor_campo += f"{EMOJI_CORRECTO} `{url_orig}`\n"
-                else:
-                    valor_campo += f"{EMOJI_INCORRECTO} `{url_orig}`\n"
+            for url_orig, url_exp, tipo, _ in resultados:
+                icono = EMOJI_WARNING if tipo == "malicioso" else (EMOJI_CORRECTO if tipo == "seguro" else EMOJI_INCORRECTO)
+                txt = f"{icono} `{url_orig}`"
+                if url_orig != url_exp:
+                    txt += f"\n{EMOJI_REPLY} `{url_exp}`"
+                valor_campo += txt + "\n"
             embed_resumen.add_field(name="Resultados", value=valor_campo[:1024], inline=False)
             if maliciosas:
                 maliciosas_str = ""
-                for url_orig, tipo, _ in resultados:
+                for url_orig, url_exp, tipo, _ in resultados:
                     if tipo == "malicioso":
-                        vt_link = f"https://www.virustotal.com/gui/home/url?url={urllib.parse.quote_plus(url_orig)}"
-                        maliciosas_str += f"• `{url_orig}` {EMOJI_LINK} [Ver informe]({vt_link})\n"
+                        vt_link = f"https://www.virustotal.com/gui/home/url?url={urllib.parse.quote_plus(url_exp)}"
+                        url_mostrar = url_orig if url_orig == url_exp else f"{url_orig} → {url_exp}"
+                        maliciosas_str += f"• `{url_mostrar}` {EMOJI_LINK} [Ver informe]({vt_link})\n"
                 embed_resumen.add_field(name=f"{EMOJI_WARNING} Enlaces maliciosos", value=maliciosas_str[:1024], inline=False)
             if maliciosas and log_channel_id:
-                for url_orig, tipo, _ in resultados:
+                for url_orig, url_exp, tipo, _ in resultados:
                     if tipo == "malicioso":
-                        await enviar_log_guild(guild_id, "URL (múltiples)", url_orig, "Detectado en análisis múltiple", message.author, elemento_id=f"url:{url_orig}")
+                        await enviar_log_guild(guild_id, "URL (múltiples)", url_orig, "Detectado en análisis múltiple", message.author, elemento_id=f"url:{url_exp}")
             await safe_send(message, embed_resumen, reference=message)
         finally:
             await safe_remove_loading(bot, message)
