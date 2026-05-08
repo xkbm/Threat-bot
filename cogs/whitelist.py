@@ -19,16 +19,6 @@ class WhitelistCog(commands.Cog):
         config["whitelist"] = whitelist
         await self.bot.guardar_datos(inmediato=True)
 
-    async def _responder(self, interaction, mensaje, **kwargs):
-        """Helper para responder con manejo de errores."""
-        try:
-            await interaction.response.send_message(mensaje, **kwargs)
-        except discord.errors.NotFound:
-            try:
-                await interaction.followup.send(mensaje, **kwargs)
-            except Exception as e:
-                print(f"Error al responder en whitelist: {e}")
-
     @app_commands.command(name="whitelist", description="Gestiona la lista de dominios seguros (solo admins)")
     @app_commands.default_permissions(administrator=True)
     @app_commands.choices(accion=[
@@ -41,10 +31,7 @@ class WhitelistCog(commands.Cog):
             try:
                 await interaction.response.send_message(f"{self.bot.EMOJI_INCORRECTO} Este comando solo funciona en servidores.", ephemeral=True)
             except discord.errors.NotFound:
-                try:
-                    await interaction.followup.send(f"{self.bot.EMOJI_INCORRECTO} Este comando solo funciona en servidores.", ephemeral=True)
-                except Exception as e:
-                    print(f"Error al responder en whitelist: {e}")
+                pass
             return
 
         whitelist = self.obtener_whitelist(interaction.guild.id)
@@ -54,10 +41,7 @@ class WhitelistCog(commands.Cog):
                 try:
                     await interaction.response.send_message(f"{self.bot.EMOJI_INCORRECTO} Especifica un dominio para añadir.", ephemeral=True)
                 except discord.errors.NotFound:
-                    try:
-                        await interaction.followup.send(f"{self.bot.EMOJI_INCORRECTO} Especifica un dominio para añadir.", ephemeral=True)
-                    except Exception as e:
-                        print(f"Error al responder en whitelist: {e}")
+                    pass
                 return
             dominio = dominio.lower()
             if dominio.startswith("www."):
@@ -66,39 +50,27 @@ class WhitelistCog(commands.Cog):
                 try:
                     await interaction.response.send_message(f"{self.bot.EMOJI_INCORRECTO} `{dominio}` no es un dominio válido.", ephemeral=True)
                 except discord.errors.NotFound:
-                    try:
-                        await interaction.followup.send(f"{self.bot.EMOJI_INCORRECTO} `{dominio}` no es un dominio válido.", ephemeral=True)
-                    except Exception as e:
-                        print(f"Error al responder en whitelist: {e}")
+                    pass
                 return
             if dominio in whitelist:
                 try:
                     await interaction.response.send_message(f"{self.bot.EMOJI_INCORRECTO} `{dominio}` ya está en la whitelist.", ephemeral=True)
                 except discord.errors.NotFound:
-                    try:
-                        await interaction.followup.send(f"{self.bot.EMOJI_INCORRECTO} `{dominio}` ya está en la whitelist.", ephemeral=True)
-                    except Exception as e:
-                        print(f"Error al responder en whitelist: {e}")
+                    pass
                 return
             whitelist.append(dominio)
             await self.guardar_whitelist(interaction.guild.id, whitelist)
             try:
                 await interaction.response.send_message(f"{self.bot.EMOJI_CORRECTO} Dominio `{dominio}` añadido a la whitelist.", ephemeral=True)
             except discord.errors.NotFound:
-                try:
-                    await interaction.followup.send(f"{self.bot.EMOJI_CORRECTO} Dominio `{dominio}` añadido a la whitelist.", ephemeral=True)
-                except Exception as e:
-                    print(f"Error al responder en whitelist: {e}")
+                pass
 
         elif accion.value == "remove":
             if not dominio:
                 try:
                     await interaction.response.send_message(f"{self.bot.EMOJI_INCORRECTO} Especifica un dominio para eliminar.", ephemeral=True)
                 except discord.errors.NotFound:
-                    try:
-                        await interaction.followup.send(f"{self.bot.EMOJI_INCORRECTO} Especifica un dominio para eliminar.", ephemeral=True)
-                    except Exception as e:
-                        print(f"Error al responder en whitelist: {e}")
+                    pass
                 return
             dominio = dominio.lower()
             if dominio.startswith("www."):
@@ -107,39 +79,27 @@ class WhitelistCog(commands.Cog):
                 try:
                     await interaction.response.send_message(f"{self.bot.EMOJI_INCORRECTO} `{dominio}` no está en la whitelist.", ephemeral=True)
                 except discord.errors.NotFound:
-                    try:
-                        await interaction.followup.send(f"{self.bot.EMOJI_INCORRECTO} `{dominio}` no está en la whitelist.", ephemeral=True)
-                    except Exception as e:
-                        print(f"Error al responder en whitelist: {e}")
+                    pass
                 return
             if dominio in DOMINIOS_PROTEGIDOS:
                 try:
                     await interaction.response.send_message(f"{self.bot.EMOJI_WARNING} `{dominio}` es un dominio protegido y no puede eliminarse.", ephemeral=True)
                 except discord.errors.NotFound:
-                    try:
-                        await interaction.followup.send(f"{self.bot.EMOJI_WARNING} `{dominio}` es un dominio protegido y no puede eliminarse.", ephemeral=True)
-                    except Exception as e:
-                        print(f"Error al responder en whitelist: {e}")
+                    pass
                 return
             whitelist.remove(dominio)
             await self.guardar_whitelist(interaction.guild.id, whitelist)
             try:
                 await interaction.response.send_message(f"{self.bot.EMOJI_CORRECTO} Dominio `{dominio}` eliminado de la whitelist.", ephemeral=True)
             except discord.errors.NotFound:
-                try:
-                    await interaction.followup.send(f"{self.bot.EMOJI_CORRECTO} Dominio `{dominio}` eliminado de la whitelist.", ephemeral=True)
-                except Exception as e:
-                    print(f"Error al responder en whitelist: {e}")
+                pass
 
         elif accion.value == "list":
             if not whitelist:
                 try:
                     await interaction.response.send_message(f"{self.bot.EMOJI_INCORRECTO} No hay dominios en la whitelist.", ephemeral=True)
                 except discord.errors.NotFound:
-                    try:
-                        await interaction.followup.send(f"{self.bot.EMOJI_INCORRECTO} No hay dominios en la whitelist.", ephemeral=True)
-                    except Exception as e:
-                        print(f"Error al responder en whitelist: {e}")
+                    pass
                 return
             lista = "\n".join(f"• `{d}`" for d in whitelist)
             embed = discord.Embed(
@@ -150,10 +110,7 @@ class WhitelistCog(commands.Cog):
             try:
                 await interaction.response.send_message(embed=embed, ephemeral=True)
             except discord.errors.NotFound:
-                try:
-                    await interaction.followup.send(embed=embed, ephemeral=True)
-                except Exception as e:
-                    print(f"Error al responder en whitelist: {e}")
+                pass
 
 async def setup(bot):
     await bot.add_cog(WhitelistCog(bot))

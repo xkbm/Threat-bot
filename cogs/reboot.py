@@ -15,10 +15,8 @@ class RebootCog(commands.Cog):
             try:
                 await interaction.response.send_message("❌ No tienes permiso para reiniciar el bot.", ephemeral=True)
             except discord.errors.NotFound:
-                try:
-                    await interaction.followup.send("❌ No tienes permiso para reiniciar el bot.", ephemeral=True)
-                except Exception as e:
-                    print(f"Error al responder al comando reboot: {e}")
+                # La interacción expiró - no hay nada que hacer
+                pass
             return
 
         # Crear botones de confirmación
@@ -55,15 +53,8 @@ class RebootCog(commands.Cog):
                 ephemeral=True
             )
         except discord.errors.NotFound:
-            try:
-                await interaction.followup.send(
-                    "⚠️ **¿Estás seguro de que deseas reiniciar el bot?**\n"
-                    "El bot se desconectará y el panel lo reiniciará automáticamente.",
-                    view=view,
-                    ephemeral=True
-                )
-            except Exception as e:
-                print(f"Error al intentar responder al comando reboot: {e}")
+            # La interacción expiró - no hay nada que hacer
+            pass
 
 async def setup(bot):
     await bot.add_cog(RebootCog(bot))

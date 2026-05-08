@@ -82,13 +82,8 @@ class HelpCog(commands.Cog):
         try:
             await interaction.response.send_message(embed=embed)
         except discord.errors.NotFound:
-            # La interacción ya no es válida (expirada o ya respondida)
-            # Intentamos usar followup como alternativa
-            try:
-                await interaction.followup.send(embed=embed)
-            except Exception as e:
-                # Si incluso followup falla, registramos el error pero no podemos responder al usuario
-                print(f"Error al intentar responder al comando /help: {e}")
+            # La interacción expiró antes de que pudieramos responder - no hay nada que hacer
+            pass
 
 async def setup(bot):
     await bot.add_cog(HelpCog(bot))
