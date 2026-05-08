@@ -121,7 +121,10 @@ async def on_ready():
     await init_db()
     cargar_datos()
     await bot.tree.sync()
-    await bot.change_presence(status=discord.Status.dnd)
+    await bot.change_presence(
+        activity=discord.Activity(type=discord.ActivityType.competing, name="Contra malware"),
+        status=discord.Status.dnd
+    )
     asyncio.create_task(_limpiar_cron())
     log.info(f"Bot conectado como {bot.user}")
     log.info("Bot Ready - comandos slash sincronizados")
