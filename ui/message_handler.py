@@ -7,7 +7,7 @@ import urllib.parse
 import logging
 import discord
 from core.config import MAX_IMAGE_SIZE, MAX_FILE_SIZE, EMOJI_CORRECTO, EMOJI_INCORRECTO, EMOJI_WARNING, EMOJI_WHITELIST, EMOJI_LOADING, EMOJI_LINK, EMOJI_FILE, EMOJI_COOLDOWN, EMOJI_REPLY, ANTISPAM_URLS_PER_HOUR, ANTISPAM_COOLDOWN
-from core.utils import safe_remove_loading, safe_add_reaction, safe_send, dominio_en_whitelist, url_es_imagen, es_imagen, expandir_url, tiene_doble_extension, es_url_segura
+from core.utils import safe_remove_loading, safe_add_reaction, safe_send, dominio_en_whitelist, url_es_imagen, es_imagen, expandir_url, tiene_doble_extension, es_url_segura, descargar_url_segura
 from core.cache import get_from_cache_mem, set_cache_mem
 from core.database import obtener_analisis_db, guardar_metadatos_hash, obtener_hash_desde_metadatos
 from api.virustotal import analizar_url, analizar_archivo, enviar_log_guild
@@ -17,6 +17,9 @@ from core.guild_config import obtener_config_guild, registrar_infraccion
 log = logging.getLogger("handler")
 
 async def procesar_analisis(bot, message):
+    if len(message.content) > 5000:
+        message.content = message.content[:5000]
+
     guild_id = message.guild.id
     config = obtener_config_guild(guild_id)
     silent_mode = config["silent_mode"]
@@ -53,32 +56,21 @@ async def procesar_analisis(bot, message):
             log.debug(f"URL única: {url}")
             if url_es_imagen(url):
                 log.debug(f"URL es imagen → SSRF check + Sightengine")
-                segura, err_msg = await es_url_segura(url)
-                if not segura:
-                    await safe_add_reaction(message, EMOJI_INCORRECTO)
-                    await safe_send(message, discord.Embed(title=f"{EMOJI_INCORRECTO} URL bloqueada", description=f"La URL apunta a una dirección interna: {err_msg}", color=discord.Color.red()), reference=message)
-                    return
                 await safe_add_reaction(message, EMOJI_LOADING)
                 try:
-                    async with bot.session.get(url) as resp:
-                        if resp.status != 200:
-                            return
-                        content_length = resp.headers.get('Content-Length')
-                        if content_length and int(content_length) > MAX_IMAGE_SIZE:
+                    img_data, error = await descargar_url_segura(bot, url, max_size=MAX_IMAGE_SIZE)
+                    if error:
+                        if error == "too_large":
                             await safe_add_reaction(message, EMOJI_INCORRECTO)
                             if not silent_mode:
                                 embed = discord.Embed(title=f"{EMOJI_INCORRECTO} Imagen demasiado grande", description="No se puede analizar (>2 MB)", color=discord.Color.red())
                                 await safe_send(message, embed, reference=message)
-                            return
-                        img_data = await resp.read()
-                        if len(img_data) > MAX_IMAGE_SIZE:
+                        else:
                             await safe_add_reaction(message, EMOJI_INCORRECTO)
-                            if not silent_mode:
-                                embed = discord.Embed(title=f"{EMOJI_INCORRECTO} Imagen demasiado grande", description="No se puede analizar (>2 MB)", color=discord.Color.red())
-                                await safe_send(message, embed, reference=message)
-                            return
-                        content_hash = hashlib.sha256(img_data).hexdigest()
-                        is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(content_hash, img_data)
+                            await safe_send(message, discord.Embed(title=f"{EMOJI_INCORRECTO} URL bloqueada", description=f"La URL apunta a una dirección interna: {error}", color=discord.Color.red()), reference=message)
+                        return
+                    content_hash = hashlib.sha256(img_data).hexdigest()
+                    is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(content_hash, img_data)
                 finally:
                     await safe_remove_loading(bot, message)
 

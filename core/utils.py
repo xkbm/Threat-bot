@@ -68,39 +68,53 @@ def barra_porcentaje(porcentaje, longitud=10):
     vacio = longitud - lleno
     return "█" * lleno + "░" * vacio
 
-async def es_url_segura(url: str) -> tuple:
-    """Verifica que una URL no resuelva a una IP privada/interna. Retorna (segura, mensaje_error)."""
+async def _resolve_url(url: str) -> tuple:
+    """Resuelve DNS en una sola llamada y verifica que no haya IPs privadas.
+    Retorna (segura, hostname, ip, mensaje_error)."""
     try:
         parsed = urllib.parse.urlparse(url)
         hostname = parsed.hostname
         if not hostname:
-            return False, "URL sin hostname"
+            return False, "", "", "URL sin hostname"
         try:
-            ip = ipaddress.ip_address(hostname)
-            if ip.is_private or ip.is_loopback or ip.is_link_local:
-                return False, f"IP privada o local: {hostname}"
+            ip_obj = ipaddress.ip_address(hostname)
+            if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local:
+                return False, "", "", f"IP privada o local: {hostname}"
+            return True, hostname, hostname, ""
         except ValueError:
             pass
         addrs = await asyncio.to_thread(socket.getaddrinfo, hostname, 80, type=socket.SOCK_STREAM)
+        ips = []
         for addr in addrs:
             ip_str = addr[4][0]
             try:
-                ip = ipaddress.ip_address(ip_str)
-                if ip.is_private or ip.is_loopback or ip.is_link_local:
-                    return False, f"El hostname {hostname} resuelve a IP privada: {ip_str}"
+                ip_obj = ipaddress.ip_address(ip_str)
+                if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local:
+                    return False, "", "", f"El hostname {hostname} resuelve a IP privada: {ip_str}"
+                ips.append(ip_str)
             except ValueError:
                 continue
-        return True, ""
+        if not ips:
+            return False, "", "", f"No se pudo resolver {hostname}"
+        return True, hostname, ips[0], ""
     except Exception as e:
-        return False, f"Error verificando URL: {e}"
+        return False, "", "", f"Error verificando URL: {e}"
+
+async def es_url_segura(url: str) -> tuple:
+    segura, _, _, err = await _resolve_url(url)
+    return segura, err
 
 async def expandir_url(bot, url):
     try:
         for _ in range(5):
-            segura, err = await es_url_segura(url)
+            segura, hostname, ip, err = await _resolve_url(url)
             if not segura:
                 return url
-            async with bot.session.head(url, allow_redirects=False) as resp:
+            parsed = urllib.parse.urlparse(url)
+            port_part = f":{parsed.port}" if parsed.port else ""
+            url_ip = urllib.parse.urlunparse(parsed._replace(netloc=f"{ip}{port_part}"))
+            headers = {"Host": hostname}
+            async with bot.session.head(url_ip, allow_redirects=False, headers=headers) as resp:
                 if resp.status in (301, 302, 303, 307, 308):
                     location = resp.headers.get('Location')
                     if location:
@@ -112,6 +126,31 @@ async def expandir_url(bot, url):
     except Exception as e:
         print(f"Error expandiendo URL {url}: {e}")
     return url
+
+async def descargar_url_segura(bot, url, max_size=None):
+    """Resuelve DNS, verifica IP y descarga en un solo paso atómico."""
+    segura, hostname, ip, err = await _resolve_url(url)
+    if not segura:
+        return None, err
+    parsed = urllib.parse.urlparse(url)
+    port_part = f":{parsed.port}" if parsed.port else ""
+    url_ip = urllib.parse.urlunparse(parsed._replace(netloc=f"{ip}{port_part}"))
+    headers = {"Host": hostname}
+    try:
+        async with bot.session.get(url_ip, headers=headers) as resp:
+            if resp.status != 200:
+                return None, f"HTTP {resp.status}"
+            if max_size:
+                cl = resp.headers.get('Content-Length')
+                if cl and int(cl) > max_size:
+                    return None, "too_large"
+                data = await resp.read()
+                if len(data) > max_size:
+                    return None, "too_large"
+                return data, None
+            return await resp.read(), None
+    except Exception as e:
+        return None, str(e)
 
 PATRON_HASH = re.compile(r'^[a-fA-F0-9]{32}$|^[a-fA-F0-9]{40}$|^[a-fA-F0-9]{64}$')
 

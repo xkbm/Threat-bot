@@ -1,6 +1,7 @@
 import json
 import os
 import time
+import tempfile
 import aiosqlite
 import discord
 import asyncio
@@ -119,8 +120,12 @@ async def _flush_datos():
         }
         data_to_save = {str(gid): val for gid, val in state.bot.guilds_data.items()}
         try:
-            with open(DATA_FILE, "w", encoding="utf-8") as f:
+            fd, tmp = tempfile.mkstemp(dir=os.path.dirname(DATA_FILE) or ".")
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
                 json.dump(data_to_save, f, indent=4)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, DATA_FILE)
         except Exception as e:
             print(f"Error al guardar datos: {e}")
 

@@ -23,17 +23,10 @@ class LogActionView(discord.ui.View):
         if user is None:
             await interaction.response.send_message("El usuario ya no está en el servidor.", ephemeral=True)
             return
-        try:
-            await guild.ban(user, reason="Amenaza detectada por Threat (acción desde log)")
-            await interaction.response.send_message(f"{user.mention} ha sido baneado.", ephemeral=True)
-        except discord.Forbidden:
-            await interaction.response.send_message("No tengo permisos para banear a ese usuario.", ephemeral=True)
-        except Exception as e:
-            await interaction.response.send_message(f"Error inesperado: {e}", ephemeral=True)
-        else:
-            for child in self.children:
-                child.disabled = True
-            await interaction.message.edit(view=self)
+        confirm_view = ConfirmBanView(guild, user, self, interaction)
+        await interaction.response.send_message(f"¿Estás seguro de banear a {user.mention}?", view=confirm_view, ephemeral=True)
+
+    @discord.ui.button(label="Expulsar usuario", style=discord.ButtonStyle.danger, emoji=EMOJI_KICK)
 
     @discord.ui.button(label="Expulsar usuario", style=discord.ButtonStyle.danger, emoji=EMOJI_KICK)
     async def kick_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -75,7 +68,34 @@ class LogActionView(discord.ui.View):
             else:
                 await interaction.response.send_message("Esa infracción ya no existe.", ephemeral=True)
         else:
-            await interaction.response.send_message("No se pudo identificar la infracción.", ephemeral=True)
+                await interaction.response.send_message("No se pudo identificar la infracción.", ephemeral=True)
         for child in self.children:
             child.disabled = True
         await interaction.message.edit(view=self)
+
+
+class ConfirmBanView(discord.ui.View):
+    def __init__(self, guild, user, parent_view, parent_interaction):
+        super().__init__(timeout=30)
+        self.guild = guild
+        self.user = user
+        self.parent_view = parent_view
+        self.parent_interaction = parent_interaction
+
+    @discord.ui.button(label="Confirmar Ban", style=discord.ButtonStyle.danger)
+    async def confirm_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        try:
+            await self.guild.ban(self.user, reason="Amenaza detectada por Threat (acción desde log)")
+            await interaction.response.edit_message(content=f"{self.user.mention} ha sido baneado.", view=None)
+        except discord.Forbidden:
+            await interaction.response.edit_message(content="No tengo permisos para banear a ese usuario.", view=None)
+        except Exception as e:
+            await interaction.response.edit_message(content=f"Error inesperado: {e}", view=None)
+        else:
+            for child in self.parent_view.children:
+                child.disabled = True
+            await self.parent_interaction.message.edit(view=self.parent_view)
+
+    @discord.ui.button(label="Cancelar", style=discord.ButtonStyle.secondary)
+    async def cancel_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(content="Ban cancelado.", view=None)

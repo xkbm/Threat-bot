@@ -1,11 +1,15 @@
 import sys
 import io
+import os
+import logging
 import textwrap
 import traceback
 import discord
 from discord.ext import commands
 from discord import app_commands
 from core.config import OWNER_ID
+
+log = logging.getLogger("eval")
 
 class EvalCog(commands.Cog):
     def __init__(self, bot):
@@ -47,7 +51,8 @@ class EvalCog(commands.Cog):
             "aiohttp": __import__("aiohttp")
         }
 
-        # Redirigir stdout a una cadena
+        log.warning(f"EVAL by {ctx.author} ({ctx.author.id}): {codigo[:200]}")
+
         old_stdout = sys.stdout
         sys.stdout = buffer = io.StringIO()
         try:
@@ -106,6 +111,8 @@ class EvalCog(commands.Cog):
             "time": __import__("time"),
             "aiohttp": __import__("aiohttp")
         }
+
+        log.warning(f"EVAL by {interaction.user} ({interaction.user.id}): {codigo[:200]}")
 
         old_stdout = sys.stdout
         sys.stdout = buffer = io.StringIO()

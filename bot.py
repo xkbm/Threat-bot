@@ -115,7 +115,7 @@ async def setup_hook():
 # ========== EVENTOS ==========
 @bot.event
 async def on_ready():
-    bot.session = aiohttp.ClientSession()
+    bot.session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10))
     bot.vt_key_count = len(VT_API_KEYS)
     bot.se_key_count = len(SE_API_KEYS_PAIRS)
     await init_db()

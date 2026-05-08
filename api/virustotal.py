@@ -16,28 +16,31 @@ from core.guild_config import obtener_config_guild, update_stats, registrar_infr
 
 log = logging.getLogger("virustotal")
 
+_vt_lock = asyncio.Lock()
+
 # ========== ROTACIÓN DE CLAVES VT ==========
-def obtener_siguiente_key():
-    if not VT_API_KEYS:
-        return None
-    key = VT_API_KEYS[state.bot.vt_key_index]
-    ahora = time.time()
-    hoy = time.strftime("%Y-%m-%d", time.gmtime())
-    if key not in state.bot.vt_key_usage:
-        state.bot.vt_key_usage[key] = []
-    if key not in state.bot.vt_key_total_requests:
-        state.bot.vt_key_total_requests[key] = 0
-    if key not in state.bot.vt_key_daily_usage:
-        state.bot.vt_key_daily_usage[key] = {"count": 0, "date": hoy}
-    state.bot.vt_key_usage[key] = [t for t in state.bot.vt_key_usage[key] if ahora - t <= 60]
-    state.bot.vt_key_usage[key].append(ahora)
-    if state.bot.vt_key_daily_usage[key]["date"] != hoy:
-        state.bot.vt_key_daily_usage[key] = {"count": 1, "date": hoy}
-    else:
-        state.bot.vt_key_daily_usage[key]["count"] += 1
-    state.bot.vt_key_total_requests[key] += 1
-    state.bot.vt_key_index = (state.bot.vt_key_index + 1) % len(VT_API_KEYS)
-    return key
+async def obtener_siguiente_key():
+    async with _vt_lock:
+        if not VT_API_KEYS:
+            return None
+        key = VT_API_KEYS[state.bot.vt_key_index]
+        ahora = time.time()
+        hoy = time.strftime("%Y-%m-%d", time.gmtime())
+        if key not in state.bot.vt_key_usage:
+            state.bot.vt_key_usage[key] = []
+        if key not in state.bot.vt_key_total_requests:
+            state.bot.vt_key_total_requests[key] = 0
+        if key not in state.bot.vt_key_daily_usage:
+            state.bot.vt_key_daily_usage[key] = {"count": 0, "date": hoy}
+        state.bot.vt_key_usage[key] = [t for t in state.bot.vt_key_usage[key] if ahora - t <= 60]
+        state.bot.vt_key_usage[key].append(ahora)
+        if state.bot.vt_key_daily_usage[key]["date"] != hoy:
+            state.bot.vt_key_daily_usage[key] = {"count": 1, "date": hoy}
+        else:
+            state.bot.vt_key_daily_usage[key]["count"] += 1
+        state.bot.vt_key_total_requests[key] += 1
+        state.bot.vt_key_index = (state.bot.vt_key_index + 1) % len(VT_API_KEYS)
+        return key
 
 def obtener_siguiente_se_key():
     if not SE_API_KEYS_PAIRS:
@@ -89,7 +92,7 @@ async def enviar_log_guild(guild_id, tipo, valor, detalles, usuario, url_vt=None
 # ========== ANÁLISIS URL ==========
 async def analizar_url(url, guild_id=None, mensaje_original=None, guardar_cache=True):
     log.debug(f"VT URL → {url}")
-    key = obtener_siguiente_key()
+    key = await obtener_siguiente_key()
     if not key:
         log.debug(f"VT URL ERROR → no hay keys disponibles")
         return "error", discord.Embed(title="Error de configuración", description="No hay claves de VirusTotal disponibles.", color=discord.Color.red()), 0
@@ -125,7 +128,7 @@ async def analizar_hash(hash_valor, guild_id=None, mensaje_original=None, guarda
         log.debug(f"VT HASH INVALIDO → {hash_valor}")
         await update_stats(guild_id, "error")
         return "error", discord.Embed(title=f"{EMOJI_INCORRECTO} Hash inválido", description=f"`{hash_valor}` no es un hash MD5, SHA-1 o SHA-256 válido.", color=discord.Color.red()), 0
-    key = obtener_siguiente_key()
+    key = await obtener_siguiente_key()
     if not key:
         return "error", discord.Embed(title="Error de configuración", description="No hay claves de VirusTotal disponibles.", color=discord.Color.red()), 0
     headers = {"x-apikey": key}
@@ -177,7 +180,7 @@ async def analizar_hash(hash_valor, guild_id=None, mensaje_original=None, guarda
 # ========== ANÁLISIS IP ==========
 async def analizar_ip(ip, guild_id=None, mensaje_original=None, guardar_cache=True):
     log.debug(f"VT IP → {ip}")
-    key = obtener_siguiente_key()
+    key = await obtener_siguiente_key()
     if not key:
         return "error", discord.Embed(title="Error de configuración", description="No hay claves de VirusTotal disponibles.", color=discord.Color.red()), 0
     headers = {"x-apikey": key}
@@ -234,7 +237,7 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
         embed = discord.Embed(title="Archivo demasiado grande", description=f"{EMOJI_FILE} `{archivo.filename}` excede 32 MB", color=discord.Color.red())
         return "error", embed, 0
 
-    key = obtener_siguiente_key()
+    key = await obtener_siguiente_key()
     if not key:
         return "error", discord.Embed(title="Error de configuración", description="No hay claves de VirusTotal disponibles.", color=discord.Color.red()), 0
     headers = {"x-apikey": key}
