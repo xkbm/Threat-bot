@@ -136,7 +136,7 @@ async def procesar_analisis(bot, message):
 
                 if embed is not None:
                     embed = embed.copy()
-                    if fue_expandida:
+                    if fue_expandida and not any(f.name.endswith("Redirección") for f in embed.fields):
                         embed.add_field(name=f"{EMOJI_REPLY} Redirección", value=f"Original: `{url_original}`\nExpandida: `{url}`", inline=False)
                     if tipo == "malicioso":
                         await registrar_infraccion(guild_id, message.author.id, f"url:{url}")
@@ -180,6 +180,7 @@ async def procesar_analisis(bot, message):
                     await safe_remove_loading(bot, message)
 
                 if fue_expandida:
+                    embed = embed.copy()
                     embed.add_field(name=f"{EMOJI_REPLY} Redirección", value=f"Original: `{url_original}`\nExpandida: `{url}`", inline=False)
                 if tipo == "malicioso":
                     await safe_send(message, embed, reference=message)
