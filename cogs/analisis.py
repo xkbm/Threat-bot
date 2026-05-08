@@ -99,8 +99,7 @@ class AnalisisCog(commands.Cog):
             doble_ext = self.bot.tiene_doble_extension(archivo.filename)
             warning_mime = ""
             try:
-                headers = {"Authorization": f"Bot {self.bot.TOKEN}"}
-                async with self.bot.session.get(archivo.url, headers=headers) as resp:
+                async with self.bot.session.get(archivo.url) as resp:
                     if resp.status != 200:
                         embed = discord.Embed(
                             title=f"{self.bot.EMOJI_INCORRECTO} Error",
