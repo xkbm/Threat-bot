@@ -122,7 +122,7 @@ async def on_ready():
     cargar_datos()
     await bot.tree.sync()
     await bot.change_presence(
-        activity=discord.Activity(type=discord.ActivityType.custom, name="Escaneando enlaces - /help"),
+        activity=discord.Activity(type=discord.ActivityType.watching, name="Viendo enlaces - /help"),
         status=discord.Status.dnd
     )
     asyncio.create_task(_limpiar_cron())
