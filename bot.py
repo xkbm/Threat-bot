@@ -122,7 +122,7 @@ async def on_ready():
     cargar_datos()
     await bot.tree.sync()
     await bot.change_presence(
-        activity=discord.Activity(type=discord.ActivityType.competing, name="Contra malware"),
+        activity=discord.Activity(type=discord.ActivityType.competing, name="Compitiendo contra malware"),
         status=discord.Status.dnd
     )
     asyncio.create_task(_limpiar_cron())
