@@ -74,7 +74,7 @@ class HelpCog(commands.Cog):
                 "• Comandos admin requieren permisos\n"
                 "• Modo silencioso siempre notifica amenazas\n"
                 "• Logs incluyen botones: banear, expulsar, ignorar\n"
-                "• Prefijo del bot: `-` (ej. `-eval` para el propietario)"
+                "• `-eval` para ejecutar código Python (solo propietario)"
             ),
             inline=False
         )
