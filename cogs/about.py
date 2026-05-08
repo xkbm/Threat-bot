@@ -11,9 +11,9 @@ class InfoCog(commands.Cog):
         embed = discord.Embed(
             title=f"{self.bot.EMOJI_SHIELD} Acerca de Threat",
             description=(
-                f"{self.bot.EMOJI_LUPA} Analiza URLs, IPs, hashes y archivos con VirusTotal\n"
-                f"{self.bot.EMOJI_WARNING} Detecta contenido NSFW con Sightengine\n"
-                f"{self.bot.EMOJI_CORRECTO} Caché inteligente + infracciones + logs interactivos"
+                "Analiza URLs, IPs, hashes y archivos con VirusTotal "
+                "y detecta contenido NSFW con Sightengine.\n"
+                "Incluye caché inteligente, sistema de infracciones y logs con botones."
             ),
             color=discord.Color.blue()
         )
@@ -21,10 +21,10 @@ class InfoCog(commands.Cog):
         embed.add_field(
             name=f"{self.bot.EMOJI_LUPA} Análisis",
             value=(
-                f"{self.bot.EMOJI_CORRECTO} Escaneo automático de enlaces, archivos e imágenes\n"
-                f"{self.bot.EMOJI_CORRECTO} Mensajes editados y URLs acortadas\n"
-                f"{self.bot.EMOJI_CORRECTO} Doble extensión y verificación MIME\n"
-                f"{self.bot.EMOJI_LUPA} **`/scan`** — análisis manual de URL, IP, hash o archivo"
+                "• Escaneo automático de enlaces, archivos e imágenes\n"
+                "• Mensajes editados y URLs acortadas\n"
+                "• Doble extensión y verificación MIME\n"
+                "• **`/scan`** — análisis manual de URL, IP, hash o archivo"
             ),
             inline=False
         )
@@ -32,11 +32,11 @@ class InfoCog(commands.Cog):
         embed.add_field(
             name=f"{self.bot.EMOJI_GUARDIAN} Moderación",
             value=(
-                f"{self.bot.EMOJI_GUARDIAN} **`/silentmode`** — Solo reacciones, sin mensajes\n"
-                f"{self.bot.EMOJI_GUARDIAN} **`/strictmode`** — Elimina mensajes peligrosos\n"
-                f"{self.bot.EMOJI_WHITELIST} **`/whitelist`** — Dominios de confianza\n"
-                f"{self.bot.EMOJI_REPLY} **`/setlogchannel`** — Canal de logs con botones\n"
-                f"{self.bot.EMOJI_REPLY} **`/usercheck`** — Infracciones de un usuario"
+                "• **`/silentmode`** — Solo reacciones, sin mensajes\n"
+                "• **`/strictmode`** — Elimina mensajes peligrosos\n"
+                "• **`/whitelist`** — Dominios de confianza\n"
+                "• **`/setlogchannel`** — Canal de logs con botones\n"
+                "• **`/usercheck`** — Infracciones de un usuario"
             ),
             inline=False
         )
@@ -44,9 +44,9 @@ class InfoCog(commands.Cog):
         embed.add_field(
             name=f"{self.bot.EMOJI_STATS} Caché y límites",
             value=(
-                f"{self.bot.EMOJI_CORRECTO} **Caché**: 1h memoria + 7-30 días SQLite\n"
-                f"{self.bot.EMOJI_KEY} **API**: 3 keys VT (12/min) + 3 Sightengine\n"
-                f"{self.bot.EMOJI_COOLDOWN} **Límites**: 30 análisis/hora, 5 por mensaje"
+                "• **Caché**: 1h memoria + 7-30 días SQLite\n"
+                "• **API**: 3 keys VT (12/min) + 3 Sightengine\n"
+                "• **Límites**: 30 análisis/hora, 5 por mensaje"
             ),
             inline=False
         )
