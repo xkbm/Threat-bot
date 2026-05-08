@@ -6,14 +6,14 @@ class InfoCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="about", description="Información sobre el funcionamiento de Threat")
+    @app_commands.command(name="about", description="Información detallada sobre las capacidades y funcionamiento del bot de seguridad Threat")
     async def about(self, interaction: discord.Interaction):
         embed = discord.Embed(
             title=f"{self.bot.EMOJI_SHIELD} Acerca de Threat",
             description=(
-                "Bot de seguridad que analiza **URLs, IPs, hashes y archivos** usando **VirusTotal**, "
-                "con detección **NSFW** mediante **Sightengine**. "
-                "Incluye **caché inteligente**, **sistema de infracciones** y **logs con botones**."
+                f"{self.bot.EMOJI_LUPA} Analiza URLs, IPs, hashes y archivos con VirusTotal\n"
+                f"{self.bot.EMOJI_WARNING} Detecta contenido NSFW con Sightengine\n"
+                f"{self.bot.EMOJI_CORRECTO} Caché inteligente + infracciones + logs interactivos"
             ),
             color=discord.Color.blue()
         )
@@ -21,8 +21,10 @@ class InfoCog(commands.Cog):
         embed.add_field(
             name=f"{self.bot.EMOJI_LUPA} Análisis",
             value=(
-                "**Automático:** enlaces, archivos, imágenes, mensajes editados, URLs acortadas, doble extensión.\n\n"
-                "**Comandos:** `/scan`, `/stats`, `/about`, `/help`, `/settings`"
+                f"{self.bot.EMOJI_CORRECTO} Escaneo automático de enlaces, archivos e imágenes\n"
+                f"{self.bot.EMOJI_CORRECTO} Mensajes editados y URLs acortadas\n"
+                f"{self.bot.EMOJI_CORRECTO} Doble extensión y verificación MIME\n"
+                f"{self.bot.EMOJI_LUPA} **`/scan`** — análisis manual de URL, IP, hash o archivo"
             ),
             inline=False
         )
@@ -30,11 +32,11 @@ class InfoCog(commands.Cog):
         embed.add_field(
             name=f"{self.bot.EMOJI_GUARDIAN} Moderación",
             value=(
-                "• `/silentmode` — Solo reacciones, sin mensajes\n"
-                "• `/strictmode` — Elimina mensajes peligrosos\n"
-                "• `/whitelist` — Dominios de confianza\n"
-                "• `/setlogchannel` — Canal de logs con botones\n"
-                "• `/usercheck` — Infracciones de un usuario"
+                f"{self.bot.EMOJI_GUARDIAN} **`/silentmode`** — Solo reacciones, sin mensajes\n"
+                f"{self.bot.EMOJI_GUARDIAN} **`/strictmode`** — Elimina mensajes peligrosos\n"
+                f"{self.bot.EMOJI_WHITELIST} **`/whitelist`** — Dominios de confianza\n"
+                f"{self.bot.EMOJI_REPLY} **`/setlogchannel`** — Canal de logs con botones\n"
+                f"{self.bot.EMOJI_REPLY} **`/usercheck`** — Infracciones de un usuario"
             ),
             inline=False
         )
@@ -42,9 +44,9 @@ class InfoCog(commands.Cog):
         embed.add_field(
             name=f"{self.bot.EMOJI_STATS} Caché y límites",
             value=(
-                "• **Caché**: 1h en memoria, 7-30 días en SQLite\n"
-                "• **API**: 3 keys VirusTotal (12/min), 3 keys Sightengine\n"
-                "• **Límites**: 30 análisis/hora, 5 URLs/archivos por mensaje"
+                f"{self.bot.EMOJI_CORRECTO} **Caché**: 1h memoria + 7-30 días SQLite\n"
+                f"{self.bot.EMOJI_KEY} **API**: 3 keys VT (12/min) + 3 Sightengine\n"
+                f"{self.bot.EMOJI_COOLDOWN} **Límites**: 30 análisis/hora, 5 por mensaje"
             ),
             inline=False
         )

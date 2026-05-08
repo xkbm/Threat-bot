@@ -6,13 +6,13 @@ class HelpCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="help", description="Muestra todos los comandos disponibles de Threat")
+    @app_commands.command(name="help", description="Lista completa de comandos y funcionalidades del bot de seguridad Threat")
     async def help_command(self, interaction: discord.Interaction):
         embed = discord.Embed(
             title=f"{self.bot.EMOJI_SHIELD} Comandos de Threat",
             description=(
-                "Bot de seguridad con análisis automático y manual usando **VirusTotal** y **Sightengine (NSFW)**.\n"
-                "Incluye escaneo de mensajes editados, sistema de reputación y caché inteligente."
+                f"{self.bot.EMOJI_LUPA} Análisis automático y manual con VirusTotal + Sightengine\n"
+                f"{self.bot.EMOJI_CORRECTO} Escaneo de mensajes, reputación y caché inteligente"
             ),
             color=discord.Color.blue()
         )
@@ -20,14 +20,14 @@ class HelpCog(commands.Cog):
         embed.add_field(
             name=f"{self.bot.EMOJI_LUPA} Análisis",
             value=(
-                f"**`/scan`** — Analiza manualmente una URL, IP, hash o archivo.\n"
-                f"*Uso:* `/scan tipo:url valor:https://ejemplo.com`\n\n"
-                f"**Detección automática** — El bot analiza automáticamente:\n"
-                f"• Enlaces en mensajes (múltiples URLs a la vez)\n"
-                f"• Archivos e imágenes adjuntos\n"
-                f"• Mensajes editados (cierres de seguridad)\n"
-                f"• URLs acortadas (expansión automática)\n"
-                f"• Doble extensión y verificación MIME"
+                f"**`/scan`** — Analiza URL, IP, hash o archivo\n"
+                f"└ *Ejemplo:* `/scan tipo:url valor:https://ejemplo.com`\n\n"
+                f"**Detección automática:**\n"
+                f"{self.bot.EMOJI_CORRECTO} Enlaces en mensajes\n"
+                f"{self.bot.EMOJI_CORRECTO} Archivos e imágenes adjuntos\n"
+                f"{self.bot.EMOJI_CORRECTO} Mensajes editados\n"
+                f"{self.bot.EMOJI_CORRECTO} URLs acortadas (expansión automática)\n"
+                f"{self.bot.EMOJI_CORRECTO} Doble extensión y verificación MIME"
             ),
             inline=False
         )
@@ -35,9 +35,9 @@ class HelpCog(commands.Cog):
         embed.add_field(
             name=f"{self.bot.EMOJI_STATS} Información",
             value=(
-                f"**`/stats`** — Estadísticas globales: análisis, amenazas y uso de API keys.\n"
-                f"**`/about`** — Información sobre el funcionamiento del bot y sistema de caché.\n"
-                f"**`/help`** — Muestra este mensaje de ayuda."
+                f"{self.bot.EMOJI_STATS} **`/stats`** — Estadísticas globales\n"
+                f"{self.bot.EMOJI_SHIELD} **`/about`** — Info del bot y sistema de caché\n"
+                f"{self.bot.EMOJI_REPLY} **`/help`** — Este mensaje de ayuda"
             ),
             inline=False
         )
@@ -45,13 +45,13 @@ class HelpCog(commands.Cog):
         embed.add_field(
             name=f"{self.bot.EMOJI_GUARDIAN} Moderación (solo administradores)",
             value=(
-                f"**`/usercheck @usuario`** — Infracciones de seguridad acumuladas.\n"
-                f"**`/silentmode <true/false>`** — Solo reacciones, sin mensajes (excepto amenazas).\n"
-                f"**`/strictmode <true/false>`** — Elimina automáticamente mensajes peligrosos.\n"
-                f"**`/whitelist <add/remove/list> <dominio>`** — Gestiona dominios de confianza.\n"
-                f"**`/setlogchannel #canal`** — Establece el canal para logs de amenazas.\n"
-                f"**`/disablelogchannel`** — Desactiva el envío de logs.\n"
-                f"**`/settings`** — Muestra la configuración actual del bot en este servidor."
+                f"{self.bot.EMOJI_REPLY} **`/usercheck`** — Infracciones de un usuario\n"
+                f"{self.bot.EMOJI_GUARDIAN} **`/silentmode`** — Solo reacciones\n"
+                f"{self.bot.EMOJI_GUARDIAN} **`/strictmode`** — Elimina mensajes peligrosos\n"
+                f"{self.bot.EMOJI_WHITELIST} **`/whitelist`** — Dominios de confianza\n"
+                f"{self.bot.EMOJI_REPLY} **`/setlogchannel`** — Canal de logs\n"
+                f"{self.bot.EMOJI_INCORRECTO} **`/disablelogchannel`** — Desactiva logs\n"
+                f"{self.bot.EMOJI_STATS} **`/settings`** — Configuración del servidor"
             ),
             inline=False
         )
@@ -59,11 +59,11 @@ class HelpCog(commands.Cog):
         embed.add_field(
             name=f"{self.bot.EMOJI_KEY} Funcionalidades automáticas",
             value=(
-                f"{self.bot.EMOJI_CORRECTO} **Caché inteligente**: memoria (1h) + base de datos (7‑30 días).\n"
-                f"{self.bot.EMOJI_WARNING} **Detección NSFW**: nudity, weapons, alcohol, ofensivo.\n"
-                f"{self.bot.EMOJI_LINK} **VirusTotal**: rota hasta 3 API keys (12 peticiones/min).\n"
-                f"{self.bot.EMOJI_WHITELIST} **Whitelist**: ignora dominios seguros.\n"
-                f"{self.bot.EMOJI_COOLDOWN} **Anti‑spam**: 30 análisis/hora por usuario."
+                f"{self.bot.EMOJI_CORRECTO} **Caché inteligente**: memoria (1h) + BD (7-30 días)\n"
+                f"{self.bot.EMOJI_WARNING} **NSFW**: nudity, weapons, alcohol, ofensivo\n"
+                f"{self.bot.EMOJI_LINK} **VirusTotal**: hasta 3 keys (12 peticiones/min)\n"
+                f"{self.bot.EMOJI_WHITELIST} **Whitelist**: ignora dominios seguros\n"
+                f"{self.bot.EMOJI_COOLDOWN} **Anti-spam**: 30 análisis/hora por usuario"
             ),
             inline=False
         )
@@ -71,10 +71,10 @@ class HelpCog(commands.Cog):
         embed.add_field(
             name=f"{self.bot.EMOJI_REPLY} Notas",
             value=(
-                "• Los comandos de administrador requieren el permiso correspondiente.\n"
-                "• El modo silencioso **siempre** notifica amenazas reales.\n"
-                "• Los logs incluyen botones para banear, expulsar o ignorar infracciones.\n"
-                "• Prefijo del bot: `-` (ej. `-eval` para el dueño)."
+                f"{self.bot.EMOJI_GUARDIAN} Comandos admin requieren permisos\n"
+                f"{self.bot.EMOJI_WARNING} Modo silencioso siempre notifica amenazas\n"
+                f"{self.bot.EMOJI_REPLY} Logs incluyen botones: banear, expulsar, ignorar\n"
+                f"{self.bot.EMOJI_KEY} Prefijo del bot: `-` (ej. `-eval` para el propietario)"
             ),
             inline=False
         )
