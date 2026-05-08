@@ -51,7 +51,16 @@ class InfoCog(commands.Cog):
             inline=False
         )
 
-        await interaction.response.send_message(embed=embed)
+        try:
+            await interaction.response.send_message(embed=embed)
+        except discord.errors.NotFound:
+            # La interacción ya no es válida (expirada o ya respondida)
+            # Intentamos usar followup como alternativa
+            try:
+                await interaction.followup.send(embed=embed)
+            except Exception as e:
+                # Si incluso followup falla, registramos el error pero no podemos responder al usuario
+                print(f"Error al intentar responder al comando /about: {e}")
 
 async def setup(bot):
     await bot.add_cog(InfoCog(bot))

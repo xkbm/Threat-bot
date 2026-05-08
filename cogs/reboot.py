@@ -12,7 +12,13 @@ class RebootCog(commands.Cog):
     async def reboot(self, interaction: discord.Interaction):
         # Verificar que solo el dueño pueda usar el comando
         if str(interaction.user.id) != OWNER_ID:
-            await interaction.response.send_message("❌ No tienes permiso para reiniciar el bot.", ephemeral=True)
+            try:
+                await interaction.response.send_message("❌ No tienes permiso para reiniciar el bot.", ephemeral=True)
+            except discord.errors.NotFound:
+                try:
+                    await interaction.followup.send("❌ No tienes permiso para reiniciar el bot.", ephemeral=True)
+                except Exception as e:
+                    print(f"Error al responder al comando reboot: {e}")
             return
 
         # Crear botones de confirmación
@@ -41,12 +47,23 @@ class RebootCog(commands.Cog):
         view.add_item(confirm_btn)
         view.add_item(cancel_btn)
 
-        await interaction.response.send_message(
-            "⚠️ **¿Estás seguro de que deseas reiniciar el bot?**\n"
-            "El bot se desconectará y el panel lo reiniciará automáticamente.",
-            view=view,
-            ephemeral=True
-        )
+        try:
+            await interaction.response.send_message(
+                "⚠️ **¿Estás seguro de que deseas reiniciar el bot?**\n"
+                "El bot se desconectará y el panel lo reiniciará automáticamente.",
+                view=view,
+                ephemeral=True
+            )
+        except discord.errors.NotFound:
+            try:
+                await interaction.followup.send(
+                    "⚠️ **¿Estás seguro de que deseas reiniciar el bot?**\n"
+                    "El bot se desconectará y el panel lo reiniciará automáticamente.",
+                    view=view,
+                    ephemeral=True
+                )
+            except Exception as e:
+                print(f"Error al intentar responder al comando reboot: {e}")
 
 async def setup(bot):
     await bot.add_cog(RebootCog(bot))

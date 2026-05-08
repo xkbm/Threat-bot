@@ -30,7 +30,16 @@ class ReputacionCog(commands.Cog):
         )
         embed.set_footer(text=f"Servidor: {interaction.guild.name}  •  Usa /help para ver otros comandos")
 
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        try:
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+        except discord.errors.NotFound:
+            # La interacción ya no es válida (expirada o ya respondida)
+            # Intentamos usar followup como alternativa
+            try:
+                await interaction.followup.send(embed=embed, ephemeral=True)
+            except Exception as e:
+                # Si incluso followup falla, registramos el error pero no podemos responder al usuario
+                print(f"Error al intentar responder al comando /usercheck: {e}")
 
 async def setup(bot):
     await bot.add_cog(ReputacionCog(bot))
