@@ -248,15 +248,22 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
             if resp.status == 200:
                 result_json = await resp.json()
                 scan_id = result_json["data"]["id"]
-                for _ in range(3):
+                log.info(f"VT file uploaded, scan_id={scan_id}, waiting for analysis...")
+                for i in range(10):
                     await asyncio.sleep(15)
+                    log.info(f"VT polling attempt {i+1}/10 for scan_id={scan_id}")
                     async with state.bot.session.get(f"https://www.virustotal.com/api/v3/analyses/{scan_id}", headers=headers) as resp2:
                         if resp2.status == 200:
                             analysis = await resp2.json()
-                            if analysis["data"]["attributes"]["status"] == "completed":
+                            status = analysis["data"]["attributes"]["status"]
+                            log.info(f"VT analysis status: {status}")
+                            if status == "completed":
                                 return await _procesar_analisis_archivo(analysis, archivo, file_hash, guild_id, mensaje_original, guardar_cache)
+                            elif status == "queued":
+                                log.info("VT still queued, continuing...")
+                log.error("VT file analysis timed out after 10 attempts (150s)")
                 await update_stats(guild_id, "error")
-                return "error", discord.Embed(title="Error en análisis", description="El análisis no se completó a tiempo.", color=discord.Color.red()), 0
+                return "error", discord.Embed(title="Error en análisis", description="El análisis tardó más de lo esperado. Intenta de nuevo.", color=discord.Color.red()), 0
             else:
                 await update_stats(guild_id, "error")
                 return "error", discord.Embed(title="Error al subir archivo", description="VirusTotal rechazó el archivo", color=discord.Color.red()), 0
