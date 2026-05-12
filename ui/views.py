@@ -27,8 +27,6 @@ class LogActionView(discord.ui.View):
         await interaction.response.send_message(f"¿Estás seguro de banear a {user.mention}?", view=confirm_view, ephemeral=True)
 
     @discord.ui.button(label="Expulsar usuario", style=discord.ButtonStyle.danger, emoji=EMOJI_KICK)
-
-    @discord.ui.button(label="Expulsar usuario", style=discord.ButtonStyle.danger, emoji=EMOJI_KICK)
     async def kick_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not interaction.user.guild_permissions.kick_members:
             await interaction.response.send_message("No tienes permisos para expulsar.", ephemeral=True)

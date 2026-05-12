@@ -3,6 +3,9 @@ from discord.ext import commands
 from discord import app_commands
 import hashlib
 import asyncio
+import logging
+
+log = logging.getLogger("analisis")
 
 class AnalisisCog(commands.Cog):
     def __init__(self, bot):
@@ -129,6 +132,23 @@ class AnalisisCog(commands.Cog):
                 )
                 if doble_ext:
                     embed.add_field(name=f"{self.bot.EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
+                await interaction.edit_original_response(content=None, embed=embed)
+                return
+
+            # Revisar caché por hash (virustotal.py guarda como filehash:{hash})
+            tipo_cache, embed_cache, mal_cache = self.bot.get_from_cache_mem(f"filehash:{file_hash}")
+            if embed_cache is None:
+                tipo_cache, embed_cache, mal_cache = await self.bot.obtener_analisis_db(f"filehash:{file_hash}")
+                if embed_cache is not None:
+                    self.bot.set_cache_mem(f"filehash:{file_hash}", tipo_cache, embed_cache, mal_cache)
+            if embed_cache is not None:
+                tipo_res = tipo_cache
+                embed = embed_cache.copy()
+                mal = mal_cache
+                if doble_ext:
+                    embed.add_field(name=f"{self.bot.EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
+                if warning_mime:
+                    embed.add_field(name=f"{self.bot.EMOJI_WARNING} Verificación MIME", value=warning_mime, inline=False)
                 await interaction.edit_original_response(content=None, embed=embed)
                 return
 

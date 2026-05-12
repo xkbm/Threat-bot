@@ -66,6 +66,24 @@ def registrar_uso_se(api_key):
         state.bot.se_key_daily_usage[api_key]["count"] += 4
     state.bot.se_key_total_requests[api_key] += 4
 
+def registrar_uso_vt(key):
+    """Registra un uso de la key VT sin rotar el índice."""
+    ahora = time.time()
+    hoy = time.strftime("%Y-%m-%d", time.gmtime())
+    if key not in state.bot.vt_key_usage:
+        state.bot.vt_key_usage[key] = []
+    if key not in state.bot.vt_key_total_requests:
+        state.bot.vt_key_total_requests[key] = 0
+    if key not in state.bot.vt_key_daily_usage:
+        state.bot.vt_key_daily_usage[key] = {"count": 0, "date": hoy}
+    state.bot.vt_key_usage[key] = [t for t in state.bot.vt_key_usage[key] if ahora - t <= 60]
+    state.bot.vt_key_usage[key].append(ahora)
+    if state.bot.vt_key_daily_usage[key]["date"] != hoy:
+        state.bot.vt_key_daily_usage[key] = {"count": 1, "date": hoy}
+    else:
+        state.bot.vt_key_daily_usage[key]["count"] += 1
+    state.bot.vt_key_total_requests[key] += 1
+
 # ========== ENVÍO DE LOGS CON BOTONES ==========
 async def enviar_log_guild(guild_id, tipo, valor, detalles, usuario, url_vt=None, elemento_id=None):
     config = obtener_config_guild(guild_id)
@@ -268,6 +286,7 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
                 for i in range(10):
                     await asyncio.sleep(15)
                     log.info(f"VT polling attempt {i+1}/10 for scan_id={scan_id}")
+                    registrar_uso_vt(key)
                     async with state.bot.session.get(f"https://www.virustotal.com/api/v3/analyses/{scan_id}", headers=headers) as resp2:
                         log.info(f"VT polling response status: {resp2.status}")
                         if resp2.status == 200:
@@ -310,11 +329,12 @@ async def _procesar_resultado_vt(analysis, tipo, valor, guild_id, mensaje_origin
         embed.add_field(name="URL", value=f"`{valor}`", inline=False)
         embed.add_field(name="\u200b", value=f"{EMOJI_LINK} [Ver informe completo]({vt_link})", inline=False)
         tipo_str = "seguro"
+        if guild_id:
+            await update_stats(guild_id, "seguro")
 
     if guardar_cache:
         await guardar_analisis_db(clave, tipo, tipo_str, embed, mal)
         set_cache_mem(clave, tipo_str, embed, mal)
-    await update_stats(guild_id, tipo_str)
     return tipo_str, embed, mal
 
 async def _procesar_analisis_archivo(analysis, archivo, file_hash, guild_id, mensaje_original, guardar_cache):
@@ -330,7 +350,6 @@ async def _procesar_analisis_archivo(analysis, archivo, file_hash, guild_id, men
             await guardar_analisis_db(clave, "file", "malicioso", embed, mal)
             set_cache_mem(clave, "malicioso", embed, mal)
             await guardar_metadatos_hash(f"file:{archivo.filename}:{archivo.size}", file_hash)
-        await update_stats(guild_id, "malicioso")
         return "malicioso", embed, mal
     else:
         embed = discord.Embed(title=f"{EMOJI_CORRECTO} Archivo Seguro", description=f"{EMOJI_FILE} `{archivo.filename}` parece limpio (0 detecciones)", color=discord.Color.green())
