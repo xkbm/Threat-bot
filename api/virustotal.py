@@ -16,6 +16,7 @@ from core.guild_config import obtener_config_guild, update_stats, registrar_infr
 
 log = logging.getLogger("virustotal")
 
+VT_TIMEOUT = aiohttp.ClientTimeout(total=75)
 _vt_lock = asyncio.Lock()
 
 # ========== ROTACIÓN DE CLAVES VT ==========
@@ -118,7 +119,7 @@ async def analizar_url(url, guild_id=None, mensaje_original=None, guardar_cache=
     headers = {"x-apikey": key}
     try:
         _t = time.time()
-        async with state.bot.session.post("https://www.virustotal.com/api/v3/urls", headers=headers, data={"url": url}) as resp:
+        async with state.bot.session.post("https://www.virustotal.com/api/v3/urls", headers=headers, data={"url": url}, timeout=VT_TIMEOUT) as resp:
             log.debug(f"VT URL POST → status={resp.status} t={time.time()-_t:.1f}s")
             if resp.status == 200:
                 data = await resp.json()
@@ -127,7 +128,7 @@ async def analizar_url(url, guild_id=None, mensaje_original=None, guardar_cache=
                 for intento in range(3):
                     await asyncio.sleep(10)
                     _t2 = time.time()
-                    async with state.bot.session.get(f"https://www.virustotal.com/api/v3/analyses/{scan_id}", headers=headers) as resp2:
+                    async with state.bot.session.get(f"https://www.virustotal.com/api/v3/analyses/{scan_id}", headers=headers, timeout=VT_TIMEOUT) as resp2:
                         log.debug(f"VT URL POLL → intento={intento+1}/3 status={resp2.status} t={time.time()-_t2:.1f}s acum={time.time()-_t0:.1f}s")
                         if resp2.status == 200:
                             analysis = await resp2.json()
@@ -167,7 +168,7 @@ async def analizar_hash(hash_valor, guild_id=None, mensaje_original=None, guarda
     headers = {"x-apikey": key}
     try:
         _t = time.time()
-        async with state.bot.session.get(f"https://www.virustotal.com/api/v3/files/{hash_valor}", headers=headers) as resp:
+        async with state.bot.session.get(f"https://www.virustotal.com/api/v3/files/{hash_valor}", headers=headers, timeout=VT_TIMEOUT) as resp:
             log.debug(f"VT HASH GET → status={resp.status} t={time.time()-_t:.1f}s")
             if resp.status == 200:
                 data = await resp.json()
@@ -233,7 +234,7 @@ async def analizar_ip(ip, guild_id=None, mensaje_original=None, guardar_cache=Tr
     headers = {"x-apikey": key}
     try:
         _t = time.time()
-        async with state.bot.session.get(f"https://www.virustotal.com/api/v3/ip_addresses/{ip}", headers=headers) as resp:
+        async with state.bot.session.get(f"https://www.virustotal.com/api/v3/ip_addresses/{ip}", headers=headers, timeout=VT_TIMEOUT) as resp:
             log.debug(f"VT IP GET → status={resp.status} t={time.time()-_t:.1f}s")
             if resp.status == 200:
                 data = await resp.json()
@@ -309,7 +310,8 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
         _t = time.time()
         check_resp = await state.bot.session.get(
             f"https://www.virustotal.com/api/v3/files/{file_hash}",
-            headers=headers
+            headers=headers,
+            timeout=VT_TIMEOUT
         )
         log.debug(f"VT FILE CHECK HASH → status={check_resp.status} t={time.time()-_t:.1f}s acum={time.time()-_t0:.1f}s")
         if check_resp.status == 200:
@@ -326,7 +328,7 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
         data = aiohttp.FormData()
         data.add_field('file', file_bytes, filename=archivo.filename)
         _t2 = time.time()
-        async with state.bot.session.post("https://www.virustotal.com/api/v3/files", headers=headers, data=data) as resp:
+        async with state.bot.session.post("https://www.virustotal.com/api/v3/files", headers=headers, data=data, timeout=VT_TIMEOUT) as resp:
             log.debug(f"VT FILE SUBIDO → status={resp.status} t={time.time()-_t2:.1f}s acum={time.time()-_t0:.1f}s")
             if resp.status == 200:
                 result_json = await resp.json()
@@ -336,7 +338,7 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
                     await asyncio.sleep(15)
                     registrar_uso_vt(key)
                     _t3 = time.time()
-                    async with state.bot.session.get(f"https://www.virustotal.com/api/v3/analyses/{scan_id}", headers=headers) as resp2:
+                    async with state.bot.session.get(f"https://www.virustotal.com/api/v3/analyses/{scan_id}", headers=headers, timeout=VT_TIMEOUT) as resp2:
                         log.debug(f"VT FILE POLL → intento={i+1}/10 status={resp2.status} t={time.time()-_t3:.1f}s acum={time.time()-_t0:.1f}s")
                         if resp2.status == 200:
                             analysis = await resp2.json()
