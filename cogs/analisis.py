@@ -132,10 +132,27 @@ class AnalisisCog(commands.Cog):
                 await interaction.edit_original_response(content=None, embed=embed)
                 return
 
-            tipo_res, embed, mal = await self.bot.analizar_archivo(
-                archivo, file_bytes=file_bytes, file_hash=file_hash,
-                guild_id=guild_id, guardar_cache=True
-            )
+            try:
+                tipo_res, embed, mal = await self.bot.analizar_archivo(
+                    archivo, file_bytes=file_bytes, file_hash=file_hash,
+                    guild_id=guild_id, guardar_cache=True
+                )
+            except Exception as e:
+                log.error(f"Error en scan archivo: {e}")
+                embed = discord.Embed(
+                    title=f"{self.bot.EMOJI_INCORRECTO} Error en análisis",
+                    description=str(e),
+                    color=discord.Color.red()
+                )
+                await interaction.edit_original_response(content=None, embed=embed)
+                return
+
+            if tipo_res == "error":
+                if doble_ext:
+                    if not any("Doble extensión" in f.name for f in embed.fields):
+                        embed.add_field(name=f"{self.bot.EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
+                await interaction.edit_original_response(content=None, embed=embed)
+                return
 
             if doble_ext:
                 embed.add_field(name=f"{self.bot.EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
