@@ -2,7 +2,7 @@ import time
 import asyncio
 import hashlib
 import json
-import urllib.parse
+import base64
 import logging
 import aiohttp
 import discord
@@ -370,8 +370,8 @@ async def _procesar_resultado_vt(analysis, tipo, valor, guild_id, mensaje_origin
     mal = stats["malicious"]
     clave = f"{tipo}:{valor}"
     log.debug(f"VT RESULT → {tipo}={valor} mal={mal} harmless={stats.get('harmless',0)} undetected={stats.get('undetected',0)}")
-    encoded = urllib.parse.quote_plus(valor)
-    vt_link = f"https://www.virustotal.com/gui/home/url?url={encoded}"
+    url_id = base64.urlsafe_b64encode(valor.encode()).decode().rstrip("=")
+    vt_link = f"https://www.virustotal.com/gui/url/{url_id}"
 
     if mal > 0:
         await _on_threat_found(tipo, valor, mal, guild_id, mensaje_original, vt_link)

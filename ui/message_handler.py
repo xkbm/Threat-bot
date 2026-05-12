@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import json
 import urllib.parse
+import base64
 import logging
 import discord
 from core.config import MAX_IMAGE_SIZE, MAX_FILE_SIZE, EMOJI_CORRECTO, EMOJI_INCORRECTO, EMOJI_WARNING, EMOJI_WHITELIST, EMOJI_LOADING, EMOJI_LINK, EMOJI_FILE, EMOJI_COOLDOWN, EMOJI_REPLY, ANTISPAM_URLS_PER_HOUR, ANTISPAM_COOLDOWN
@@ -263,7 +264,8 @@ async def procesar_analisis(bot, message):
                 maliciosas_str = ""
                 for url_orig, url_exp, tipo, _ in resultados:
                     if tipo == "malicioso":
-                        vt_link = f"https://www.virustotal.com/gui/home/url?url={urllib.parse.quote_plus(url_exp)}"
+                        url_id = base64.urlsafe_b64encode(url_exp.encode()).decode().rstrip("=")
+                        vt_link = f"https://www.virustotal.com/gui/url/{url_id}"
                         url_mostrar = url_orig if url_orig == url_exp else f"{url_orig} → {url_exp}"
                         maliciosas_str += f"• `{url_mostrar}` {EMOJI_LINK} [Ver informe]({vt_link})\n"
                 embed_resumen.add_field(name=f"{EMOJI_WARNING} Enlaces maliciosos", value=maliciosas_str[:1024], inline=False)
