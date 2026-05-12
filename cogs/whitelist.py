@@ -1,9 +1,11 @@
 import re
+import logging
 import discord
 from discord.ext import commands
 from discord import app_commands
 from core.config import DOMINIOS_PROTEGIDOS
 
+log = logging.getLogger("whitelist")
 PATRON_DOMINIO = re.compile(r'^([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$')
 
 class WhitelistCog(commands.Cog):
@@ -38,6 +40,7 @@ class WhitelistCog(commands.Cog):
 
         if accion.value == "add":
             if not dominio:
+                log.debug(f"WHITELIST ADD → guild={interaction.guild.id} sin dominio")
                 try:
                     await interaction.response.send_message(f"{self.bot.EMOJI_INCORRECTO} Especifica un dominio para añadir.", ephemeral=True)
                 except discord.errors.NotFound:
@@ -47,12 +50,14 @@ class WhitelistCog(commands.Cog):
             if dominio.startswith("www."):
                 dominio = dominio[4:]
             if not PATRON_DOMINIO.match(dominio):
+                log.debug(f"WHITELIST ADD → guild={interaction.guild.id} dominio inválido: {dominio}")
                 try:
                     await interaction.response.send_message(f"{self.bot.EMOJI_INCORRECTO} `{dominio}` no es un dominio válido.", ephemeral=True)
                 except discord.errors.NotFound:
                     pass
                 return
             if dominio in whitelist:
+                log.debug(f"WHITELIST ADD → guild={interaction.guild.id} ya existe: {dominio}")
                 try:
                     await interaction.response.send_message(f"{self.bot.EMOJI_INCORRECTO} `{dominio}` ya está en la whitelist.", ephemeral=True)
                 except discord.errors.NotFound:
@@ -60,6 +65,7 @@ class WhitelistCog(commands.Cog):
                 return
             whitelist.append(dominio)
             await self.guardar_whitelist(interaction.guild.id, whitelist)
+            log.debug(f"WHITELIST ADD OK → guild={interaction.guild.id} dominio={dominio} admin={interaction.user.id}")
             try:
                 await interaction.response.send_message(f"{self.bot.EMOJI_CORRECTO} Dominio `{dominio}` añadido a la whitelist.", ephemeral=True)
             except discord.errors.NotFound:
@@ -67,6 +73,7 @@ class WhitelistCog(commands.Cog):
 
         elif accion.value == "remove":
             if not dominio:
+                log.debug(f"WHITELIST REMOVE → guild={interaction.guild.id} sin dominio")
                 try:
                     await interaction.response.send_message(f"{self.bot.EMOJI_INCORRECTO} Especifica un dominio para eliminar.", ephemeral=True)
                 except discord.errors.NotFound:
@@ -76,12 +83,14 @@ class WhitelistCog(commands.Cog):
             if dominio.startswith("www."):
                 dominio = dominio[4:]
             if dominio not in whitelist:
+                log.debug(f"WHITELIST REMOVE → guild={interaction.guild.id} no encontrado: {dominio}")
                 try:
                     await interaction.response.send_message(f"{self.bot.EMOJI_INCORRECTO} `{dominio}` no está en la whitelist.", ephemeral=True)
                 except discord.errors.NotFound:
                     pass
                 return
             if dominio in DOMINIOS_PROTEGIDOS:
+                log.debug(f"WHITELIST REMOVE → guild={interaction.guild.id} protegido: {dominio}")
                 try:
                     await interaction.response.send_message(f"{self.bot.EMOJI_WARNING} `{dominio}` es un dominio protegido y no puede eliminarse.", ephemeral=True)
                 except discord.errors.NotFound:
@@ -89,6 +98,7 @@ class WhitelistCog(commands.Cog):
                 return
             whitelist.remove(dominio)
             await self.guardar_whitelist(interaction.guild.id, whitelist)
+            log.debug(f"WHITELIST REMOVE OK → guild={interaction.guild.id} dominio={dominio} admin={interaction.user.id}")
             try:
                 await interaction.response.send_message(f"{self.bot.EMOJI_CORRECTO} Dominio `{dominio}` eliminado de la whitelist.", ephemeral=True)
             except discord.errors.NotFound:
@@ -96,11 +106,13 @@ class WhitelistCog(commands.Cog):
 
         elif accion.value == "list":
             if not whitelist:
+                log.debug(f"WHITELIST LIST → guild={interaction.guild.id} vacía")
                 try:
                     await interaction.response.send_message(f"{self.bot.EMOJI_INCORRECTO} No hay dominios en la whitelist.", ephemeral=True)
                 except discord.errors.NotFound:
                     pass
                 return
+            log.debug(f"WHITELIST LIST → guild={interaction.guild.id} total={len(whitelist)} admin={interaction.user.id}")
             lista = "\n".join(f"• `{d}`" for d in whitelist)
             embed = discord.Embed(
                 title=f"{self.bot.EMOJI_SHIELD} Whitelist de {interaction.guild.name}",

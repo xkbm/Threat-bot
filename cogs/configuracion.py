@@ -1,10 +1,19 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
+import logging
+
+log = logging.getLogger("configuracion")
 
 class ConfiguracionCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+
+    async def _safe_followup(self, interaction, *args, **kwargs):
+        try:
+            await interaction.followup.send(*args, **kwargs)
+        except discord.errors.NotFound:
+            pass
 
     @app_commands.command(name="silentmode", description="Activa/desactiva el modo silencioso (solo admins)")
     @app_commands.default_permissions(administrator=True)
@@ -12,12 +21,13 @@ class ConfiguracionCog(commands.Cog):
     async def silentmode(self, interaction: discord.Interaction, estado: bool):
         await interaction.response.defer(ephemeral=True)
         if not interaction.guild:
-            await interaction.followup.send(f"{self.bot.EMOJI_INCORRECTO} Este comando solo funciona en servidores.", ephemeral=True)
+            await self._safe_followup(interaction, f"{self.bot.EMOJI_INCORRECTO} Este comando solo funciona en servidores.", ephemeral=True)
             return
         config = self.bot.obtener_config_guild(interaction.guild.id)
         config["silent_mode"] = estado
         await self.bot.guardar_datos(inmediato=True)
-        await interaction.followup.send(f"{self.bot.EMOJI_CORRECTO} Modo silencioso {'activado' if estado else 'desactivado'}.", ephemeral=True)
+        log.debug(f"SILENTMODE → guild={interaction.guild.id} estado={estado} admin={interaction.user.id}")
+        await self._safe_followup(interaction, f"{self.bot.EMOJI_CORRECTO} Modo silencioso {'activado' if estado else 'desactivado'}.", ephemeral=True)
 
     @app_commands.command(name="strictmode", description="Activa/desactiva el modo estricto (solo admins)")
     @app_commands.default_permissions(administrator=True)
@@ -25,12 +35,13 @@ class ConfiguracionCog(commands.Cog):
     async def strictmode(self, interaction: discord.Interaction, estado: bool):
         await interaction.response.defer(ephemeral=True)
         if not interaction.guild:
-            await interaction.followup.send(f"{self.bot.EMOJI_INCORRECTO} Este comando solo funciona en servidores.", ephemeral=True)
+            await self._safe_followup(interaction, f"{self.bot.EMOJI_INCORRECTO} Este comando solo funciona en servidores.", ephemeral=True)
             return
         config = self.bot.obtener_config_guild(interaction.guild.id)
         config["strict_mode"] = estado
         await self.bot.guardar_datos(inmediato=True)
-        await interaction.followup.send(f"{self.bot.EMOJI_CORRECTO} Modo estricto {'activado' if estado else 'desactivado'}.", ephemeral=True)
+        log.debug(f"STRICTMODE → guild={interaction.guild.id} estado={estado} admin={interaction.user.id}")
+        await self._safe_followup(interaction, f"{self.bot.EMOJI_CORRECTO} Modo estricto {'activado' if estado else 'desactivado'}.", ephemeral=True)
 
     @app_commands.command(name="setlogchannel", description="Establece el canal para logs de amenazas (solo admins)")
     @app_commands.default_permissions(administrator=True)
@@ -38,31 +49,33 @@ class ConfiguracionCog(commands.Cog):
     async def setlogchannel(self, interaction: discord.Interaction, canal: discord.TextChannel):
         await interaction.response.defer(ephemeral=True)
         if not interaction.guild:
-            await interaction.followup.send(f"{self.bot.EMOJI_INCORRECTO} Este comando solo funciona en servidores.", ephemeral=True)
+            await self._safe_followup(interaction, f"{self.bot.EMOJI_INCORRECTO} Este comando solo funciona en servidores.", ephemeral=True)
             return
         config = self.bot.obtener_config_guild(interaction.guild.id)
         config["log_channel_id"] = canal.id
         await self.bot.guardar_datos(inmediato=True)
-        await interaction.followup.send(f"{self.bot.EMOJI_CORRECTO} Canal de logs establecido a {canal.mention}.", ephemeral=True)
+        log.debug(f"SETLOGCHANNEL → guild={interaction.guild.id} canal={canal.id} admin={interaction.user.id}")
+        await self._safe_followup(interaction, f"{self.bot.EMOJI_CORRECTO} Canal de logs establecido a {canal.mention}.", ephemeral=True)
 
     @app_commands.command(name="disablelogchannel", description="Desactiva el envío de logs (solo admins)")
     @app_commands.default_permissions(administrator=True)
     async def disablelogchannel(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         if not interaction.guild:
-            await interaction.followup.send(f"{self.bot.EMOJI_INCORRECTO} Este comando solo funciona en servidores.", ephemeral=True)
+            await self._safe_followup(interaction, f"{self.bot.EMOJI_INCORRECTO} Este comando solo funciona en servidores.", ephemeral=True)
             return
         config = self.bot.obtener_config_guild(interaction.guild.id)
         config["log_channel_id"] = None
         await self.bot.guardar_datos(inmediato=True)
-        await interaction.followup.send(f"{self.bot.EMOJI_CORRECTO} Logs desactivados.", ephemeral=True)
+        log.debug(f"DISABLELOGCHANNEL → guild={interaction.guild.id} admin={interaction.user.id}")
+        await self._safe_followup(interaction, f"{self.bot.EMOJI_CORRECTO} Logs desactivados.", ephemeral=True)
 
     @app_commands.command(name="settings", description="Muestra la configuración actual del bot en este servidor (solo admins)")
     @app_commands.default_permissions(administrator=True)
     async def settings(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         if not interaction.guild:
-            await interaction.followup.send(f"{self.bot.EMOJI_INCORRECTO} Este comando solo funciona en servidores.", ephemeral=True)
+            await self._safe_followup(interaction, f"{self.bot.EMOJI_INCORRECTO} Este comando solo funciona en servidores.", ephemeral=True)
             return
         config = self.bot.obtener_config_guild(interaction.guild.id)
         silent = config.get("silent_mode", False)
@@ -80,7 +93,8 @@ class ConfiguracionCog(commands.Cog):
             description=descripcion,
             color=discord.Color.blue()
         )
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        log.debug(f"SETTINGS → guild={interaction.guild.id} admin={interaction.user.id}")
+        await self._safe_followup(interaction, embed=embed, ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(ConfiguracionCog(bot))

@@ -1,6 +1,9 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
+import logging
+
+log = logging.getLogger("rep")
 
 class ReputacionCog(commands.Cog):
     def __init__(self, bot):
@@ -32,10 +35,10 @@ class ReputacionCog(commands.Cog):
         )
         embed.set_footer(text=f"Servidor: {interaction.guild.name}  •  Usa /help para ver otros comandos")
 
+        log.debug(f"USERCHECK → guild={guild_id} usuario_consultado={usuario.id} infracciones={count} admin={interaction.user.id}")
         try:
             await interaction.edit_original_response(embed=embed)
         except discord.errors.NotFound:
-            # La interacción expiró - no hay nada que hacer
             pass
 
 async def setup(bot):

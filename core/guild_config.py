@@ -1,8 +1,10 @@
 import asyncio
+import logging
 from core import state
 from core.config import DOMINIOS_PROTEGIDOS
 from core.database import guardar_datos
 
+log = logging.getLogger("guild_config")
 GUILD_LOCK = asyncio.Lock()
 
 def obtener_config_guild(guild_id):
@@ -44,6 +46,7 @@ async def update_stats(guild_id, tipo):
         else:
             global_stats["errores"] += 1
     await guardar_datos()
+    log.debug(f"STATS UPDATE → guild={guild_id} tipo={tipo} total={global_stats['total_analisis']}")
 
 async def registrar_infraccion(guild_id, user_id, elemento_id):
     async with GUILD_LOCK:
@@ -60,4 +63,5 @@ async def registrar_infraccion(guild_id, user_id, elemento_id):
         config["infracciones_registradas"][uid].append(elemento_id)
         config["infracciones"][uid] = config["infracciones"].get(uid, 0) + 1
     await guardar_datos()
+    log.debug(f"INFRACCION → guild={guild_id} user={user_id} elemento={elemento_id} total={config['infracciones'][uid]}")
     return config["infracciones"][uid]

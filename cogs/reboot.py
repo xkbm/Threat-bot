@@ -1,8 +1,11 @@
 import sys
+import logging
 import discord
 from discord.ext import commands
 from discord import app_commands
 from core.config import OWNER_ID
+
+log = logging.getLogger("reboot")
 
 class RebootCog(commands.Cog):
     def __init__(self, bot):
@@ -11,34 +14,32 @@ class RebootCog(commands.Cog):
     @app_commands.command(name="reboot", description="Reinicia el bot de forma interna (solo dueño)")
     async def reboot(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
-        
-# Verificar que solo el dueño pueda usar el comando
+
         if str(interaction.user.id) != OWNER_ID:
+            log.warning(f"REBOOT INTENTO NO AUTORIZADO → usuario={interaction.user} ({interaction.user.id})")
             try:
                 await interaction.edit_original_response(content="❌ No tienes permiso para reiniciar el bot.")
             except discord.errors.NotFound:
                 pass
             return
 
-        # Crear botones de confirmación
+        log.warning(f"REBOOT INICIADO → usuario={interaction.user} ({interaction.user.id})")
         view = discord.ui.View()
         confirm_btn = discord.ui.Button(label="✅ Sí, reiniciar", style=discord.ButtonStyle.danger)
         cancel_btn = discord.ui.Button(label="❌ Cancelar", style=discord.ButtonStyle.secondary)
 
         async def confirm_callback(btn_interaction: discord.Interaction):
-            # Deshabilitar botones para evitar doble clic
             confirm_btn.disabled = True
             cancel_btn.disabled = True
+            log.warning(f"REBOOT CONFIRMADO → usuario={btn_interaction.user} ({btn_interaction.user.id})")
             await btn_interaction.response.edit_message(content="🔄 Reiniciando el bot...", view=view)
-
-            # Cerrar sesión de forma ordenada y terminar el proceso
-            # El gestor del panel (Pelican) lo reiniciará automáticamente
             await self.bot.close()
             sys.exit(0)
 
         async def cancel_callback(btn_interaction: discord.Interaction):
             confirm_btn.disabled = True
             cancel_btn.disabled = True
+            log.info(f"REBOOT CANCELADO → usuario={btn_interaction.user} ({btn_interaction.user.id})")
             await btn_interaction.response.edit_message(content="🚫 Reinicio cancelado.", view=view)
 
         confirm_btn.callback = confirm_callback
@@ -53,7 +54,6 @@ class RebootCog(commands.Cog):
                 view=view
             )
         except discord.errors.NotFound:
-            # La interacción expiró - no hay nada que hacer
             pass
 
 async def setup(bot):

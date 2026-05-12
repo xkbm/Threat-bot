@@ -3,6 +3,9 @@ from discord.ext import commands
 from discord import app_commands
 import time
 import traceback
+import logging
+
+log = logging.getLogger("stats")
 
 class EstadisticasCog(commands.Cog):
     def __init__(self, bot):
@@ -21,7 +24,7 @@ class EstadisticasCog(commands.Cog):
     def get_vt_combined_daily(self):
         hoy = time.strftime("%Y-%m-%d", time.gmtime())
         total = 0
-        for key in self.bot.vt_key_total_requests:
+        for key in self.bot.vt_key_daily_usage:
             daily_data = self.bot.vt_key_daily_usage.get(key, {"count": 0, "date": ""})
             if daily_data["date"] == hoy:
                 total += daily_data["count"]
@@ -33,7 +36,7 @@ class EstadisticasCog(commands.Cog):
     def get_se_combined_daily(self):
         hoy = time.strftime("%Y-%m-%d", time.gmtime())
         total = 0
-        for key in self.bot.se_key_total_requests:
+        for key in self.bot.se_key_daily_usage:
             daily_data = self.bot.se_key_daily_usage.get(key, {"count": 0, "date": ""})
             if daily_data["date"] == hoy:
                 total += daily_data["count"]
@@ -44,6 +47,7 @@ class EstadisticasCog(commands.Cog):
 
     @app_commands.command(name="stats", description="Muestra estadísticas globales y uso de API")
     async def stats_command(self, interaction: discord.Interaction):
+        log.debug(f"STATS → usuario={interaction.user.id} guild={interaction.guild.id if interaction.guild else None}")
         try:
             await interaction.response.defer()
             stats = self.bot.obtener_stats_globales()
@@ -90,7 +94,7 @@ class EstadisticasCog(commands.Cog):
 
             await interaction.followup.send(embed=embed)
         except Exception as e:
-            print(f"Error en comando stats: {e}\n{traceback.format_exc()}")
+            log.error(f"Error en comando stats: {e}\n{traceback.format_exc()}")
             if interaction.response.is_done():
                 await interaction.followup.send("Ocurrió un error al obtener las estadísticas.", ephemeral=True)
             else:
