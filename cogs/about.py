@@ -1,6 +1,9 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
+import logging
+
+log = logging.getLogger("about")
 
 class InfoCog(commands.Cog):
     def __init__(self, bot):
@@ -8,6 +11,7 @@ class InfoCog(commands.Cog):
 
     @app_commands.command(name="about", description="Información detallada sobre las capacidades y funcionamiento del bot de seguridad Threat")
     async def about(self, interaction: discord.Interaction):
+        log.debug(f"ABOUT → usuario={interaction.user.id} guild={interaction.guild.id if interaction.guild else None}")
         await interaction.response.defer()
         
         embed = discord.Embed(

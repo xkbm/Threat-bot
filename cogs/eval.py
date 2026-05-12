@@ -79,6 +79,7 @@ class EvalCog(commands.Cog):
     @app_commands.command(name="eval", description="Ejecuta código Python (solo dueño)")
     async def eval_slash(self, interaction: discord.Interaction, codigo: str):
         if str(interaction.user.id) != OWNER_ID:
+            log.warning(f"EVAL INTENTO NO AUTORIZADO → usuario={interaction.user} ({interaction.user.id}) servidor={interaction.guild}")
             await interaction.response.send_message(f"{self.bot.EMOJI_INCORRECTO} No tienes permiso para usar este comando.", ephemeral=True)
             return
 
@@ -92,7 +93,7 @@ class EvalCog(commands.Cog):
             await interaction.response.send_message(embed=embed, ephemeral=True)
             return
 
-        await interaction.response.defer()
+        await interaction.response.defer(ephemeral=True)
 
         if codigo.startswith("```python") and codigo.endswith("```"):
             codigo = codigo[9:-3].strip()
@@ -134,7 +135,10 @@ class EvalCog(commands.Cog):
         embed = discord.Embed(title=f"{self.bot.EMOJI_KEY} Resultado de eval", color=discord.Color.dark_blue())
         embed.add_field(name=f"{self.bot.EMOJI_FILE} Código", value=f"```py\n{codigo[:500]}\n```", inline=False)
         embed.add_field(name=f"{self.bot.EMOJI_STATS} Salida", value=f"```\n{output}\n```", inline=False)
-        await interaction.followup.send(embed=embed)
+        try:
+            await interaction.followup.send(embed=embed)
+        except discord.errors.NotFound:
+            pass
 
 async def setup(bot):
     await bot.add_cog(EvalCog(bot))

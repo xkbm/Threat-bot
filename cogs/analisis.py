@@ -4,6 +4,7 @@ from discord import app_commands
 import hashlib
 import asyncio
 import logging
+from core.utils import expandir_url
 
 log = logging.getLogger("analisis")
 
@@ -46,7 +47,11 @@ class AnalisisCog(commands.Cog):
         # --- URL: expandir acortadores ---
         if tipo.value == "url":
             url_original = valor
-            expanded = await self.bot.expandir_url(valor)
+            try:
+                expanded = await expandir_url(self.bot, valor)
+            except Exception as e:
+                log.error(f"SCAN URL EXPAND ERROR → {valor}: {e}")
+                expanded = None
             valor = expanded if expanded else valor
             clave = f"url:{valor}"
             if expanded and expanded != url_original:
@@ -74,12 +79,16 @@ class AnalisisCog(commands.Cog):
         log.debug(f"SCAN CACHE → buscando clave={clave}")
         tipo_res, embed, _ = self.bot.get_from_cache_mem(clave)
         if embed is None:
-            tipo_res, embed, _ = await self.bot.obtener_analisis_db(clave)
-            if embed is not None:
-                log.debug(f"SCAN CACHE SQLITE HIT → clave={clave} tipo={tipo_res}")
-                self.bot.set_cache_mem(clave, tipo_res, embed, 0)
-            else:
-                log.debug(f"SCAN CACHE MISS → clave={clave}")
+            try:
+                tipo_res, embed, mal_db = await self.bot.obtener_analisis_db(clave)
+                if embed is not None:
+                    log.debug(f"SCAN CACHE SQLITE HIT → clave={clave} tipo={tipo_res} mal={mal_db}")
+                    self.bot.set_cache_mem(clave, tipo_res, embed, mal_db)
+                else:
+                    log.debug(f"SCAN CACHE MISS → clave={clave}")
+            except Exception as e:
+                log.error(f"SCAN CACHE DB ERROR → clave={clave}: {e}")
+                tipo_res, embed, mal_db = None, None, 0
         else:
             log.debug(f"SCAN CACHE RAM HIT → clave={clave} tipo={tipo_res}")
 

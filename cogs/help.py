@@ -1,6 +1,9 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
+import logging
+
+log = logging.getLogger("help")
 
 class HelpCog(commands.Cog):
     def __init__(self, bot):
@@ -8,6 +11,7 @@ class HelpCog(commands.Cog):
 
     @app_commands.command(name="help", description="Lista completa de comandos y funcionalidades del bot de seguridad Threat")
     async def help_command(self, interaction: discord.Interaction):
+        log.debug(f"HELP → usuario={interaction.user.id} guild={interaction.guild.id if interaction.guild else None}")
         await interaction.response.defer()
         
         embed = discord.Embed(

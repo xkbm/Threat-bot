@@ -187,7 +187,7 @@ async def analizar_hash(hash_valor, guild_id=None, mensaje_original=None, guarda
                     set_cache_mem(f"hash:{hash_valor}", "error", embed, 0)
                 return "error", embed, 0
     except Exception as e:
-        print(f"Error en analizar_hash: {e}")
+        log.error(f"Error en analizar_hash: {e}")
         await update_stats(guild_id, "error")
         embed = discord.Embed(title="Error", description="No se pudo consultar el hash", color=discord.Color.red())
         if guardar_cache:
@@ -231,7 +231,7 @@ async def analizar_ip(ip, guild_id=None, mensaje_original=None, guardar_cache=Tr
                 await update_stats(guild_id, "error")
                 return "error", discord.Embed(title="IP no encontrada", description="No se pudo analizar la IP", color=discord.Color.red()), 0
     except Exception as e:
-        print(f"Error en analizar_ip: {e}")
+        log.error(f"Error en analizar_ip: {e}")
         await update_stats(guild_id, "error")
         return "error", discord.Embed(title="Error", description="No se pudo contactar con VirusTotal", color=discord.Color.red()), 0
 
@@ -305,7 +305,7 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
                 await update_stats(guild_id, "error")
                 return "error", discord.Embed(title="Error al subir archivo", description="VirusTotal rechazó el archivo", color=discord.Color.red()), 0
     except Exception as e:
-        print(f"Error en analizar_archivo: {e}")
+        log.error(f"Error en analizar_archivo: {e}")
         await update_stats(guild_id, "error")
         return "error", discord.Embed(title="Error", description="No se pudo analizar el archivo", color=discord.Color.red()), 0
 
