@@ -28,12 +28,18 @@ class AnalisisCog(commands.Cog):
         await interaction.response.defer()
 
         guild_id = interaction.guild.id if interaction.guild else None
+        url_original = None
+        expanded = None
+
+        log.debug(f"SCAN → tipo={tipo.value} usuario={interaction.user.id} guild={guild_id}")
 
         # Validación de parámetros
         if tipo.value == "file" and archivo is None:
+            log.debug("SCAN → archivo sin adjunto, rechazado")
             await interaction.edit_original_response(content=f"{self.bot.EMOJI_INCORRECTO} Adjunta un archivo para analizar.")
             return
         if tipo.value in ["url", "ip", "hash"] and not valor:
+            log.debug(f"SCAN → tipo={tipo.value} sin valor, rechazado")
             await interaction.edit_original_response(content=f"{self.bot.EMOJI_INCORRECTO} Introduce un valor para {tipo.name}.")
             return
 
@@ -42,13 +48,18 @@ class AnalisisCog(commands.Cog):
             url_original = valor
             expanded = await self.bot.expandir_url(valor)
             valor = expanded if expanded else valor
-            clave = f"url:{url_original}"
+            clave = f"url:{valor}"
+            if expanded and expanded != url_original:
+                log.debug(f"SCAN URL expandida → {url_original} → {valor}")
         elif tipo.value == "ip":
             clave = f"ip:{valor}"
+            log.debug(f"SCAN IP → {valor}")
         elif tipo.value == "hash":
             clave = f"hash:{valor}"
+            log.debug(f"SCAN HASH → {valor}")
         elif tipo.value == "file":
             if archivo.size > self.bot.MAX_FILE_SIZE:
+                log.debug(f"SCAN ARCHIVO → {archivo.filename} ({archivo.size} bytes) excede MAX_FILE_SIZE")
                 embed = discord.Embed(
                     title=f"{self.bot.EMOJI_INCORRECTO} Archivo demasiado grande",
                     description=f"{self.bot.EMOJI_FILE} `{archivo.filename}` excede 32 MB",
@@ -57,13 +68,20 @@ class AnalisisCog(commands.Cog):
                 await interaction.edit_original_response(content=None, embed=embed)
                 return
             clave = f"file:{archivo.filename}:{archivo.size}"
+            log.debug(f"SCAN ARCHIVO → {archivo.filename} ({archivo.size} bytes) clave={clave}")
 
         # 1. Revisar Caché (Memoria y DB)
+        log.debug(f"SCAN CACHE → buscando clave={clave}")
         tipo_res, embed, _ = self.bot.get_from_cache_mem(clave)
         if embed is None:
             tipo_res, embed, _ = await self.bot.obtener_analisis_db(clave)
             if embed is not None:
-                self.bot.set_cache_mem(clave, tipo_res, embed, 0)   # mal = 0, se actualizará si es necesario
+                log.debug(f"SCAN CACHE SQLITE HIT → clave={clave} tipo={tipo_res}")
+                self.bot.set_cache_mem(clave, tipo_res, embed, 0)
+            else:
+                log.debug(f"SCAN CACHE MISS → clave={clave}")
+        else:
+            log.debug(f"SCAN CACHE RAM HIT → clave={clave} tipo={tipo_res}")
 
         if embed is not None:
             if tipo.value == "url" and expanded and expanded != url_original:
@@ -86,114 +104,145 @@ class AnalisisCog(commands.Cog):
             return
 
         # 2. Análisis real (devuelven tipo, embed, mal)
-        if tipo.value == "url":
-            tipo_res, embed, mal = await self.bot.analizar_url(valor, guild_id=guild_id, guardar_cache=True)
-            if expanded and expanded != url_original:
-                embed.add_field(
-                    name=f"{self.bot.EMOJI_REPLY} Redirección",
-                    value=f"Original: `{url_original}`\nExpandida: `{valor}`",
-                    inline=False
-                )
-        elif tipo.value == "ip":
-            tipo_res, embed, mal = await self.bot.analizar_ip(valor, guild_id=guild_id, guardar_cache=True)
-        elif tipo.value == "hash":
-            tipo_res, embed, mal = await self.bot.analizar_hash(valor, guild_id=guild_id, guardar_cache=True)
-        elif tipo.value == "file":
-            doble_ext = self.bot.tiene_doble_extension(archivo.filename)
-            warning_mime = ""
-            try:
-                async with self.bot.session.get(archivo.url) as resp:
-                    if resp.status != 200:
-                        embed = discord.Embed(
-                            title=f"{self.bot.EMOJI_INCORRECTO} Error",
-                            description="No se pudo descargar el archivo.",
-                            color=discord.Color.red()
-                        )
-                        if doble_ext:
-                            embed.add_field(name=f"{self.bot.EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
-                        await interaction.edit_original_response(content=None, embed=embed)
-                        return
-                    file_bytes = await resp.read()
-                    file_hash = hashlib.sha256(file_bytes).hexdigest()
+        try:
+            if tipo.value == "url":
+                tipo_res, embed, mal = await self.bot.analizar_url(valor, guild_id=guild_id, guardar_cache=True)
+                if expanded and expanded != url_original:
+                    embed.add_field(
+                        name=f"{self.bot.EMOJI_REPLY} Redirección",
+                        value=f"Original: `{url_original}`\nExpandida: `{valor}`",
+                        inline=False
+                    )
+                log.debug(f"SCAN URL RESULT → tipo={tipo_res} mal={mal} url={valor}")
+            elif tipo.value == "ip":
+                tipo_res, embed, mal = await self.bot.analizar_ip(valor, guild_id=guild_id, guardar_cache=True)
+                log.debug(f"SCAN IP RESULT → tipo={tipo_res} mal={mal} ip={valor}")
+            elif tipo.value == "hash":
+                tipo_res, embed, mal = await self.bot.analizar_hash(valor, guild_id=guild_id, guardar_cache=True)
+                log.debug(f"SCAN HASH RESULT → tipo={tipo_res} mal={mal} hash={valor}")
+            elif tipo.value == "file":
+                doble_ext = self.bot.tiene_doble_extension(archivo.filename)
+                warning_mime = ""
+                try:
+                    log.debug(f"SCAN ARCHIVO DESCARGANDO → {archivo.filename} url={archivo.url}")
+                    async with self.bot.session.get(archivo.url) as resp:
+                        if resp.status != 200:
+                            embed = discord.Embed(
+                                title=f"{self.bot.EMOJI_INCORRECTO} Error",
+                                description="No se pudo descargar el archivo.",
+                                color=discord.Color.red()
+                            )
+                            if doble_ext:
+                                embed.add_field(name=f"{self.bot.EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
+                            await interaction.edit_original_response(content=None, embed=embed)
+                            return
+                        file_bytes = await resp.read()
+                        file_hash = hashlib.sha256(file_bytes).hexdigest()
+                        log.debug(f"SCAN ARCHIVO DESCARGADO → {archivo.filename} hash={file_hash}")
 
-                    content_type = resp.headers.get('Content-Type', '')
-                    if archivo.filename.lower().endswith('.jpg') or archivo.filename.lower().endswith('.jpeg'):
-                        if content_type not in ('image/jpeg', 'image/jpg'):
-                            warning_mime = f"El archivo tiene extensión .jpg pero el tipo real es `{content_type}`."
-                    elif archivo.filename.lower().endswith('.png'):
-                        if content_type != 'image/png':
-                            warning_mime = f"El archivo tiene extensión .png pero el tipo real es `{content_type}`."
+                        content_type = resp.headers.get('Content-Type', '')
+                        if archivo.filename.lower().endswith('.jpg') or archivo.filename.lower().endswith('.jpeg'):
+                            if content_type not in ('image/jpeg', 'image/jpg'):
+                                warning_mime = f"El archivo tiene extensión .jpg pero el tipo real es `{content_type}`."
+                        elif archivo.filename.lower().endswith('.png'):
+                            if content_type != 'image/png':
+                                warning_mime = f"El archivo tiene extensión .png pero el tipo real es `{content_type}`."
 
-            except Exception as e:
-                embed = discord.Embed(
-                    title=f"{self.bot.EMOJI_INCORRECTO} Error",
-                    description="Error al descargar el archivo.",
-                    color=discord.Color.red()
-                )
-                if doble_ext:
-                    embed.add_field(name=f"{self.bot.EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
-                await interaction.edit_original_response(content=None, embed=embed)
-                return
+                except Exception as e:
+                    log.error(f"SCAN ARCHIVO ERROR DESCARGA → {archivo.filename}: {e}")
+                    embed = discord.Embed(
+                        title=f"{self.bot.EMOJI_INCORRECTO} Error",
+                        description="Error al descargar el archivo.",
+                        color=discord.Color.red()
+                    )
+                    if doble_ext:
+                        embed.add_field(name=f"{self.bot.EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
+                    await interaction.edit_original_response(content=None, embed=embed)
+                    return
 
-            # Revisar caché por hash (virustotal.py guarda como filehash:{hash})
-            tipo_cache, embed_cache, mal_cache = self.bot.get_from_cache_mem(f"filehash:{file_hash}")
-            if embed_cache is None:
-                tipo_cache, embed_cache, mal_cache = await self.bot.obtener_analisis_db(f"filehash:{file_hash}")
+                # Revisar caché por hash (virustotal.py guarda como filehash:{hash})
+                log.debug(f"SCAN ARCHIVO CACHE → buscando filehash:{file_hash}")
+                tipo_cache, embed_cache, mal_cache = self.bot.get_from_cache_mem(f"filehash:{file_hash}")
+                if embed_cache is None:
+                    tipo_cache, embed_cache, mal_cache = await self.bot.obtener_analisis_db(f"filehash:{file_hash}")
+                    if embed_cache is not None:
+                        log.debug(f"SCAN ARCHIVO CACHE SQLITE HIT → filehash:{file_hash} tipo={tipo_cache}")
+                        self.bot.set_cache_mem(f"filehash:{file_hash}", tipo_cache, embed_cache, mal_cache)
+                    else:
+                        log.debug(f"SCAN ARCHIVO CACHE MISS → filehash:{file_hash}")
+                else:
+                    log.debug(f"SCAN ARCHIVO CACHE RAM HIT → filehash:{file_hash} tipo={tipo_cache}")
                 if embed_cache is not None:
-                    self.bot.set_cache_mem(f"filehash:{file_hash}", tipo_cache, embed_cache, mal_cache)
-            if embed_cache is not None:
-                tipo_res = tipo_cache
-                embed = embed_cache.copy()
-                mal = mal_cache
+                    tipo_res = tipo_cache
+                    embed = embed_cache.copy()
+                    mal = mal_cache
+                    if doble_ext:
+                        embed.add_field(name=f"{self.bot.EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
+                    if warning_mime:
+                        embed.add_field(name=f"{self.bot.EMOJI_WARNING} Verificación MIME", value=warning_mime, inline=False)
+                    await interaction.edit_original_response(content=None, embed=embed)
+                    return
+
+                try:
+                    tipo_res, embed, mal = await self.bot.analizar_archivo(
+                        archivo, file_bytes=file_bytes, file_hash=file_hash,
+                        guild_id=guild_id, guardar_cache=True
+                    )
+                except Exception as e:
+                    log.error(f"SCAN ARCHIVO ERROR ANÁLISIS → {archivo.filename}: {e}")
+                    embed = discord.Embed(
+                        title=f"{self.bot.EMOJI_INCORRECTO} Error en análisis",
+                        description=str(e),
+                        color=discord.Color.red()
+                    )
+                    await interaction.edit_original_response(content=None, embed=embed)
+                    return
+
+                if tipo_res == "error":
+                    log.debug(f"SCAN ARCHIVO RESULT ERROR → {archivo.filename}")
+                    if doble_ext:
+                        if not any("Doble extensión" in f.name for f in embed.fields):
+                            embed.add_field(name=f"{self.bot.EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
+                    await interaction.edit_original_response(content=None, embed=embed)
+                    return
+
+                log.debug(f"SCAN ARCHIVO RESULT → tipo={tipo_res} mal={mal} archivo={archivo.filename}")
                 if doble_ext:
                     embed.add_field(name=f"{self.bot.EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
                 if warning_mime:
                     embed.add_field(name=f"{self.bot.EMOJI_WARNING} Verificación MIME", value=warning_mime, inline=False)
+
                 await interaction.edit_original_response(content=None, embed=embed)
                 return
 
+        except Exception as e:
+            log.error(f"SCAN ERROR → tipo={tipo.value} valor={valor}: {e}")
+            embed_error = discord.Embed(
+                title=f"{self.bot.EMOJI_INCORRECTO} Error inesperado",
+                description="No se pudo completar el análisis.",
+                color=discord.Color.red()
+            )
             try:
-                tipo_res, embed, mal = await self.bot.analizar_archivo(
-                    archivo, file_bytes=file_bytes, file_hash=file_hash,
-                    guild_id=guild_id, guardar_cache=True
-                )
-            except Exception as e:
-                log.error(f"Error en scan archivo: {e}")
-                embed = discord.Embed(
-                    title=f"{self.bot.EMOJI_INCORRECTO} Error en análisis",
-                    description=str(e),
-                    color=discord.Color.red()
-                )
-                await interaction.edit_original_response(content=None, embed=embed)
-                return
-
-            if tipo_res == "error":
-                if doble_ext:
-                    if not any("Doble extensión" in f.name for f in embed.fields):
-                        embed.add_field(name=f"{self.bot.EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
-                await interaction.edit_original_response(content=None, embed=embed)
-                return
-
-            if doble_ext:
-                embed.add_field(name=f"{self.bot.EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
-            if warning_mime:
-                embed.add_field(name=f"{self.bot.EMOJI_WARNING} Verificación MIME", value=warning_mime, inline=False)
-
-            await interaction.edit_original_response(content=None, embed=embed)
+                await interaction.edit_original_response(content=None, embed=embed_error)
+            except discord.errors.NotFound:
+                pass
             return
 
         # 3. Mostrar el resultado final para URL, IP, Hash
+        log.debug(f"SCAN FINAL → tipo={tipo.value} resultado={tipo_res} mal={mal}")
         await interaction.edit_original_response(content=None, embed=embed)
 
     @scan.error
     async def scan_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         if isinstance(error, app_commands.CommandOnCooldown):
+            log.warning(f"SCAN COOLDOWN → usuario={interaction.user.id} retry_after={error.retry_after:.1f}s")
             await interaction.response.send_message(
                 f"{self.bot.EMOJI_WARNING} **¡Cuidado!** Estás usando el comando muy rápido. "
                 f"Inténtalo de nuevo en **{error.retry_after:.1f}s**.",
                 ephemeral=True
             )
         else:
+            log.error(f"SCAN ERROR → {type(error).__name__}: {error}")
             if not interaction.response.is_done():
                 await interaction.response.send_message(
                     f"{self.bot.EMOJI_INCORRECTO} Ocurrió un error inesperado.",
