@@ -3,6 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 import hashlib
 import asyncio
+import time
 import logging
 from core.utils import expandir_url
 
@@ -113,8 +114,10 @@ class AnalisisCog(commands.Cog):
             return
 
         # 2. Análisis real (devuelven tipo, embed, mal)
+        _t0 = time.time()
         try:
             if tipo.value == "url":
+                log.debug(f"SCAN URL ANALIZANDO → {valor}")
                 tipo_res, embed, mal = await self.bot.analizar_url(valor, guild_id=guild_id, guardar_cache=True)
                 if expanded and expanded != url_original:
                     embed.add_field(
@@ -122,18 +125,20 @@ class AnalisisCog(commands.Cog):
                         value=f"Original: `{url_original}`\nExpandida: `{valor}`",
                         inline=False
                     )
-                log.debug(f"SCAN URL RESULT → tipo={tipo_res} mal={mal} url={valor}")
+                log.debug(f"SCAN URL RESULT → tipo={tipo_res} mal={mal} url={valor} t={time.time()-_t0:.1f}s")
             elif tipo.value == "ip":
+                log.debug(f"SCAN IP ANALIZANDO → {valor}")
                 tipo_res, embed, mal = await self.bot.analizar_ip(valor, guild_id=guild_id, guardar_cache=True)
-                log.debug(f"SCAN IP RESULT → tipo={tipo_res} mal={mal} ip={valor}")
+                log.debug(f"SCAN IP RESULT → tipo={tipo_res} mal={mal} ip={valor} t={time.time()-_t0:.1f}s")
             elif tipo.value == "hash":
+                log.debug(f"SCAN HASH ANALIZANDO → {valor}")
                 tipo_res, embed, mal = await self.bot.analizar_hash(valor, guild_id=guild_id, guardar_cache=True)
-                log.debug(f"SCAN HASH RESULT → tipo={tipo_res} mal={mal} hash={valor}")
+                log.debug(f"SCAN HASH RESULT → tipo={tipo_res} mal={mal} hash={valor} t={time.time()-_t0:.1f}s")
             elif tipo.value == "file":
                 doble_ext = self.bot.tiene_doble_extension(archivo.filename)
                 warning_mime = ""
                 try:
-                    log.debug(f"SCAN ARCHIVO DESCARGANDO → {archivo.filename} url={archivo.url}")
+                    log.debug(f"SCAN ARCHIVO DESCARGANDO → {archivo.filename} url={archivo.url} t={time.time()-_t0:.1f}s")
                     async with self.bot.session.get(archivo.url) as resp:
                         if resp.status != 200:
                             embed = discord.Embed(
@@ -147,7 +152,7 @@ class AnalisisCog(commands.Cog):
                             return
                         file_bytes = await resp.read()
                         file_hash = hashlib.sha256(file_bytes).hexdigest()
-                        log.debug(f"SCAN ARCHIVO DESCARGADO → {archivo.filename} hash={file_hash}")
+                        log.debug(f"SCAN ARCHIVO DESCARGADO → {archivo.filename} hash={file_hash} t={time.time()-_t0:.1f}s")
 
                         content_type = resp.headers.get('Content-Type', '')
                         if archivo.filename.lower().endswith('.jpg') or archivo.filename.lower().endswith('.jpeg'):
@@ -158,7 +163,7 @@ class AnalisisCog(commands.Cog):
                                 warning_mime = f"El archivo tiene extensión .png pero el tipo real es `{content_type}`."
 
                 except Exception as e:
-                    log.error(f"SCAN ARCHIVO ERROR DESCARGA → {archivo.filename}: {e}")
+                    log.error(f"SCAN ARCHIVO ERROR DESCARGA → {archivo.filename}: {e} t={time.time()-_t0:.1f}s")
                     embed = discord.Embed(
                         title=f"{self.bot.EMOJI_INCORRECTO} Error",
                         description="Error al descargar el archivo.",
@@ -193,12 +198,13 @@ class AnalisisCog(commands.Cog):
                     return
 
                 try:
+                    log.debug(f"SCAN ARCHIVO ANALIZANDO → {archivo.filename} t={time.time()-_t0:.1f}s")
                     tipo_res, embed, mal = await self.bot.analizar_archivo(
                         archivo, file_bytes=file_bytes, file_hash=file_hash,
                         guild_id=guild_id, guardar_cache=True
                     )
                 except Exception as e:
-                    log.error(f"SCAN ARCHIVO ERROR ANÁLISIS → {archivo.filename}: {e}")
+                    log.error(f"SCAN ARCHIVO ERROR ANÁLISIS → {archivo.filename}: {e} t={time.time()-_t0:.1f}s")
                     embed = discord.Embed(
                         title=f"{self.bot.EMOJI_INCORRECTO} Error en análisis",
                         description=str(e),
@@ -215,7 +221,7 @@ class AnalisisCog(commands.Cog):
                     await interaction.edit_original_response(content=None, embed=embed)
                     return
 
-                log.debug(f"SCAN ARCHIVO RESULT → tipo={tipo_res} mal={mal} archivo={archivo.filename}")
+                log.debug(f"SCAN ARCHIVO RESULT → tipo={tipo_res} mal={mal} archivo={archivo.filename} t={time.time()-_t0:.1f}s")
                 if doble_ext:
                     embed.add_field(name=f"{self.bot.EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
                 if warning_mime:
@@ -225,7 +231,7 @@ class AnalisisCog(commands.Cog):
                 return
 
         except Exception as e:
-            log.error(f"SCAN ERROR → tipo={tipo.value} valor={valor}: {e}")
+            log.error(f"SCAN ERROR → tipo={tipo.value} valor={valor}: {e} t={time.time()-_t0:.1f}s")
             embed_error = discord.Embed(
                 title=f"{self.bot.EMOJI_INCORRECTO} Error inesperado",
                 description="No se pudo completar el análisis.",
@@ -238,7 +244,7 @@ class AnalisisCog(commands.Cog):
             return
 
         # 3. Mostrar el resultado final para URL, IP, Hash
-        log.debug(f"SCAN FINAL → tipo={tipo.value} resultado={tipo_res} mal={mal}")
+        log.debug(f"SCAN FINAL → tipo={tipo.value} resultado={tipo_res} mal={mal} t={time.time()-_t0:.1f}s")
         await interaction.edit_original_response(content=None, embed=embed)
 
     @scan.error
