@@ -248,9 +248,14 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
         )
         if check_resp.status == 200:
             existing = await check_resp.json()
-            if existing["data"]["attributes"]["last_analysis_stats"]:
+            if existing["data"]["attributes"].get("last_analysis_stats"):
                 log.info(f"VT: File already analyzed, returning cached result")
-                analysis = {"data": {"attributes": existing["data"]["attributes"]}}
+                attrs = existing["data"]["attributes"]
+                # Reconstruir 'stats' a partir de 'last_analysis_stats'
+                # para que _procesar_analisis_archivo lo encuentre
+                analysis_attrs = dict(attrs)
+                analysis_attrs["stats"] = attrs["last_analysis_stats"]
+                analysis = {"data": {"attributes": analysis_attrs}}
                 return await _procesar_analisis_archivo(analysis, archivo, file_hash, guild_id, mensaje_original, guardar_cache)
         
         data = aiohttp.FormData()
