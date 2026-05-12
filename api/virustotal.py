@@ -242,6 +242,17 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
         return "error", discord.Embed(title="Error de configuración", description="No hay claves de VirusTotal disponibles.", color=discord.Color.red()), 0
     headers = {"x-apikey": key}
     try:
+        check_resp = await state.bot.session.get(
+            f"https://www.virustotal.com/api/v3/files/{file_hash}",
+            headers=headers
+        )
+        if check_resp.status == 200:
+            existing = await check_resp.json()
+            if existing["data"]["attributes"]["last_analysis_stats"]:
+                log.info(f"VT: File already analyzed, returning cached result")
+                analysis = {"data": {"attributes": existing["data"]["attributes"]}}
+                return await _procesar_analisis_archivo(analysis, archivo, file_hash, guild_id, mensaje_original, guardar_cache)
+        
         data = aiohttp.FormData()
         data.add_field('file', file_bytes, filename=archivo.filename)
         async with state.bot.session.post("https://www.virustotal.com/api/v3/files", headers=headers, data=data) as resp:
@@ -253,10 +264,12 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
                     await asyncio.sleep(15)
                     log.info(f"VT polling attempt {i+1}/10 for scan_id={scan_id}")
                     async with state.bot.session.get(f"https://www.virustotal.com/api/v3/analyses/{scan_id}", headers=headers) as resp2:
+                        log.info(f"VT polling response status: {resp2.status}")
                         if resp2.status == 200:
                             analysis = await resp2.json()
                             status = analysis["data"]["attributes"]["status"]
-                            log.info(f"VT analysis status: {status}")
+                            stats = analysis["data"]["attributes"].get("stats", {})
+                            log.info(f"VT analysis status: {status}, stats: {stats}")
                             if status == "completed":
                                 return await _procesar_analisis_archivo(analysis, archivo, file_hash, guild_id, mensaje_original, guardar_cache)
                             elif status == "queued":
