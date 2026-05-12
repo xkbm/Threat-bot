@@ -49,11 +49,13 @@ bot.se_key_daily_usage = {}
 bot.se_key_count = 0
 
 # ========== EXPORTACIONES A COGS ==========
-from api.virustotal import analizar_url, analizar_hash, analizar_ip, analizar_archivo, enviar_log_guild, obtener_siguiente_key, obtener_siguiente_se_key, registrar_uso_se
+from api.virustotal import analizar_url, analizar_hash, analizar_ip, analizar_archivo, enviar_log_guild, obtener_siguiente_key, obtener_siguiente_se_key, registrar_uso_se, registrar_uso_vt
 bot.analizar_url = analizar_url
 bot.analizar_hash = analizar_hash
 bot.analizar_ip = analizar_ip
 bot.analizar_archivo = analizar_archivo
+bot.registrar_uso_se = registrar_uso_se
+bot.registrar_uso_vt = registrar_uso_vt
 
 from api.sightengine import analizar_imagen_multimodelo
 bot.analizar_imagen_nsfw = analizar_imagen_multimodelo
