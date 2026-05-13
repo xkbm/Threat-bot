@@ -35,8 +35,7 @@ async def procesar_analisis(bot, message):
     if urls:
         todas_urls = []
         for url in urls:
-            from urllib.parse import urlparse
-            parsed = urlparse(url)
+            parsed = urllib.parse.urlparse(url)
             dominio = parsed.netloc.lower()
             if dominio.startswith("www."):
                 dominio = dominio[4:]
@@ -114,8 +113,7 @@ async def procesar_analisis(bot, message):
                 url = await expandir_url(bot, url)
                 fue_expandida = url != url_original
                 if fue_expandida:
-                    from urllib.parse import urlparse
-                    parsed_exp = urlparse(url)
+                    parsed_exp = urllib.parse.urlparse(url)
                     dominio_exp = parsed_exp.netloc.lower()
                     if dominio_exp.startswith("www."):
                         dominio_exp = dominio_exp[4:]
@@ -207,8 +205,7 @@ async def procesar_analisis(bot, message):
                 url_exp = await expandir_url(bot, url)
                 fue_exp = url_exp != url_original
                 if fue_exp:
-                    from urllib.parse import urlparse
-                    parsed_exp = urlparse(url_exp)
+                    parsed_exp = urllib.parse.urlparse(url_exp)
                     dominio_exp = parsed_exp.netloc.lower()
                     if dominio_exp.startswith("www."):
                         dominio_exp = dominio_exp[4:]

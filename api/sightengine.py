@@ -32,12 +32,12 @@ async def analizar_imagen_multimodelo(image_content_hash, image_bytes):
             pass
     log.debug(f"SE MISS → llamando API Sightengine para {clave}")
     if not SE_API_KEYS_PAIRS:
-        print("Sightengine no configurado correctamente.")
+        log.error("Sightengine no configurado correctamente.")
         return False, 0.0, {}, False
 
-    pair = obtener_siguiente_se_key()
+    pair = await obtener_siguiente_se_key()
     if not pair:
-        print("No hay pares de Sightengine disponibles.")
+        log.error("No hay pares de Sightengine disponibles.")
         return False, 0.0, {}, False
     api_user, api_key = pair
 
@@ -49,7 +49,7 @@ async def analizar_imagen_multimodelo(image_content_hash, image_bytes):
         data.add_field('api_secret', api_key)
         async with state.bot.session.post(SIGHTENGINE_API_URL, data=data) as resp:
             if resp.status == 200:
-                registrar_uso_se(api_key)
+                await registrar_uso_se(api_key)
                 result = await resp.json()
                 models = {}
                 for model_name in SIGHTENGINE_MODELS.split(','):
@@ -80,5 +80,5 @@ async def analizar_imagen_multimodelo(image_content_hash, image_bytes):
                     set_cache_mem(clave, error_json, dummy_embed, 0)
                     return False, 0.0, {"error": "too_large"}, False
     except Exception as e:
-        print(f"Excepción en análisis multimodelo: {e}")
+        log.error(f"Excepción en análisis multimodelo: {e}")
     return False, 0.0, {}, False
