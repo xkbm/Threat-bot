@@ -4,7 +4,10 @@ import socket
 import ipaddress
 import discord
 import urllib.parse
+import logging
 from core.config import EMOJI_LOADING, ANTIVIRUS_CONOCIDOS
+
+log = logging.getLogger("utils")
 
 async def safe_remove_loading(bot, msg):
     try:
@@ -124,7 +127,7 @@ async def expandir_url(bot, url):
                 else:
                     break
     except Exception as e:
-        print(f"Error expandiendo URL {url}: {e}")
+        log.error(f"Error expandiendo URL {url}: {e}")
     return url
 
 async def descargar_url_segura(bot, url, max_size=None):

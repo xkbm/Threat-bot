@@ -127,7 +127,7 @@ async def _flush_datos():
                 os.fsync(f.fileno())
             os.replace(tmp, DATA_FILE)
         except Exception as e:
-            print(f"Error al guardar datos: {e}")
+            log.error(f"Error al guardar datos: {e}")
 
 async def guardar_datos(inmediato=False):
     global _guardar_datos_pendiente, _guardar_datos_task
@@ -171,5 +171,5 @@ def cargar_datos():
             if not hasattr(state.bot, 'se_key_usage') or not state.bot.se_key_usage:
                 state.bot.se_key_usage = {}
         except Exception as e:
-            print(f"Error al cargar datos: {e}")
+            log.error(f"Error al cargar datos: {e}")
             state.bot.guilds_data = {}

@@ -18,6 +18,7 @@ log = logging.getLogger("virustotal")
 
 VT_TIMEOUT = aiohttp.ClientTimeout(total=75)
 _vt_lock = asyncio.Lock()
+_se_lock = asyncio.Lock()
 
 # ========== ROTACIÓN DE CLAVES VT ==========
 async def obtener_siguiente_key():
@@ -43,29 +44,31 @@ async def obtener_siguiente_key():
         state.bot.vt_key_index = (state.bot.vt_key_index + 1) % len(VT_API_KEYS)
         return key
 
-def obtener_siguiente_se_key():
-    if not SE_API_KEYS_PAIRS:
-        return None
-    pair = SE_API_KEYS_PAIRS[state.bot.se_key_index]
-    state.bot.se_key_index = (state.bot.se_key_index + 1) % len(SE_API_KEYS_PAIRS)
-    return pair
+async def obtener_siguiente_se_key():
+    async with _se_lock:
+        if not SE_API_KEYS_PAIRS:
+            return None
+        pair = SE_API_KEYS_PAIRS[state.bot.se_key_index]
+        state.bot.se_key_index = (state.bot.se_key_index + 1) % len(SE_API_KEYS_PAIRS)
+        return pair
 
-def registrar_uso_se(api_key):
-    ahora = time.time()
-    hoy = time.strftime("%Y-%m-%d", time.gmtime())
-    if api_key not in state.bot.se_key_usage:
-        state.bot.se_key_usage[api_key] = []
-    if api_key not in state.bot.se_key_total_requests:
-        state.bot.se_key_total_requests[api_key] = 0
-    if api_key not in state.bot.se_key_daily_usage:
-        state.bot.se_key_daily_usage[api_key] = {"count": 0, "date": hoy}
-    state.bot.se_key_usage[api_key] = [t for t in state.bot.se_key_usage[api_key] if ahora - t <= 60]
-    state.bot.se_key_usage[api_key].append(ahora)
-    if state.bot.se_key_daily_usage[api_key]["date"] != hoy:
-        state.bot.se_key_daily_usage[api_key] = {"count": 4, "date": hoy}
-    else:
-        state.bot.se_key_daily_usage[api_key]["count"] += 4
-    state.bot.se_key_total_requests[api_key] += 4
+async def registrar_uso_se(api_key):
+    async with _se_lock:
+        ahora = time.time()
+        hoy = time.strftime("%Y-%m-%d", time.gmtime())
+        if api_key not in state.bot.se_key_usage:
+            state.bot.se_key_usage[api_key] = []
+        if api_key not in state.bot.se_key_total_requests:
+            state.bot.se_key_total_requests[api_key] = 0
+        if api_key not in state.bot.se_key_daily_usage:
+            state.bot.se_key_daily_usage[api_key] = {"count": 0, "date": hoy}
+        state.bot.se_key_usage[api_key] = [t for t in state.bot.se_key_usage[api_key] if ahora - t <= 60]
+        state.bot.se_key_usage[api_key].append(ahora)
+        if state.bot.se_key_daily_usage[api_key]["date"] != hoy:
+            state.bot.se_key_daily_usage[api_key] = {"count": 4, "date": hoy}
+        else:
+            state.bot.se_key_daily_usage[api_key]["count"] += 4
+        state.bot.se_key_total_requests[api_key] += 4
 
 def registrar_uso_vt(key):
     """Registra un uso de la key VT sin rotar el índice."""
@@ -264,15 +267,27 @@ async def analizar_ip(ip, guild_id=None, mensaje_original=None, guardar_cache=Tr
             else:
                 await update_stats(guild_id, "error")
                 log.debug(f"VT IP NO ENCONTRADA → {ip} status={resp.status} t={time.time()-_t0:.1f}s")
-                return "error", discord.Embed(title="IP no encontrada", description="No se pudo analizar la IP", color=discord.Color.red()), 0
+                embed = discord.Embed(title="IP no encontrada", description="No se pudo analizar la IP", color=discord.Color.red())
+                if guardar_cache:
+                    await guardar_analisis_db(f"ip:{ip}", "ip", "error", embed, 0)
+                    set_cache_mem(f"ip:{ip}", "error", embed, 0)
+                return "error", embed, 0
     except asyncio.TimeoutError:
         log.error(f"VT IP TIMEOUT → {ip} t={time.time()-_t0:.1f}s")
         await update_stats(guild_id, "error")
-        return "error", discord.Embed(title="Error", description="La solicitud a VirusTotal expiró.", color=discord.Color.red()), 0
+        embed = discord.Embed(title="Error", description="La solicitud a VirusTotal expiró.", color=discord.Color.red())
+        if guardar_cache:
+            await guardar_analisis_db(f"ip:{ip}", "ip", "error", embed, 0)
+            set_cache_mem(f"ip:{ip}", "error", embed, 0)
+        return "error", embed, 0
     except Exception as e:
         log.error(f"VT IP EXCEPTION → {ip}: {e} t={time.time()-_t0:.1f}s")
         await update_stats(guild_id, "error")
-        return "error", discord.Embed(title="Error", description="No se pudo contactar con VirusTotal", color=discord.Color.red()), 0
+        embed = discord.Embed(title="Error", description="No se pudo contactar con VirusTotal", color=discord.Color.red())
+        if guardar_cache:
+            await guardar_analisis_db(f"ip:{ip}", "ip", "error", embed, 0)
+            set_cache_mem(f"ip:{ip}", "error", embed, 0)
+        return "error", embed, 0
 
 # ========== ANÁLISIS ARCHIVO ==========
 async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=None, mensaje_original=None, guardar_cache=True):
