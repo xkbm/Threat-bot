@@ -16,7 +16,7 @@ from core.guild_config import obtener_config_guild, update_stats, registrar_infr
 
 log = logging.getLogger("virustotal")
 
-VT_TIMEOUT = aiohttp.ClientTimeout(total=75)
+VT_TIMEOUT = aiohttp.ClientTimeout(total=180)
 _vt_lock = asyncio.Lock()
 _se_lock = asyncio.Lock()
 

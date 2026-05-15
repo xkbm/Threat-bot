@@ -45,7 +45,7 @@ Optional multi-key: `VT_API_KEY_2/3`, `SIGHTENGINE_API_USER_2/3` + `SIGHTENGINE_
 
 ## VT integration (`api/virustotal.py`)
 - All `analizar_*` return `(tipo: str, embed: discord.Embed, mal: int)`. `tipo` is `"malicioso"`, `"seguro"`, or `"error"`.
-- `VT_TIMEOUT = aiohttp.ClientTimeout(total=75)` — always pass on new VT calls.
+- `VT_TIMEOUT = aiohttp.ClientTimeout(total=180)` — always pass on new VT calls.
 - 3 keys max, rotated via `obtener_siguiente_key()` (async, with lock). Rate: 4 req/min per key, 500/day.
 - VT GUI link: `base64.urlsafe_b64encode(url.encode()).decode().rstrip("=")`, then `https://www.virustotal.com/gui/url/{url_id}`.
 
