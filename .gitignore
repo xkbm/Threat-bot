@@ -7,4 +7,5 @@ data.json
 .vscode/
 .cache
 .local
+opencode.jsonc
 .opencode/
