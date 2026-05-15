@@ -1,5 +1,7 @@
 .env
 __pycache__/
+*.pyc
+*.pyo
 analisis.db
 data.json
 *.db
@@ -9,3 +11,18 @@ data.json
 .local
 opencode.jsonc
 .opencode/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+Thumbs.db
+Desktop.ini
+$RECYCLE_BIN/
+npx-cache/
+.python-version
+.agents/
+skills-lock.json
