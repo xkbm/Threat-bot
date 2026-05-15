@@ -9,6 +9,7 @@ data.json
 .vscode/
 .cache
 .local
+opencode.jsonc
 .opencode/
 .pytest_cache/
 .mypy_cache/
