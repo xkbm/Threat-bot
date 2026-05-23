@@ -1,5 +1,4 @@
-# Prueba...
-# Prueba de commit
+# Commit: 81e2d38
 import discord
 from discord.ext import commands
 import aiohttp
