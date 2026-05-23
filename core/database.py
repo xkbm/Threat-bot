@@ -118,6 +118,10 @@ async def _flush_datos():
                 "daily_usage": state.bot.se_key_daily_usage,
             }
         }
+        state.bot.guilds_data["__antispam__"] = {
+            "user_scan_history": {str(k): v for k, v in state.bot.user_scan_history.items()},
+            "antispam_scan": {str(k): v for k, v in state.bot.antispam_scan.items()},
+        }
         data_to_save = {str(gid): val for gid, val in state.bot.guilds_data.items()}
         try:
             fd, tmp = tempfile.mkstemp(dir=os.path.dirname(DATA_FILE) or ".")
@@ -147,29 +151,31 @@ async def guardar_datos(inmediato=False):
                 await _flush_datos()
         _guardar_datos_task = asyncio.create_task(_debounced())
 
-def cargar_datos():
-    if os.path.exists(DATA_FILE):
-        try:
-            with open(DATA_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            api_usage = data.get("__api_usage__", {})
-            state.bot.guilds_data = {}
-            for gid, val in data.items():
-                if gid == "__global__":
-                    state.bot.guilds_data["__global__"] = val
-                elif gid == "__api_usage__":
-                    continue
-                else:
-                    state.bot.guilds_data[int(gid)] = val
-            state.bot.vt_key_total_requests = api_usage.get("total_requests", {})
-            state.bot.vt_key_daily_usage = api_usage.get("daily_usage", {})
-            if not hasattr(state.bot, 'vt_key_usage') or not state.bot.vt_key_usage:
-                state.bot.vt_key_usage = {}
-            se_data = api_usage.get("sightengine", {})
-            state.bot.se_key_total_requests = se_data.get("total_requests", {})
-            state.bot.se_key_daily_usage = se_data.get("daily_usage", {})
-            if not hasattr(state.bot, 'se_key_usage') or not state.bot.se_key_usage:
-                state.bot.se_key_usage = {}
-        except Exception as e:
-            log.error(f"Error al cargar datos: {e}")
-            state.bot.guilds_data = {}
+async def cargar_datos():
+    _read_json = lambda: json.loads(open(DATA_FILE, "r", encoding="utf-8").read()) if os.path.exists(DATA_FILE) else {}
+    try:
+        data = await asyncio.to_thread(_read_json)
+        api_usage = data.get("__api_usage__", {})
+        state.bot.guilds_data = {}
+        antispam_data = data.get("__antispam__", {})
+        for gid, val in data.items():
+            if gid == "__global__":
+                state.bot.guilds_data["__global__"] = val
+            elif gid in ("__api_usage__", "__antispam__"):
+                continue
+            else:
+                state.bot.guilds_data[int(gid)] = val
+        state.bot.vt_key_total_requests = api_usage.get("total_requests", {})
+        state.bot.vt_key_daily_usage = api_usage.get("daily_usage", {})
+        if not hasattr(state.bot, 'vt_key_usage') or not state.bot.vt_key_usage:
+            state.bot.vt_key_usage = {}
+        se_data = api_usage.get("sightengine", {})
+        state.bot.se_key_total_requests = se_data.get("total_requests", {})
+        state.bot.se_key_daily_usage = se_data.get("daily_usage", {})
+        if not hasattr(state.bot, 'se_key_usage') or not state.bot.se_key_usage:
+            state.bot.se_key_usage = {}
+        state.bot.user_scan_history = {int(k): v for k, v in antispam_data.get("user_scan_history", {}).items()}
+        state.bot.antispam_scan = {int(k): v for k, v in antispam_data.get("antispam_scan", {}).items()}
+    except Exception as e:
+        log.error(f"Error al cargar datos: {e}")
+        state.bot.guilds_data = {}

@@ -38,6 +38,22 @@ class InfoCog(commands.Cog):
         except discord.errors.NotFound:
             pass
 
+    @app_commands.command(name="ping", description="Muestra la latencia del bot")
+    async def ping(self, interaction: discord.Interaction):
+        log.debug(f"PING → usuario={interaction.user.id}")
+        await interaction.response.defer(ephemeral=True)
+
+        ws_latency = round(self.bot.latency * 1000)
+        embed = discord.Embed(
+            title=f"{self.bot.EMOJI_SHIELD} Pong!",
+            description=f"Latencia WebSocket: **{ws_latency}ms**",
+            color=discord.Color.green()
+        )
+        try:
+            await interaction.edit_original_response(embed=embed)
+        except discord.errors.NotFound:
+            pass
+
     @app_commands.command(name="about", description="Información detallada sobre las capacidades y funcionamiento del bot de seguridad Threat")
     async def about(self, interaction: discord.Interaction):
         log.debug(f"ABOUT → usuario={interaction.user.id} guild={interaction.guild.id if interaction.guild else None}")

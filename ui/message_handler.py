@@ -51,6 +51,19 @@ async def procesar_analisis(bot, message):
 
         log.debug(f"URLs tras whitelist: {len(todas_urls)} de {len(urls)}")
 
+        ahora = time.time()
+        user_id = message.author.id
+        bot.user_scan_history.setdefault(user_id, [])
+        bot.user_scan_history[user_id] = [t for t in bot.user_scan_history[user_id] if ahora - t < 3600]
+        if len(bot.user_scan_history[user_id]) >= ANTISPAM_URLS_PER_HOUR:
+            await safe_add_reaction(message, EMOJI_COOLDOWN)
+            return
+        if user_id in bot.antispam_scan and ahora - bot.antispam_scan[user_id] < ANTISPAM_COOLDOWN:
+            await safe_add_reaction(message, EMOJI_COOLDOWN)
+            return
+        bot.antispam_scan[user_id] = ahora
+        bot.user_scan_history[user_id].append(ahora)
+
         if len(todas_urls) == 1:
             url = todas_urls[0]
             log.debug(f"URL única: {url}")
@@ -157,20 +170,6 @@ async def procesar_analisis(bot, message):
                             await safe_send(message, embed, reference=message)
                         await safe_add_reaction(message, EMOJI_INCORRECTO)
                     return
-
-                ahora = time.time()
-                user_id = message.author.id
-                bot.user_scan_history.setdefault(user_id, [])
-                bot.user_scan_history[user_id] = [t for t in bot.user_scan_history[user_id] if ahora - t < 3600]
-                if len(bot.user_scan_history[user_id]) >= ANTISPAM_URLS_PER_HOUR:
-                    await safe_add_reaction(message, EMOJI_COOLDOWN)
-                    return
-
-                if user_id in bot.antispam_scan and ahora - bot.antispam_scan[user_id] < ANTISPAM_COOLDOWN:
-                    await safe_add_reaction(message, EMOJI_COOLDOWN)
-                    return
-                bot.antispam_scan[user_id] = ahora
-                bot.user_scan_history[user_id].append(ahora)
 
                 await safe_add_reaction(message, EMOJI_LOADING)
                 try:

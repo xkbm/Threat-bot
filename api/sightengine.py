@@ -8,6 +8,8 @@ from core.cache import get_from_cache_mem, set_cache_mem
 from core.database import guardar_analisis_db, obtener_analisis_db, guardar_datos
 from api.virustotal import obtener_siguiente_se_key, registrar_uso_se
 
+SE_TIMEOUT = aiohttp.ClientTimeout(total=30)
+
 log = logging.getLogger("sightengine")
 
 async def analizar_imagen_multimodelo(image_content_hash, image_bytes):
@@ -47,7 +49,7 @@ async def analizar_imagen_multimodelo(image_content_hash, image_bytes):
         data.add_field('models', SIGHTENGINE_MODELS)
         data.add_field('api_user', api_user)
         data.add_field('api_secret', api_key)
-        async with state.bot.session.post(SIGHTENGINE_API_URL, data=data) as resp:
+        async with state.bot.session.post(SIGHTENGINE_API_URL, data=data, timeout=SE_TIMEOUT) as resp:
             if resp.status == 200:
                 await registrar_uso_se(api_key)
                 result = await resp.json()
@@ -60,6 +62,7 @@ async def analizar_imagen_multimodelo(image_content_hash, image_bytes):
                     models.get('nudity', 0.0) >= NSFW_CONFIDENCE_THRESHOLD
                     or models.get('weapon', 0.0) >= NSFW_CONFIDENCE_THRESHOLD
                     or models.get('offensive', 0.0) >= 0.7
+                    or models.get('alcohol', 0.0) >= 0.7
                 )
                 max_confidence = max(models.values()) if models else 0.0
                 log.debug(f"SE API OK → is_nsfw={is_nsfw} max_confidence={max_confidence:.2f} models={models}")

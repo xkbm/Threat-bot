@@ -1,4 +1,4 @@
-# Commit: fa93251
+# Commit: d7ce167
 import discord
 from discord.ext import commands
 import aiohttp
@@ -122,7 +122,7 @@ async def on_ready():
     bot.vt_key_count = len(VT_API_KEYS)
     bot.se_key_count = len(SE_API_KEYS_PAIRS)
     await init_db()
-    cargar_datos()
+    await cargar_datos()
     await bot.tree.sync()
     asyncio.create_task(_rotar_estado())
     asyncio.create_task(_limpiar_cron())
