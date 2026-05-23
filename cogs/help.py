@@ -43,6 +43,7 @@ class HelpCog(commands.Cog):
             value=(
                 "• **`/stats`** — Estadísticas globales\n"
                 "• **`/about`** — Info del bot y sistema de caché\n"
+                "• **`/uptime`** — Tiempo en línea del bot\n"
                 "• **`/help`** — Este mensaje de ayuda"
             ),
             inline=False

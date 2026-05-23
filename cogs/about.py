@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
+import time
 import logging
 
 log = logging.getLogger("about")
@@ -8,6 +9,34 @@ log = logging.getLogger("about")
 class InfoCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.start_time = time.time()
+
+    @app_commands.command(name="uptime", description="Muestra el tiempo que lleva el bot en línea")
+    async def uptime(self, interaction: discord.Interaction):
+        log.debug(f"UPTIME → usuario={interaction.user.id}")
+        await interaction.response.defer(ephemeral=True)
+
+        delta = time.time() - self.start_time
+        days, rem = divmod(int(delta), 86400)
+        hours, rem = divmod(rem, 3600)
+        minutes, seconds = divmod(rem, 60)
+
+        parts = []
+        if days: parts.append(f"{days}d")
+        if hours: parts.append(f"{hours}h")
+        parts.append(f"{minutes}m")
+        parts.append(f"{seconds}s")
+        uptime_str = " ".join(parts)
+
+        embed = discord.Embed(
+            title=f"{self.bot.EMOJI_SHIELD} Tiempo en línea",
+            description=f"El bot lleva **{uptime_str}** funcionando.",
+            color=discord.Color.green()
+        )
+        try:
+            await interaction.edit_original_response(embed=embed)
+        except discord.errors.NotFound:
+            pass
 
     @app_commands.command(name="about", description="Información detallada sobre las capacidades y funcionamiento del bot de seguridad Threat")
     async def about(self, interaction: discord.Interaction):
