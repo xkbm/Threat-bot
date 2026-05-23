@@ -8,45 +8,45 @@ import logging
 log = logging.getLogger("stats")
 
 class EstadisticasCog(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-    def get_vt_combined_minute(self):
+    def get_vt_combined_minute(self) -> str:
         ahora = time.time()
         total = 0
         for key in self.bot.vt_key_total_requests:
             total += len([t for t in self.bot.vt_key_usage.get(key, []) if ahora - t <= 60])
-        limit = self.bot.vt_key_count * 4   # p.ej. 3 claves → 12
+        limit = self.bot.vt_key_count * 4
         porcentaje = (total / limit) * 100
         barra = self.bot.barra_porcentaje(porcentaje, longitud=10)
         return f"{barra} **{porcentaje:.0f}%** ({total}/{limit})"
 
-    def get_vt_combined_daily(self):
+    def get_vt_combined_daily(self) -> str:
         hoy = time.strftime("%Y-%m-%d", time.gmtime())
         total = 0
         for key in self.bot.vt_key_daily_usage:
             daily_data = self.bot.vt_key_daily_usage.get(key, {"count": 0, "date": ""})
             if daily_data["date"] == hoy:
                 total += daily_data["count"]
-        limit = self.bot.vt_key_count * 500  # p.ej. 3 claves → 1500
+        limit = self.bot.vt_key_count * 500
         porcentaje = (total / limit) * 100
         barra = self.bot.barra_porcentaje(porcentaje, longitud=10)
         return f"{barra} **{porcentaje:.1f}%** ({total}/{limit})"
 
-    def get_se_combined_daily(self):
+    def get_se_combined_daily(self) -> str:
         hoy = time.strftime("%Y-%m-%d", time.gmtime())
         total = 0
         for key in self.bot.se_key_daily_usage:
             daily_data = self.bot.se_key_daily_usage.get(key, {"count": 0, "date": ""})
             if daily_data["date"] == hoy:
                 total += daily_data["count"]
-        limit = self.bot.se_key_count * 500   # operaciones (cada imagen consume 4)
+        limit = self.bot.se_key_count * 500
         porcentaje = (total / limit) * 100
         barra = self.bot.barra_porcentaje(porcentaje, longitud=10)
         return f"{barra} **{porcentaje:.1f}%** ({total}/{limit})"
 
     @app_commands.command(name="stats", description="Muestra estadísticas globales y uso de API")
-    async def stats_command(self, interaction: discord.Interaction):
+    async def stats_command(self, interaction: discord.Interaction) -> None:
         log.debug(f"STATS → usuario={interaction.user.id} guild={interaction.guild.id if interaction.guild else None}")
         try:
             await interaction.response.defer()
@@ -68,7 +68,6 @@ class EstadisticasCog(commands.Cog):
                 inline=False
             )
 
-            # VT Minuto combinado
             vt_minuto = self.get_vt_combined_minute()
             embed.add_field(
                 name=f"{self.bot.EMOJI_KEY} VT Minuto (límite {self.bot.vt_key_count*4}/min)",
@@ -76,7 +75,6 @@ class EstadisticasCog(commands.Cog):
                 inline=False
             )
 
-            # VT Diario combinado
             vt_diario = self.get_vt_combined_daily()
             embed.add_field(
                 name=f"{self.bot.EMOJI_KEY} VT Diario (límite {self.bot.vt_key_count*500}/día)",
@@ -84,7 +82,6 @@ class EstadisticasCog(commands.Cog):
                 inline=False
             )
 
-            # Sightengine Diario combinado
             se_diario = self.get_se_combined_daily()
             embed.add_field(
                 name=f"{self.bot.EMOJI_KEY} Sightengine Diario (límite {self.bot.se_key_count*500} ops/día)",
@@ -100,5 +97,5 @@ class EstadisticasCog(commands.Cog):
             else:
                 await interaction.response.send_message("Ocurrió un error al obtener las estadísticas.", ephemeral=True)
 
-async def setup(bot):
+async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(EstadisticasCog(bot))

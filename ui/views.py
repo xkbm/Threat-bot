@@ -1,11 +1,13 @@
+from typing import Optional
 import discord
+from discord.ext import commands
 from core import state
 from core.config import EMOJI_BAN, EMOJI_KICK, EMOJI_CLEAN
 from core.guild_config import obtener_config_guild
 from core.database import guardar_datos
 
 class LogActionView(discord.ui.View):
-    def __init__(self, guild_id, user_id, elemento_id=None):
+    def __init__(self, guild_id: int, user_id: int, elemento_id: Optional[str] = None) -> None:
         super().__init__(timeout=None)
         self.guild_id = guild_id
         self.user_id = user_id
@@ -14,7 +16,7 @@ class LogActionView(discord.ui.View):
             self.remove_item(self.ignorar_btn)
 
     @discord.ui.button(label="Banear usuario", style=discord.ButtonStyle.danger, emoji=EMOJI_BAN)
-    async def banear_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def banear_btn(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
         if not interaction.user.guild_permissions.ban_members:
             await interaction.response.send_message("No tienes permisos para banear.", ephemeral=True)
             return
@@ -27,7 +29,7 @@ class LogActionView(discord.ui.View):
         await interaction.response.send_message(f"¿Estás seguro de banear a {user.mention}?", view=confirm_view, ephemeral=True)
 
     @discord.ui.button(label="Expulsar usuario", style=discord.ButtonStyle.danger, emoji=EMOJI_KICK)
-    async def kick_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def kick_btn(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
         if not interaction.user.guild_permissions.kick_members:
             await interaction.response.send_message("No tienes permisos para expulsar.", ephemeral=True)
             return
@@ -49,7 +51,7 @@ class LogActionView(discord.ui.View):
             await interaction.message.edit(view=self)
 
     @discord.ui.button(label="Ignorar (quitar infracción)", style=discord.ButtonStyle.secondary, emoji=EMOJI_CLEAN)
-    async def ignorar_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def ignorar_btn(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
         if not interaction.user.guild_permissions.administrator:
             await interaction.response.send_message("Solo administradores pueden ignorar infracciones.", ephemeral=True)
             return
@@ -73,7 +75,7 @@ class LogActionView(discord.ui.View):
 
 
 class ConfirmBanView(discord.ui.View):
-    def __init__(self, guild, user, parent_view, parent_interaction):
+    def __init__(self, guild: discord.Guild, user: discord.User, parent_view: LogActionView, parent_interaction: discord.Interaction) -> None:
         super().__init__(timeout=30)
         self.guild = guild
         self.user = user
@@ -81,7 +83,7 @@ class ConfirmBanView(discord.ui.View):
         self.parent_interaction = parent_interaction
 
     @discord.ui.button(label="Confirmar Ban", style=discord.ButtonStyle.danger)
-    async def confirm_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def confirm_btn(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
         try:
             await self.guild.ban(self.user, reason="Amenaza detectada por Threat (acción desde log)")
             await interaction.response.edit_message(content=f"{self.user.mention} ha sido baneado.", view=None)
@@ -95,5 +97,5 @@ class ConfirmBanView(discord.ui.View):
             await self.parent_interaction.message.edit(view=self.parent_view)
 
     @discord.ui.button(label="Cancelar", style=discord.ButtonStyle.secondary)
-    async def cancel_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def cancel_btn(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
         await interaction.response.edit_message(content="Ban cancelado.", view=None)

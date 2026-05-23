@@ -1,14 +1,16 @@
 import time
 import logging
+from typing import Optional
 from collections import OrderedDict
+import discord
 from core import config
 
 log = logging.getLogger("cache")
 
-MAX_CACHE_SIZE = 1000
-cache_mem = OrderedDict()
+MAX_CACHE_SIZE: int = 1000
+cache_mem: OrderedDict = OrderedDict()
 
-def get_from_cache_mem(key):
+def get_from_cache_mem(key: str) -> tuple[Optional[str], Optional[discord.Embed], int]:
     if key in cache_mem:
         tipo, mal, embed, timestamp = cache_mem[key]
         if time.time() - timestamp < config.CACHE_DURATION:
@@ -21,7 +23,7 @@ def get_from_cache_mem(key):
     log.debug(f"MEM MISS → key={key}")
     return None, None, 0
 
-def set_cache_mem(key, tipo, embed, mal=0):
+def set_cache_mem(key: str, tipo: str, embed: discord.Embed, mal: int = 0) -> None:
     log.debug(f"MEM SET → key={key} tipo={tipo} mal={mal}")
     cache_mem[key] = (tipo, mal, embed, time.time())
     cache_mem.move_to_end(key)

@@ -1,4 +1,5 @@
 import asyncio
+from typing import Optional, Any
 import logging
 from core import state
 from core.config import DOMINIOS_PROTEGIDOS
@@ -7,7 +8,7 @@ from core.database import guardar_datos
 log = logging.getLogger("guild_config")
 GUILD_LOCK = asyncio.Lock()
 
-def obtener_config_guild(guild_id):
+def obtener_config_guild(guild_id: int) -> dict[str, Any]:
     if guild_id not in state.bot.guilds_data:
         state.bot.guilds_data[guild_id] = {
             "silent_mode": False,
@@ -20,12 +21,12 @@ def obtener_config_guild(guild_id):
         }
     return state.bot.guilds_data[guild_id]
 
-def obtener_stats_globales():
+def obtener_stats_globales() -> dict[str, int]:
     if "__global__" not in state.bot.guilds_data:
         state.bot.guilds_data["__global__"] = {"total_analisis": 0, "seguros": 0, "maliciosos": 0, "errores": 0}
     return state.bot.guilds_data["__global__"]
 
-async def update_stats(guild_id, tipo):
+async def update_stats(guild_id: Optional[int], tipo: str) -> None:
     async with GUILD_LOCK:
         if guild_id:
             config = obtener_config_guild(guild_id)
@@ -48,7 +49,7 @@ async def update_stats(guild_id, tipo):
     await guardar_datos()
     log.debug(f"STATS UPDATE → guild={guild_id} tipo={tipo} total={global_stats['total_analisis']}")
 
-async def registrar_infraccion(guild_id, user_id, elemento_id):
+async def registrar_infraccion(guild_id: int, user_id: int, elemento_id: str) -> int:
     async with GUILD_LOCK:
         config = obtener_config_guild(guild_id)
         if "infracciones" not in config:

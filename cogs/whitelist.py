@@ -1,4 +1,5 @@
 import re
+from typing import Optional
 import logging
 import discord
 from discord.ext import commands
@@ -6,17 +7,17 @@ from discord import app_commands
 from core.config import DOMINIOS_PROTEGIDOS
 
 log = logging.getLogger("whitelist")
-PATRON_DOMINIO = re.compile(r'^([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$')
+PATRON_DOMINIO: re.Pattern = re.compile(r'^([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$')
 
 class WhitelistCog(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-    def obtener_whitelist(self, guild_id):
+    def obtener_whitelist(self, guild_id: int) -> list[str]:
         config = self.bot.obtener_config_guild(guild_id)
         return config["whitelist"]
 
-    async def guardar_whitelist(self, guild_id, whitelist):
+    async def guardar_whitelist(self, guild_id: int, whitelist: list[str]) -> None:
         config = self.bot.obtener_config_guild(guild_id)
         config["whitelist"] = whitelist
         await self.bot.guardar_datos(inmediato=True)
@@ -28,7 +29,7 @@ class WhitelistCog(commands.Cog):
         app_commands.Choice(name="remove", value="remove"),
         app_commands.Choice(name="list", value="list")
     ])
-    async def whitelist(self, interaction: discord.Interaction, accion: app_commands.Choice[str], dominio: str = None):
+    async def whitelist(self, interaction: discord.Interaction, accion: app_commands.Choice[str], dominio: Optional[str] = None) -> None:
         if not interaction.guild:
             try:
                 await interaction.response.send_message(f"{self.bot.EMOJI_INCORRECTO} Este comando solo funciona en servidores.", ephemeral=True)
@@ -124,5 +125,5 @@ class WhitelistCog(commands.Cog):
             except discord.errors.NotFound:
                 pass
 
-async def setup(bot):
+async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(WhitelistCog(bot))

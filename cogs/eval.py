@@ -1,6 +1,7 @@
 import sys
 import io
 import os
+from typing import Any
 import logging
 import textwrap
 import traceback
@@ -12,17 +13,14 @@ from core.config import OWNER_ID
 log = logging.getLogger("eval")
 
 class EvalCog(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-    # ---------- Comando de prefijo (!eval) ----------
     @commands.command(name="eval")
-    async def eval_prefix(self, ctx: commands.Context, *, codigo: str):
-        # Ignorar completamente a cualquier usuario que no sea el dueño
+    async def eval_prefix(self, ctx: commands.Context, *, codigo: str) -> None:
         if str(ctx.author.id) != OWNER_ID:
             return
 
-        # Verificar que se proporcione código
         if not codigo or not codigo.strip():
             embed = discord.Embed(
                 title=f"{self.bot.EMOJI_INCORRECTO} Uso incorrecto",
@@ -32,13 +30,12 @@ class EvalCog(commands.Cog):
             await ctx.send(embed=embed)
             return
 
-        # Limpiar markdown si lo envuelven en ```
         if codigo.startswith("```python") and codigo.endswith("```"):
             codigo = codigo[9:-3].strip()
         elif codigo.startswith("```") and codigo.endswith("```"):
             codigo = codigo[3:-3].strip()
 
-        env = {
+        env: dict[str, Any] = {
             "bot": self.bot,
             "ctx": ctx,
             "guild": ctx.guild,
@@ -75,15 +72,13 @@ class EvalCog(commands.Cog):
         embed.add_field(name=f"{self.bot.EMOJI_STATS} Salida", value=f"```\n{output}\n```", inline=False)
         await ctx.send(embed=embed)
 
-    # ---------- Comando slash (/eval) por si aún lo quieres ----------
     @app_commands.command(name="eval", description="Ejecuta código Python (solo dueño)")
-    async def eval_slash(self, interaction: discord.Interaction, codigo: str):
+    async def eval_slash(self, interaction: discord.Interaction, codigo: str) -> None:
         if str(interaction.user.id) != OWNER_ID:
             log.warning(f"EVAL INTENTO NO AUTORIZADO → usuario={interaction.user} ({interaction.user.id}) servidor={interaction.guild}")
             await interaction.response.send_message(f"{self.bot.EMOJI_INCORRECTO} No tienes permiso para usar este comando.", ephemeral=True)
             return
 
-        # Verificar que se proporcione código
         if not codigo or not codigo.strip():
             embed = discord.Embed(
                 title=f"{self.bot.EMOJI_INCORRECTO} Uso incorrecto",
@@ -100,7 +95,7 @@ class EvalCog(commands.Cog):
         elif codigo.startswith("```") and codigo.endswith("```"):
             codigo = codigo[3:-3].strip()
 
-        env = {
+        env: dict[str, Any] = {
             "bot": self.bot,
             "interaction": interaction,
             "guild": interaction.guild,
@@ -140,5 +135,5 @@ class EvalCog(commands.Cog):
         except discord.errors.NotFound:
             pass
 
-async def setup(bot):
+async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(EvalCog(bot))

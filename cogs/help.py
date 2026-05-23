@@ -6,11 +6,11 @@ import logging
 log = logging.getLogger("help")
 
 class HelpCog(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
     @app_commands.command(name="help", description="Lista completa de comandos y funcionalidades del bot de seguridad Threat")
-    async def help_command(self, interaction: discord.Interaction):
+    async def help_command(self, interaction: discord.Interaction) -> None:
         log.debug(f"HELP → usuario={interaction.user.id} guild={interaction.guild.id if interaction.guild else None}")
         await interaction.response.defer()
         
@@ -90,8 +90,7 @@ class HelpCog(commands.Cog):
         try:
             await interaction.edit_original_response(embed=embed)
         except discord.errors.NotFound:
-            # La interacción expiró antes de que pudieramos responder - no hay nada que hacer
             pass
 
-async def setup(bot):
+async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(HelpCog(bot))

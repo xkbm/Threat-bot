@@ -6,14 +6,13 @@ import logging
 log = logging.getLogger("rep")
 
 class ReputacionCog(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
     @app_commands.command(name="usercheck", description="Muestra las infracciones de seguridad de un usuario (solo admins)")
     @app_commands.default_permissions(administrator=True)
     @app_commands.describe(usuario="Usuario a consultar")
-    async def usercheck(self, interaction: discord.Interaction, usuario: discord.Member):
-        """Consulta el número de infracciones acumuladas por un usuario."""
+    async def usercheck(self, interaction: discord.Interaction, usuario: discord.Member) -> None:
         await interaction.response.defer(ephemeral=True)
         
         guild_id = interaction.guild.id
@@ -41,5 +40,5 @@ class ReputacionCog(commands.Cog):
         except discord.errors.NotFound:
             pass
 
-async def setup(bot):
+async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(ReputacionCog(bot))

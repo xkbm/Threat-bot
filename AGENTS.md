@@ -33,7 +33,7 @@ Optional multi-key: `VT_API_KEY_2/3`, `SIGHTENGINE_API_USER_2/3` + `SIGHTENGINE_
 - **State** `core/state.py` — `state.bot = bot` set at `bot.py:29`. Import `from core import state` then `state.bot` anywhere.
 - **Shutdown** `bot.py:188-192` monkey-patches `bot.close` to close `bot.session` + `bot.db`.
 - **Persistence**: SQLite `analisis.db` (cached scans) + JSON `data.json` (guild configs).
-- **Bot session timeout** `aiohttp.ClientTimeout(total=10)` at `bot.py:122` — very tight for 32MB attachments. SightEngine inherits this too (`api/sightengine.py:50`), VT uses its own `VT_TIMEOUT = 180` (`api/virustotal.py:19`).
+- **Bot session timeout** `aiohttp.ClientTimeout(total=60)` at `bot.py:122`. SightEngine uses its own `SE_TIMEOUT = 30` (`api/sightengine.py:12`), VT uses `VT_TIMEOUT = 180` (`api/virustotal.py:19`).
 - **Size limits**: `MAX_FILE_SIZE = 32MB` for VT file uploads, `MAX_IMAGE_SIZE = 2MB` for SightEngine image scans (`core/config.py:22-23`).
 - **Cogs**: `/scan` (30s cooldown per user+guild, `analisis.py:17`), `/silentmode`, `/strictmode`, `/setlogchannel`, `/settings`, `/disablelogchannel`, `/whitelist`, `/usercheck`, `/stats`, `/about`, `/help`, `/eval` (owner), `/reboot` (owner).
 
@@ -58,12 +58,13 @@ Optional multi-key: `VT_API_KEY_2/3`, `SIGHTENGINE_API_USER_2/3` + `SIGHTENGINE_
 ## SightEngine NSFW (`api/sightengine.py`)
 - `analizar_imagen_multimodelo(hash, bytes)` → `(is_nsfw, max_confidence, models, from_cache)`.
 - Models: `nudity`, `weapon`, `alcohol`, `offensive`. Thresholds: nudity/weapon ≥0.5, offensive ≥0.7.
-- **Bug**: `alcohol` is fetched and displayed but NOT included in `is_nsfw` (`api/sightengine.py:59-63`). A 95% alcohol image won't trigger any action.
+- ~~**Bug**: `alcohol` is fetched and displayed but NOT included in `is_nsfw` (`api/sightengine.py:59-63`). A 95% alcohol image won't trigger any action.~~ ✅ FIXED
 - Up to 3 key-pairs, rotated via `obtener_siguiente_se_key()` (async). Rate tracking increments +4 per call (stats quirk).
+- Timeout: `SE_TIMEOUT = aiohttp.ClientTimeout(total=30)` at `api/sightengine.py:12` — passed explicitly on each request.
 
 ## Anti-spam
 - 30 URLs/hour per user, 10s cooldown between scans. Tracks in `bot.user_scan_history` and `bot.antispam_scan`.
-- **Bug**: Image URL scans skip anti-spam (`ui/message_handler.py:57-109` — anti-spam at lines 161-173 is inside the non-image URL branch).
+- ~~**Bug**: Image URL scans skip anti-spam (`ui/message_handler.py:57-109` — anti-spam at lines 161-173 is inside the non-image URL branch).~~ ✅ FIXED
 
 ## Whitelist
 - `dominio_en_whitelist(dominio, whitelist)` checks exact match or subdomain (`core/utils.py:38`).
@@ -73,7 +74,7 @@ Optional multi-key: `VT_API_KEY_2/3`, `SIGHTENGINE_API_USER_2/3` + `SIGHTENGINE_
 Each guild: `bot.guilds_data[guild_id]` = `{silent_mode, strict_mode, log_channel_id, whitelist, stats, infracciones, infracciones_registradas}`.
 
 ## DB write debounce
-`guardar_datos()` debounces 3s before flushing to `data.json`. Pass `inmediato=True` for instant writes (config changes). `cargar_datos()` (`core/database.py:150`) is **synchronous** — blocks event loop in `on_ready`.
+`guardar_datos()` debounces 3s before flushing to `data.json`. Pass `inmediato=True` for instant writes (config changes). `cargar_datos()` (`core/database.py:154`) is async — uses `asyncio.to_thread()` for file I/O.
 
 ## Log embeds
 `enviar_log_guild()` sends threat alerts with `LogActionView` (Ban/Kick/Ignore buttons) to the configured log channel. Buttons check user permissions before acting.

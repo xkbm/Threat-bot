@@ -3,6 +3,7 @@ import asyncio
 import hashlib
 import json
 import base64
+from typing import Optional, Any
 import logging
 import aiohttp
 import discord
@@ -16,12 +17,11 @@ from core.guild_config import obtener_config_guild, update_stats, registrar_infr
 
 log = logging.getLogger("virustotal")
 
-VT_TIMEOUT = aiohttp.ClientTimeout(total=180)
+VT_TIMEOUT: aiohttp.ClientTimeout = aiohttp.ClientTimeout(total=180)
 _vt_lock = asyncio.Lock()
 _se_lock = asyncio.Lock()
 
-# ========== ROTACIÓN DE CLAVES VT ==========
-async def obtener_siguiente_key():
+async def obtener_siguiente_key() -> Optional[str]:
     async with _vt_lock:
         if not VT_API_KEYS:
             return None
@@ -44,7 +44,7 @@ async def obtener_siguiente_key():
         state.bot.vt_key_index = (state.bot.vt_key_index + 1) % len(VT_API_KEYS)
         return key
 
-async def obtener_siguiente_se_key():
+async def obtener_siguiente_se_key() -> Optional[tuple[str, str]]:
     async with _se_lock:
         if not SE_API_KEYS_PAIRS:
             return None
@@ -52,7 +52,7 @@ async def obtener_siguiente_se_key():
         state.bot.se_key_index = (state.bot.se_key_index + 1) % len(SE_API_KEYS_PAIRS)
         return pair
 
-async def registrar_uso_se(api_key):
+async def registrar_uso_se(api_key: str) -> None:
     async with _se_lock:
         ahora = time.time()
         hoy = time.strftime("%Y-%m-%d", time.gmtime())
@@ -70,8 +70,7 @@ async def registrar_uso_se(api_key):
             state.bot.se_key_daily_usage[api_key]["count"] += 4
         state.bot.se_key_total_requests[api_key] += 4
 
-def registrar_uso_vt(key):
-    """Registra un uso de la key VT sin rotar el índice."""
+def registrar_uso_vt(key: str) -> None:
     ahora = time.time()
     hoy = time.strftime("%Y-%m-%d", time.gmtime())
     if key not in state.bot.vt_key_usage:
@@ -88,8 +87,7 @@ def registrar_uso_vt(key):
         state.bot.vt_key_daily_usage[key]["count"] += 1
     state.bot.vt_key_total_requests[key] += 1
 
-# ========== ENVÍO DE LOGS CON BOTONES ==========
-async def enviar_log_guild(guild_id, tipo, valor, detalles, usuario, url_vt=None, elemento_id=None):
+async def enviar_log_guild(guild_id: int, tipo: str, valor: str, detalles: str, usuario: discord.User, url_vt: Optional[str] = None, elemento_id: Optional[str] = None) -> None:
     config = obtener_config_guild(guild_id)
     log_channel_id = config["log_channel_id"]
     if log_channel_id is None:
@@ -111,8 +109,7 @@ async def enviar_log_guild(guild_id, tipo, valor, detalles, usuario, url_vt=None
     view = LogActionView(guild_id, usuario.id, elemento_id=elemento_id)
     await channel.send(embed=embed, view=view)
 
-# ========== ANÁLISIS URL ==========
-async def analizar_url(url, guild_id=None, mensaje_original=None, guardar_cache=True):
+async def analizar_url(url: str, guild_id: Optional[int] = None, mensaje_original: Optional[discord.Message] = None, guardar_cache: bool = True) -> tuple[str, discord.Embed, int]:
     _t0 = time.time()
     log.debug(f"VT URL INICIO → {url}")
     key = await obtener_siguiente_key()
@@ -157,8 +154,7 @@ async def analizar_url(url, guild_id=None, mensaje_original=None, guardar_cache=
         await _finalizar_error(guild_id, "url", url)
         return "error", discord.Embed(title="Error de conexión", description="No se pudo contactar con VirusTotal", color=discord.Color.red()), 0
 
-# ========== ANÁLISIS HASH ==========
-async def analizar_hash(hash_valor, guild_id=None, mensaje_original=None, guardar_cache=True):
+async def analizar_hash(hash_valor: str, guild_id: Optional[int] = None, mensaje_original: Optional[discord.Message] = None, guardar_cache: bool = True) -> tuple[str, discord.Embed, int]:
     _t0 = time.time()
     log.debug(f"VT HASH INICIO → {hash_valor}")
     if not es_hash_valido(hash_valor):
@@ -227,8 +223,7 @@ async def analizar_hash(hash_valor, guild_id=None, mensaje_original=None, guarda
             set_cache_mem(f"hash:{hash_valor}", "error", embed, 0)
         return "error", embed, 0
 
-# ========== ANÁLISIS IP ==========
-async def analizar_ip(ip, guild_id=None, mensaje_original=None, guardar_cache=True):
+async def analizar_ip(ip: str, guild_id: Optional[int] = None, mensaje_original: Optional[discord.Message] = None, guardar_cache: bool = True) -> tuple[str, discord.Embed, int]:
     _t0 = time.time()
     log.debug(f"VT IP INICIO → {ip}")
     key = await obtener_siguiente_key()
@@ -289,8 +284,7 @@ async def analizar_ip(ip, guild_id=None, mensaje_original=None, guardar_cache=Tr
             set_cache_mem(f"ip:{ip}", "error", embed, 0)
         return "error", embed, 0
 
-# ========== ANÁLISIS ARCHIVO ==========
-async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=None, mensaje_original=None, guardar_cache=True):
+async def analizar_archivo(archivo: discord.Attachment, file_bytes: Optional[bytes] = None, file_hash: Optional[str] = None, guild_id: Optional[int] = None, mensaje_original: Optional[discord.Message] = None, guardar_cache: bool = True) -> tuple[str, discord.Embed, int]:
     _t0 = time.time()
     log.debug(f"VT FILE INICIO → {archivo.filename} hash={file_hash} size={archivo.size}")
 
@@ -381,8 +375,7 @@ async def analizar_archivo(archivo, file_bytes=None, file_hash=None, guild_id=No
         await update_stats(guild_id, "error")
         return "error", discord.Embed(title="Error", description="No se pudo analizar el archivo", color=discord.Color.red()), 0
 
-# ========== PIPELINE INTERNO ==========
-async def _procesar_resultado_vt(analysis, tipo, valor, guild_id, mensaje_original, guardar_cache):
+async def _procesar_resultado_vt(analysis: dict, tipo: str, valor: str, guild_id: Optional[int], mensaje_original: Optional[discord.Message], guardar_cache: bool) -> tuple[str, discord.Embed, int]:
     stats = analysis["data"]["attributes"]["stats"]
     mal = stats["malicious"]
     clave = f"{tipo}:{valor}"
@@ -409,7 +402,7 @@ async def _procesar_resultado_vt(analysis, tipo, valor, guild_id, mensaje_origin
         set_cache_mem(clave, tipo_str, embed, mal)
     return tipo_str, embed, mal
 
-async def _procesar_analisis_archivo(analysis, archivo, file_hash, guild_id, mensaje_original, guardar_cache):
+async def _procesar_analisis_archivo(analysis: dict, archivo: discord.Attachment, file_hash: str, guild_id: Optional[int], mensaje_original: Optional[discord.Message], guardar_cache: bool) -> tuple[str, discord.Embed, int]:
     stats = analysis["data"]["attributes"]["stats"]
     mal = stats["malicious"]
     clave = f"filehash:{file_hash}"
@@ -432,7 +425,7 @@ async def _procesar_analisis_archivo(analysis, archivo, file_hash, guild_id, men
         await update_stats(guild_id, "seguro")
         return "seguro", embed, 0
 
-async def _on_threat_found(tipo_str, valor, mal, guild_id, mensaje_original, vt_link=None, results=None, guardar_cache=True, elemento_id=None):
+async def _on_threat_found(tipo_str: str, valor: str, mal: int, guild_id: Optional[int], mensaje_original: Optional[discord.Message], vt_link: Optional[str] = None, results: Optional[dict] = None, guardar_cache: bool = True, elemento_id: Optional[str] = None) -> None:
     if guild_id:
         await update_stats(guild_id, "malicioso")
     if mensaje_original and guild_id:
@@ -452,7 +445,7 @@ async def _on_threat_found(tipo_str, valor, mal, guild_id, mensaje_original, vt_
             except Exception:
                 pass
 
-async def _finalizar_error(guild_id, tipo, valor):
+async def _finalizar_error(guild_id: Optional[int], tipo: str, valor: str) -> None:
     await update_stats(guild_id, "error")
     clave = f"{tipo}:{valor}"
     embed = discord.Embed(title="Error", description="No se pudo completar el análisis", color=discord.Color.red())

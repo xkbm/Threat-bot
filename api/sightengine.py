@@ -1,5 +1,6 @@
 import json
 import logging
+from typing import Optional
 import aiohttp
 import discord
 from core import state
@@ -8,11 +9,11 @@ from core.cache import get_from_cache_mem, set_cache_mem
 from core.database import guardar_analisis_db, obtener_analisis_db, guardar_datos
 from api.virustotal import obtener_siguiente_se_key, registrar_uso_se
 
-SE_TIMEOUT = aiohttp.ClientTimeout(total=30)
+SE_TIMEOUT: aiohttp.ClientTimeout = aiohttp.ClientTimeout(total=30)
 
 log = logging.getLogger("sightengine")
 
-async def analizar_imagen_multimodelo(image_content_hash, image_bytes):
+async def analizar_imagen_multimodelo(image_content_hash: str, image_bytes: bytes) -> tuple[bool, float, dict, bool]:
     clave = f"nsfw:{image_content_hash}"
     log.debug(f"SE check → hash={image_content_hash[:16]}... clave={clave}")
     tipo, embed_cache, mal = get_from_cache_mem(clave)
@@ -53,7 +54,7 @@ async def analizar_imagen_multimodelo(image_content_hash, image_bytes):
             if resp.status == 200:
                 await registrar_uso_se(api_key)
                 result = await resp.json()
-                models = {}
+                models: dict[str, float] = {}
                 for model_name in SIGHTENGINE_MODELS.split(','):
                     model_data = result.get(model_name, {})
                     confidence = model_data.get('raw', 0.0)

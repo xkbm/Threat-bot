@@ -8,11 +8,11 @@ from core.config import OWNER_ID
 log = logging.getLogger("reboot")
 
 class RebootCog(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
     @app_commands.command(name="reboot", description="Reinicia el bot de forma interna (solo dueño)")
-    async def reboot(self, interaction: discord.Interaction):
+    async def reboot(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=True)
 
         if str(interaction.user.id) != OWNER_ID:
@@ -28,7 +28,7 @@ class RebootCog(commands.Cog):
         confirm_btn = discord.ui.Button(label="✅ Sí, reiniciar", style=discord.ButtonStyle.danger)
         cancel_btn = discord.ui.Button(label="❌ Cancelar", style=discord.ButtonStyle.secondary)
 
-        async def confirm_callback(btn_interaction: discord.Interaction):
+        async def confirm_callback(btn_interaction: discord.Interaction) -> None:
             confirm_btn.disabled = True
             cancel_btn.disabled = True
             log.warning(f"REBOOT CONFIRMADO → usuario={btn_interaction.user} ({btn_interaction.user.id})")
@@ -36,7 +36,7 @@ class RebootCog(commands.Cog):
             await self.bot.close()
             sys.exit(0)
 
-        async def cancel_callback(btn_interaction: discord.Interaction):
+        async def cancel_callback(btn_interaction: discord.Interaction) -> None:
             confirm_btn.disabled = True
             cancel_btn.disabled = True
             log.info(f"REBOOT CANCELADO → usuario={btn_interaction.user} ({btn_interaction.user.id})")
@@ -56,5 +56,5 @@ class RebootCog(commands.Cog):
         except discord.errors.NotFound:
             pass
 
-async def setup(bot):
+async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(RebootCog(bot))

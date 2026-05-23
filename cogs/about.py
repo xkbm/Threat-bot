@@ -7,12 +7,12 @@ import logging
 log = logging.getLogger("about")
 
 class InfoCog(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
-        self.start_time = time.time()
+        self.start_time: float = time.time()
 
     @app_commands.command(name="uptime", description="Muestra el tiempo que lleva el bot en línea")
-    async def uptime(self, interaction: discord.Interaction):
+    async def uptime(self, interaction: discord.Interaction) -> None:
         log.debug(f"UPTIME → usuario={interaction.user.id}")
         await interaction.response.defer(ephemeral=True)
 
@@ -21,7 +21,7 @@ class InfoCog(commands.Cog):
         hours, rem = divmod(rem, 3600)
         minutes, seconds = divmod(rem, 60)
 
-        parts = []
+        parts: list[str] = []
         if days: parts.append(f"{days}d")
         if hours: parts.append(f"{hours}h")
         parts.append(f"{minutes}m")
@@ -39,7 +39,7 @@ class InfoCog(commands.Cog):
             pass
 
     @app_commands.command(name="ping", description="Muestra la latencia del bot")
-    async def ping(self, interaction: discord.Interaction):
+    async def ping(self, interaction: discord.Interaction) -> None:
         log.debug(f"PING → usuario={interaction.user.id}")
         await interaction.response.defer(ephemeral=True)
 
@@ -55,7 +55,7 @@ class InfoCog(commands.Cog):
             pass
 
     @app_commands.command(name="about", description="Información detallada sobre las capacidades y funcionamiento del bot de seguridad Threat")
-    async def about(self, interaction: discord.Interaction):
+    async def about(self, interaction: discord.Interaction) -> None:
         log.debug(f"ABOUT → usuario={interaction.user.id} guild={interaction.guild.id if interaction.guild else None}")
         await interaction.response.defer()
         
@@ -105,8 +105,7 @@ class InfoCog(commands.Cog):
         try:
             await interaction.edit_original_response(embed=embed)
         except discord.errors.NotFound:
-            # La interacción expiró - no hay nada que hacer
             pass
 
-async def setup(bot):
+async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(InfoCog(bot))

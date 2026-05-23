@@ -2,26 +2,28 @@ import re
 import asyncio
 import socket
 import ipaddress
+from typing import Optional
 import discord
 import urllib.parse
 import logging
+from discord.ext import commands
 from core.config import EMOJI_LOADING, ANTIVIRUS_CONOCIDOS
 
 log = logging.getLogger("utils")
 
-async def safe_remove_loading(bot, msg):
+async def safe_remove_loading(bot: commands.Bot, msg: discord.Message) -> None:
     try:
         await msg.remove_reaction(EMOJI_LOADING, bot.user)
     except (discord.NotFound, discord.Forbidden, discord.HTTPException):
         pass
 
-async def safe_add_reaction(msg, emoji):
+async def safe_add_reaction(msg: discord.Message, emoji: str) -> None:
     try:
         await msg.add_reaction(emoji)
     except (discord.NotFound, discord.Forbidden):
         pass
 
-async def safe_send(msg, embed, reference=None):
+async def safe_send(msg: discord.Message, embed: discord.Embed, reference: Optional[discord.Message] = None) -> None:
     try:
         if reference:
             await msg.channel.send(embed=embed, reference=reference)
@@ -35,7 +37,7 @@ async def safe_send(msg, embed, reference=None):
         except (discord.HTTPException, discord.NotFound, discord.Forbidden):
             pass
 
-def dominio_en_whitelist(dominio: str, whitelist: list) -> bool:
+def dominio_en_whitelist(dominio: str, whitelist: list[str]) -> bool:
     dominio = dominio.lower().strip()
     for d in whitelist:
         d = d.lower().strip()
@@ -55,8 +57,8 @@ def url_es_imagen(url: str) -> bool:
     ruta = url.split('?')[0]
     return any(ruta.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.ico', '.heic', '.heif'])
 
-def obtener_top_antivirus(results):
-    detectados = []
+def obtener_top_antivirus(results: dict) -> list[str]:
+    detectados: list[str] = []
     for antivirus in ANTIVIRUS_CONOCIDOS:
         for key, value in results.items():
             if antivirus.lower() in key.lower() and value.get("category") == "malicious":
@@ -66,14 +68,12 @@ def obtener_top_antivirus(results):
             break
     return detectados
 
-def barra_porcentaje(porcentaje, longitud=10):
+def barra_porcentaje(porcentaje: float, longitud: int = 10) -> str:
     lleno = int(round(longitud * (porcentaje / 100)))
     vacio = longitud - lleno
     return "█" * lleno + "░" * vacio
 
-async def _resolve_url(url: str) -> tuple:
-    """Resuelve DNS en una sola llamada y verifica que no haya IPs privadas.
-    Retorna (segura, hostname, ip, mensaje_error)."""
+async def _resolve_url(url: str) -> tuple[bool, str, str, str]:
     try:
         parsed = urllib.parse.urlparse(url)
         hostname = parsed.hostname
@@ -87,7 +87,7 @@ async def _resolve_url(url: str) -> tuple:
         except ValueError:
             pass
         addrs = await asyncio.to_thread(socket.getaddrinfo, hostname, 80, type=socket.SOCK_STREAM)
-        ips = []
+        ips: list[str] = []
         for addr in addrs:
             ip_str = addr[4][0]
             try:
@@ -103,11 +103,11 @@ async def _resolve_url(url: str) -> tuple:
     except Exception as e:
         return False, "", "", f"Error verificando URL: {e}"
 
-async def es_url_segura(url: str) -> tuple:
+async def es_url_segura(url: str) -> tuple[bool, str]:
     segura, _, _, err = await _resolve_url(url)
     return segura, err
 
-async def expandir_url(bot, url):
+async def expandir_url(bot: commands.Bot, url: str) -> str:
     try:
         for _ in range(5):
             segura, hostname, ip, err = await _resolve_url(url)
@@ -130,8 +130,7 @@ async def expandir_url(bot, url):
         log.error(f"Error expandiendo URL {url}: {e}")
     return url
 
-async def descargar_url_segura(bot, url, max_size=None):
-    """Resuelve DNS, verifica IP y descarga en un solo paso atómico."""
+async def descargar_url_segura(bot: commands.Bot, url: str, max_size: Optional[int] = None) -> tuple[Optional[bytes], Optional[str]]:
     segura, hostname, ip, err = await _resolve_url(url)
     if not segura:
         return None, err
@@ -155,11 +154,11 @@ async def descargar_url_segura(bot, url, max_size=None):
     except Exception as e:
         return None, str(e)
 
-PATRON_HASH = re.compile(r'^[a-fA-F0-9]{32}$|^[a-fA-F0-9]{40}$|^[a-fA-F0-9]{64}$')
+PATRON_HASH: re.Pattern = re.compile(r'^[a-fA-F0-9]{32}$|^[a-fA-F0-9]{40}$|^[a-fA-F0-9]{64}$')
 
 def es_hash_valido(valor: str) -> bool:
     return bool(PATRON_HASH.match(valor.strip()))
 
-def tiene_doble_extension(filename):
+def tiene_doble_extension(filename: str) -> bool:
     partes = filename.rsplit('.', 2)
     return len(partes) == 3 and partes[1].lower() in ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'pdf', 'doc', 'xls']

@@ -4,6 +4,7 @@ from discord.ext import commands
 import aiohttp
 import asyncio
 import os
+from typing import Optional, Any
 import logging
 from dotenv import load_dotenv
 
@@ -27,27 +28,26 @@ intents.members = True
 bot = commands.Bot(command_prefix="-", intents=intents, allowed_mentions=discord.AllowedMentions.none())
 state.bot = bot
 
-bot.session = None
-bot.db = None
-bot.db_lock = None
-bot.guilds_data = {}
+bot.session: Optional[aiohttp.ClientSession] = None
+bot.db: Any = None
+bot.db_lock: Any = None
+bot.guilds_data: dict[int | str, Any] = {}
 
-bot.antispam_scan = {}
-bot.user_scan_history = {}
+bot.antispam_scan: dict[int, float] = {}
+bot.user_scan_history: dict[int, list[float]] = {}
 
-bot.vt_key_index = 0
-bot.vt_key_usage = {}
-bot.vt_key_total_requests = {}
-bot.vt_key_daily_usage = {}
-bot.vt_key_count = 0
+bot.vt_key_index: int = 0
+bot.vt_key_usage: dict[str, list[float]] = {}
+bot.vt_key_total_requests: dict[str, int] = {}
+bot.vt_key_daily_usage: dict[str, Any] = {}
+bot.vt_key_count: int = 0
 
-bot.se_key_index = 0
-bot.se_key_usage = {}
-bot.se_key_total_requests = {}
-bot.se_key_daily_usage = {}
-bot.se_key_count = 0
+bot.se_key_index: int = 0
+bot.se_key_usage: dict[str, list[float]] = {}
+bot.se_key_total_requests: dict[str, int] = {}
+bot.se_key_daily_usage: dict[str, Any] = {}
+bot.se_key_count: int = 0
 
-# ========== EXPORTACIONES A COGS ==========
 from api.virustotal import analizar_url, analizar_hash, analizar_ip, analizar_archivo, enviar_log_guild, obtener_siguiente_key, obtener_siguiente_se_key, registrar_uso_se, registrar_uso_vt
 bot.analizar_url = analizar_url
 bot.analizar_hash = analizar_hash
@@ -110,14 +110,12 @@ bot.CACHE_DURATION = CACHE_DURATION
 bot.DATA_FILE = DATA_FILE
 bot.DB_FILE = DB_FILE
 
-# ========== SETUP ==========
 @bot.event
-async def setup_hook():
+async def setup_hook() -> None:
     await load_cogs()
 
-# ========== EVENTOS ==========
 @bot.event
-async def on_ready():
+async def on_ready() -> None:
     bot.session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60))
     bot.vt_key_count = len(VT_API_KEYS)
     bot.se_key_count = len(SE_API_KEYS_PAIRS)
@@ -129,8 +127,7 @@ async def on_ready():
     log.info(f"Bot conectado como {bot.user}")
     log.info("Bot Ready - comandos slash sincronizados")
 
-async def _rotar_estado():
-    """Rota el estado del bot cada 30 segundos."""
+async def _rotar_estado() -> None:
     estados = [
         "Escaneando malware - /help",
         "Protegiendo servidores - /help",
@@ -148,7 +145,7 @@ async def _rotar_estado():
         indice = (indice + 1) % len(estados)
         await asyncio.sleep(30)
 
-async def _limpiar_cron():
+async def _limpiar_cron() -> None:
     from core.database import limpiar_db_expirados
     while True:
         await asyncio.sleep(3600)
@@ -159,7 +156,7 @@ async def _limpiar_cron():
             log.error(f"Error limpiando caché: {e}")
 
 @bot.event
-async def on_message(message):
+async def on_message(message: discord.Message) -> None:
     if message.author == bot.user or not message.guild:
         await bot.process_commands(message)
         return
@@ -168,7 +165,7 @@ async def on_message(message):
     await bot.process_commands(message)
 
 @bot.event
-async def on_message_edit(before, after):
+async def on_message_edit(before: discord.Message, after: discord.Message) -> None:
     if before.author == bot.user or not after.guild:
         return
     if before.content == after.content and len(before.attachments) == len(after.attachments):
@@ -176,7 +173,7 @@ async def on_message_edit(before, after):
     from ui.message_handler import procesar_analisis
     await procesar_analisis(bot, after)
 
-async def shutdown():
+async def shutdown() -> None:
     if bot.db:
         await bot.db.close()
         bot.db = None
@@ -185,12 +182,12 @@ async def shutdown():
         bot.session = None
 
 original_close = bot.close
-async def close_with_cleanup():
+async def close_with_cleanup() -> None:
     await shutdown()
     await original_close()
 bot.close = close_with_cleanup
 
-async def load_cogs():
+async def load_cogs() -> None:
     for archivo in os.listdir("./cogs"):
         if archivo.endswith(".py"):
             await bot.load_extension(f"cogs.{archivo[:-3]}")

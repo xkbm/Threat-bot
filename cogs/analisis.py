@@ -2,15 +2,15 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import hashlib
-import asyncio
 import time
+from typing import Optional
 import logging
 from core.utils import expandir_url
 
 log = logging.getLogger("analisis")
 
 class AnalisisCog(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
     @app_commands.command(name="scan", description="Analiza URL, IP, hash o archivo con VirusTotal")
@@ -26,16 +26,15 @@ class AnalisisCog(commands.Cog):
         app_commands.Choice(name="Hash", value="hash"),
         app_commands.Choice(name="Archivo", value="file")
     ])
-    async def scan(self, interaction: discord.Interaction, tipo: app_commands.Choice[str], valor: str = None, archivo: discord.Attachment = None):
+    async def scan(self, interaction: discord.Interaction, tipo: app_commands.Choice[str], valor: Optional[str] = None, archivo: Optional[discord.Attachment] = None) -> None:
         await interaction.response.defer()
 
         guild_id = interaction.guild.id if interaction.guild else None
-        url_original = None
-        expanded = None
+        url_original: Optional[str] = None
+        expanded: Optional[str] = None
 
         log.debug(f"SCAN → tipo={tipo.value} usuario={interaction.user.id} guild={guild_id}")
 
-        # Validación de parámetros
         if tipo.value == "file" and archivo is None:
             log.debug("SCAN → archivo sin adjunto, rechazado")
             await interaction.edit_original_response(content=f"{self.bot.EMOJI_INCORRECTO} Adjunta un archivo para analizar.")
@@ -45,7 +44,6 @@ class AnalisisCog(commands.Cog):
             await interaction.edit_original_response(content=f"{self.bot.EMOJI_INCORRECTO} Introduce un valor para {tipo.name}.")
             return
 
-        # --- URL: expandir acortadores ---
         if tipo.value == "url":
             url_original = valor
             try:
@@ -75,8 +73,9 @@ class AnalisisCog(commands.Cog):
                 return
             clave = f"file:{archivo.filename}:{archivo.size}"
             log.debug(f"SCAN ARCHIVO → {archivo.filename} ({archivo.size} bytes) clave={clave}")
+        else:
+            clave = ""
 
-        # 1. Revisar Caché (Memoria y DB)
         log.debug(f"SCAN CACHE → buscando clave={clave}")
         tipo_res, embed, _ = self.bot.get_from_cache_mem(clave)
         if embed is None:
@@ -113,7 +112,6 @@ class AnalisisCog(commands.Cog):
             await interaction.edit_original_response(content=None, embed=embed)
             return
 
-        # 2. Análisis real (devuelven tipo, embed, mal)
         _t0 = time.time()
         try:
             if tipo.value == "url":
@@ -174,7 +172,6 @@ class AnalisisCog(commands.Cog):
                     await interaction.edit_original_response(content=None, embed=embed)
                     return
 
-                # Revisar caché por hash (virustotal.py guarda como filehash:{hash})
                 log.debug(f"SCAN ARCHIVO CACHE → buscando filehash:{file_hash}")
                 tipo_cache, embed_cache, mal_cache = self.bot.get_from_cache_mem(f"filehash:{file_hash}")
                 if embed_cache is None:
@@ -243,12 +240,11 @@ class AnalisisCog(commands.Cog):
                 pass
             return
 
-        # 3. Mostrar el resultado final para URL, IP, Hash
         log.debug(f"SCAN FINAL → tipo={tipo.value} resultado={tipo_res} mal={mal} t={time.time()-_t0:.1f}s")
         await interaction.edit_original_response(content=None, embed=embed)
 
     @scan.error
-    async def scan_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+    async def scan_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError) -> None:
         if isinstance(error, app_commands.CommandOnCooldown):
             log.warning(f"SCAN COOLDOWN → usuario={interaction.user.id} retry_after={error.retry_after:.1f}s")
             await interaction.response.send_message(
@@ -264,5 +260,5 @@ class AnalisisCog(commands.Cog):
                     ephemeral=True
                 )
 
-async def setup(bot):
+async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(AnalisisCog(bot))

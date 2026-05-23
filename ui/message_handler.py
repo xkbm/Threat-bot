@@ -5,8 +5,10 @@ import hashlib
 import json
 import urllib.parse
 import base64
+from typing import Optional
 import logging
 import discord
+from discord.ext import commands
 from core.config import MAX_IMAGE_SIZE, MAX_FILE_SIZE, EMOJI_CORRECTO, EMOJI_INCORRECTO, EMOJI_WARNING, EMOJI_WHITELIST, EMOJI_LOADING, EMOJI_LINK, EMOJI_FILE, EMOJI_COOLDOWN, EMOJI_REPLY, ANTISPAM_URLS_PER_HOUR, ANTISPAM_COOLDOWN
 from core.utils import safe_remove_loading, safe_add_reaction, safe_send, dominio_en_whitelist, url_es_imagen, es_imagen, expandir_url, tiene_doble_extension, es_url_segura, descargar_url_segura
 from core.cache import get_from_cache_mem, set_cache_mem
@@ -17,10 +19,12 @@ from core.guild_config import obtener_config_guild, registrar_infraccion
 
 log = logging.getLogger("handler")
 
-async def procesar_analisis(bot, message):
+async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None:
     if len(message.content) > 5000:
         message.content = message.content[:5000]
 
+    if message.guild is None:
+        return
     guild_id = message.guild.id
     config = obtener_config_guild(guild_id)
     silent_mode = config["silent_mode"]
@@ -33,7 +37,7 @@ async def procesar_analisis(bot, message):
     log.debug(f"Mensaje de {message.author} en guild={guild_id}: {len(urls)} URLs, {len(message.attachments)} adjuntos")
 
     if urls:
-        todas_urls = []
+        todas_urls: list[str] = []
         for url in urls:
             parsed = urllib.parse.urlparse(url)
             dominio = parsed.netloc.lower()
@@ -98,7 +102,7 @@ async def procesar_analisis(bot, message):
                     if guild_id:
                         await registrar_infraccion(guild_id, message.author.id, f"nsfw:{content_hash}")
                     await safe_add_reaction(message, EMOJI_WARNING)
-                    detectados = []
+                    detectados: list[str] = []
                     if models.get('nudity', 0.0) >= 0.5: detectados.append(f"Desnudez {models['nudity']*100:.0f}%")
                     if models.get('weapon', 0.0) >= 0.5: detectados.append(f"Armas {models['weapon']*100:.0f}%")
                     if models.get('offensive', 0.0) >= 0.7: detectados.append(f"Ofensivo {models['offensive']*100:.0f}%")
@@ -197,7 +201,7 @@ async def procesar_analisis(bot, message):
         await safe_add_reaction(message, EMOJI_LOADING)
         try:
             todas_urls = list(dict.fromkeys(todas_urls))[:5]
-            resultados = []
+            resultados: list[tuple[str, str, str, int]] = []
             maliciosas = seguras = errores = 0
             for i, url in enumerate(todas_urls, 1):
                 url_original = url
@@ -291,8 +295,8 @@ async def procesar_analisis(bot, message):
         otros = [a for a in adjuntos if not es_imagen(a)]
         log.debug(f"Adjuntos: {len(imagenes)} imágenes, {len(otros)} archivos")
 
-        resultados_img = []
-        resultados_arch = []
+        resultados_img: list[tuple[str, str, dict, str]] = []
+        resultados_arch: list[tuple[str, str, int, str, str]] = []
 
         await safe_add_reaction(message, EMOJI_LOADING)
         try:
@@ -303,7 +307,7 @@ async def procesar_analisis(bot, message):
                     continue
                 clave_meta = f"nsfw_filename:{img.filename}:{img.size}"
                 tipo_meta, embed_meta, _ = get_from_cache_mem(clave_meta)
-                content_hash = None
+                content_hash: Optional[str] = None
                 if embed_meta is not None:
                     try:
                         content_hash = json.loads(tipo_meta).get("hash")
@@ -347,7 +351,7 @@ async def procesar_analisis(bot, message):
                     continue
                 clave_meta = f"file:{archivo.filename}:{archivo.size}"
                 tipo_meta, embed_meta, _ = get_from_cache_mem(clave_meta)
-                file_hash = None
+                file_hash: Optional[str] = None
                 if embed_meta is not None:
                     try:
                         file_hash = json.loads(tipo_meta).get("hash")
@@ -425,12 +429,12 @@ async def procesar_analisis(bot, message):
         campo = ""
         for filename, tipo, models, _ in resultados_img:
             if tipo == "nsfw":
-                detalles = []
-                if models.get('nudity', 0.0) >= 0.5: detalles.append(f"Desnudez {models['nudity']*100:.0f}%")
-                if models.get('weapon', 0.0) >= 0.5: detalles.append(f"Armas {models['weapon']*100:.0f}%")
-                if models.get('offensive', 0.0) >= 0.7: detalles.append(f"Ofensivo {models['offensive']*100:.0f}%")
-                if models.get('alcohol', 0.0) >= 0.7: detalles.append(f"Alcohol {models['alcohol']*100:.0f}%")
-                detalle_str = ", ".join(detalles) if detalles else "Contenido inapropiado"
+                detalles_img: list[str] = []
+                if models.get('nudity', 0.0) >= 0.5: detalles_img.append(f"Desnudez {models['nudity']*100:.0f}%")
+                if models.get('weapon', 0.0) >= 0.5: detalles_img.append(f"Armas {models['weapon']*100:.0f}%")
+                if models.get('offensive', 0.0) >= 0.7: detalles_img.append(f"Ofensivo {models['offensive']*100:.0f}%")
+                if models.get('alcohol', 0.0) >= 0.7: detalles_img.append(f"Alcohol {models['alcohol']*100:.0f}%")
+                detalle_str = ", ".join(detalles_img) if detalles_img else "Contenido inapropiado"
                 campo += f"{EMOJI_WARNING} `{filename}` (NSFW: {detalle_str})\n"
             elif tipo == "seguro":
                 campo += f"{EMOJI_CORRECTO} `{filename}` (imagen)\n"

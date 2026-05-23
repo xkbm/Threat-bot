@@ -2,18 +2,22 @@ import json
 import os
 import time
 import tempfile
+from typing import Optional
 import aiosqlite
 import discord
 import asyncio
 import logging
 from core import state
 from core.config import DB_FILE, DATA_FILE, EXPIRACION
+from discord.ext import commands
 
 log = logging.getLogger("db")
 
 DB_LOCK = asyncio.Lock()
 
-async def init_db():
+async def init_db() -> None:
+    if state.bot is None:
+        return
     state.bot.db = await aiosqlite.connect(DB_FILE)
     state.bot.db_lock = DB_LOCK
     await state.bot.db.execute('''CREATE TABLE IF NOT EXISTS analisis (
@@ -22,11 +26,11 @@ async def init_db():
     await state.bot.db.execute('CREATE INDEX IF NOT EXISTS idx_expira ON analisis(expira)')
     await state.bot.db.commit()
 
-async def close_db():
-    if state.bot.db:
+async def close_db() -> None:
+    if state.bot and state.bot.db:
         await state.bot.db.close()
 
-async def guardar_analisis_db(clave, tipo_analisis, resultado, embed, mal=0):
+async def guardar_analisis_db(clave: str, tipo_analisis: str, resultado: str, embed: Optional[discord.Embed], mal: int = 0) -> None:
     async with state.bot.db_lock:
         now = time.time()
         expira = now + EXPIRACION.get(tipo_analisis, 7 * 24 * 3600)
@@ -40,7 +44,7 @@ async def guardar_analisis_db(clave, tipo_analisis, resultado, embed, mal=0):
         await state.bot.db.commit()
         log.debug(f"SQLITE SAVE → clave={clave} tipo={tipo_analisis} resultado={resultado} mal={mal} expira={expira-now:.0f}s")
 
-async def obtener_analisis_db(clave):
+async def obtener_analisis_db(clave: str) -> tuple[Optional[str], Optional[discord.Embed], int]:
     async with state.bot.db_lock:
         now = time.time()
         async with state.bot.db.execute(
@@ -50,7 +54,7 @@ async def obtener_analisis_db(clave):
     if row:
         resultado_json, embed_json, expira = row
         if now < expira:
-            embed = None
+            embed: Optional[discord.Embed] = None
             if embed_json:
                 try:
                     embed_dict = json.loads(embed_json)
@@ -70,12 +74,12 @@ async def obtener_analisis_db(clave):
     log.debug(f"SQLITE MISS → clave={clave}")
     return None, None, 0
 
-async def limpiar_db_expirados():
+async def limpiar_db_expirados() -> None:
     async with state.bot.db_lock:
         await state.bot.db.execute('DELETE FROM analisis WHERE expira < ?', (time.time(),))
         await state.bot.db.commit()
 
-async def obtener_hash_desde_metadatos(clave_metadatos):
+async def obtener_hash_desde_metadatos(clave_metadatos: str) -> Optional[str]:
     async with state.bot.db_lock:
         now = time.time()
         async with state.bot.db.execute(
@@ -92,7 +96,7 @@ async def obtener_hash_desde_metadatos(clave_metadatos):
                 pass
     return None
 
-async def guardar_metadatos_hash(clave_metadatos, file_hash):
+async def guardar_metadatos_hash(clave_metadatos: str, file_hash: str) -> None:
     data = json.dumps({"hash": file_hash})
     async with state.bot.db_lock:
         now = time.time()
@@ -104,11 +108,11 @@ async def guardar_metadatos_hash(clave_metadatos, file_hash):
         await state.bot.db.commit()
 
 DATA_LOCK = asyncio.Lock()
-_guardar_datos_pendiente = False
-_guardar_datos_task = None
-_GUARDAR_DEBOUNCE = 3.0
+_guardar_datos_pendiente: bool = False
+_guardar_datos_task: Optional[asyncio.Task] = None
+_GUARDAR_DEBOUNCE: float = 3.0
 
-async def _flush_datos():
+async def _flush_datos() -> None:
     async with DATA_LOCK:
         state.bot.guilds_data["__api_usage__"] = {
             "total_requests": state.bot.vt_key_total_requests,
@@ -133,7 +137,7 @@ async def _flush_datos():
         except Exception as e:
             log.error(f"Error al guardar datos: {e}")
 
-async def guardar_datos(inmediato=False):
+async def guardar_datos(inmediato: bool = False) -> None:
     global _guardar_datos_pendiente, _guardar_datos_task
     if inmediato:
         if _guardar_datos_task and not _guardar_datos_task.done():
@@ -143,7 +147,7 @@ async def guardar_datos(inmediato=False):
         return
     if not _guardar_datos_pendiente:
         _guardar_datos_pendiente = True
-        async def _debounced():
+        async def _debounced() -> None:
             global _guardar_datos_pendiente, _guardar_datos_task
             await asyncio.sleep(_GUARDAR_DEBOUNCE)
             if _guardar_datos_pendiente:
@@ -151,7 +155,7 @@ async def guardar_datos(inmediato=False):
                 await _flush_datos()
         _guardar_datos_task = asyncio.create_task(_debounced())
 
-async def cargar_datos():
+async def cargar_datos() -> None:
     _read_json = lambda: json.loads(open(DATA_FILE, "r", encoding="utf-8").read()) if os.path.exists(DATA_FILE) else {}
     try:
         data = await asyncio.to_thread(_read_json)
