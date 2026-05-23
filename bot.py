@@ -1,4 +1,4 @@
-# Commit: e4ef850
+# Commit: eb14fda
 import discord
 from discord.ext import commands
 import aiohttp
@@ -118,7 +118,7 @@ async def setup_hook():
 # ========== EVENTOS ==========
 @bot.event
 async def on_ready():
-    bot.session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10))
+    bot.session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60))
     bot.vt_key_count = len(VT_API_KEYS)
     bot.se_key_count = len(SE_API_KEYS_PAIRS)
     await init_db()

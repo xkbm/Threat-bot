@@ -12,7 +12,7 @@ log = logging.getLogger("utils")
 async def safe_remove_loading(bot, msg):
     try:
         await msg.remove_reaction(EMOJI_LOADING, bot.user)
-    except discord.NotFound:
+    except (discord.NotFound, discord.Forbidden, discord.HTTPException):
         pass
 
 async def safe_add_reaction(msg, emoji):
