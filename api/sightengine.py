@@ -34,6 +34,9 @@ async def analizar_imagen_multimodelo(image_content_hash: str, image_bytes: byte
         except Exception:
             pass
     log.debug(f"SE MISS → llamando API Sightengine para {clave}")
+    if not image_bytes:
+        log.debug("SE SKIP → image_bytes vacío, no se puede llamar a la API")
+        return False, 0.0, {}, False
     if not SE_API_KEYS_PAIRS:
         log.error("Sightengine no configurado correctamente.")
         return False, 0.0, {}, False
@@ -51,8 +54,8 @@ async def analizar_imagen_multimodelo(image_content_hash: str, image_bytes: byte
         data.add_field('api_user', api_user)
         data.add_field('api_secret', api_key)
         async with state.bot.session.post(SIGHTENGINE_API_URL, data=data, timeout=SE_TIMEOUT) as resp:
+            await registrar_uso_se(api_key)
             if resp.status == 200:
-                await registrar_uso_se(api_key)
                 result = await resp.json()
                 models: dict[str, float] = {}
                 for model_name in SIGHTENGINE_MODELS.split(','):

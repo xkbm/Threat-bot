@@ -4,6 +4,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Base directory for resolving relative paths
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 TOKEN: Optional[str] = os.getenv("DISCORD_TOKEN")
 
 VT_KEYS_RAW: list[Optional[str]] = [
@@ -23,8 +26,8 @@ SE_API_KEYS_PAIRS: list[tuple[str, str]] = [(u, k) for u, k in SE_VARS if u and 
 MAX_FILE_SIZE: int = 32 * 1024 * 1024
 MAX_IMAGE_SIZE: int = 2 * 1024 * 1024
 CACHE_DURATION: int = 3600
-DATA_FILE: str = "data.json"
-DB_FILE: str = "analisis.db"
+DATA_FILE: str = os.path.join(BASE_DIR, "data.json")
+DB_FILE: str = os.path.join(BASE_DIR, "analisis.db")
 
 EXPIRACION: dict[str, int] = {
     "url": 7 * 24 * 3600,

@@ -99,3 +99,46 @@ class ConfirmBanView(discord.ui.View):
     @discord.ui.button(label="Cancelar", style=discord.ButtonStyle.secondary)
     async def cancel_btn(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
         await interaction.response.edit_message(content="Ban cancelado.", view=None)
+
+
+class WhitelistPaginatorView(discord.ui.View):
+    def __init__(self, guild_name: str, domains: list[str], shield_emoji: str, per_page: int = 20) -> None:
+        super().__init__(timeout=60)
+        self.domains = domains
+        self.guild_name = guild_name
+        self.shield_emoji = shield_emoji
+        self.per_page = per_page
+        self.total_pages = max(1, (len(domains) + per_page - 1) // per_page)
+        self.current_page = 0
+        self._update_buttons()
+
+    def get_page_embed(self) -> discord.Embed:
+        start = self.current_page * self.per_page
+        end = start + self.per_page
+        page_domains = self.domains[start:end]
+        lista = "\n".join(f"• `{d}`" for d in page_domains)
+        embed = discord.Embed(
+            title=f"{self.shield_emoji} Whitelist de {self.guild_name}",
+            description=lista,
+            color=discord.Color.blue()
+        )
+        embed.set_footer(text=f"Página {self.current_page + 1}/{self.total_pages} • {len(self.domains)} dominios totales")
+        return embed
+
+    def _update_buttons(self) -> None:
+        self.prev_btn.disabled = self.current_page <= 0
+        self.next_btn.disabled = self.current_page >= self.total_pages - 1
+
+    @discord.ui.button(label="◀ Anterior", style=discord.ButtonStyle.secondary)
+    async def prev_btn(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        if self.current_page > 0:
+            self.current_page -= 1
+            self._update_buttons()
+            await interaction.response.edit_message(embed=self.get_page_embed(), view=self)
+
+    @discord.ui.button(label="Siguiente ▶", style=discord.ButtonStyle.secondary)
+    async def next_btn(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        if self.current_page < self.total_pages - 1:
+            self.current_page += 1
+            self._update_buttons()
+            await interaction.response.edit_message(embed=self.get_page_embed(), view=self)

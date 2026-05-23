@@ -5,6 +5,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from core.config import DOMINIOS_PROTEGIDOS
+from ui.views import WhitelistPaginatorView
 
 log = logging.getLogger("whitelist")
 PATRON_DOMINIO: re.Pattern = re.compile(r'^([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$')
@@ -114,16 +115,23 @@ class WhitelistCog(commands.Cog):
                     pass
                 return
             log.debug(f"WHITELIST LIST → guild={interaction.guild.id} total={len(whitelist)} admin={interaction.user.id}")
-            lista = "\n".join(f"• `{d}`" for d in whitelist)
-            embed = discord.Embed(
-                title=f"{self.bot.EMOJI_SHIELD} Whitelist de {interaction.guild.name}",
-                description=lista,
-                color=discord.Color.blue()
-            )
-            try:
-                await interaction.response.send_message(embed=embed, ephemeral=True)
-            except discord.errors.NotFound:
-                pass
+            if len(whitelist) <= 20:
+                lista = "\n".join(f"• `{d}`" for d in whitelist)
+                embed = discord.Embed(
+                    title=f"{self.bot.EMOJI_SHIELD} Whitelist de {interaction.guild.name}",
+                    description=lista,
+                    color=discord.Color.blue()
+                )
+                try:
+                    await interaction.response.send_message(embed=embed, ephemeral=True)
+                except discord.errors.NotFound:
+                    pass
+            else:
+                view = WhitelistPaginatorView(interaction.guild.name, whitelist, self.bot.EMOJI_SHIELD)
+                try:
+                    await interaction.response.send_message(embed=view.get_page_embed(), view=view, ephemeral=True)
+                except discord.errors.NotFound:
+                    pass
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(WhitelistCog(bot))

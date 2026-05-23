@@ -1,4 +1,4 @@
-# Commit: edd63ab
+# Commit: ca64f05
 import discord
 from discord.ext import commands
 import aiohttp
@@ -172,6 +172,13 @@ async def on_message_edit(before: discord.Message, after: discord.Message) -> No
         return
     from ui.message_handler import procesar_analisis
     await procesar_analisis(bot, after)
+
+@bot.event
+async def on_guild_remove(guild: discord.Guild) -> None:
+    bot.guilds_data.pop(guild.id, None)
+    log.info(f"Bot removido del guild {guild.name} ({guild.id}) — datos limpiados")
+    from core.database import guardar_datos
+    await guardar_datos(inmediato=True)
 
 async def shutdown() -> None:
     if bot.db:
