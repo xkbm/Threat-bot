@@ -230,26 +230,17 @@ async def analizar_hash(hash_valor: str, guild_id: Optional[int] = None, mensaje
             else:
                 await update_stats(guild_id, "error")
                 embed = discord.Embed(title="Hash no encontrado", description="No existe en VirusTotal", color=discord.Color.red())
-                if guardar_cache:
-                    await guardar_analisis_db(f"hash:{hash_valor}", "hash", "error", embed, 0)
-                    set_cache_mem(f"hash:{hash_valor}", "error", embed, 0)
                 log.debug(f"VT HASH NO ENCONTRADO → {hash_valor} status={resp.status} t={time.time()-_t0:.1f}s")
                 return "error", embed, 0
     except asyncio.TimeoutError:
         log.error(f"VT HASH TIMEOUT → {hash_valor} t={time.time()-_t0:.1f}s")
         await update_stats(guild_id, "error")
         embed = discord.Embed(title="Error", description="La solicitud a VirusTotal expiró.", color=discord.Color.red())
-        if guardar_cache:
-            await guardar_analisis_db(f"hash:{hash_valor}", "hash", "error", embed, 0)
-            set_cache_mem(f"hash:{hash_valor}", "error", embed, 0)
         return "error", embed, 0
     except Exception as e:
         log.error(f"VT HASH EXCEPTION → {hash_valor}: {e} t={time.time()-_t0:.1f}s")
         await update_stats(guild_id, "error")
         embed = discord.Embed(title="Error", description="No se pudo consultar el hash", color=discord.Color.red())
-        if guardar_cache:
-            await guardar_analisis_db(f"hash:{hash_valor}", "hash", "error", embed, 0)
-            set_cache_mem(f"hash:{hash_valor}", "error", embed, 0)
         return "error", embed, 0
 
 async def analizar_ip(ip: str, guild_id: Optional[int] = None, mensaje_original: Optional[discord.Message] = None, guardar_cache: bool = True) -> tuple[str, discord.Embed, int]:
@@ -292,25 +283,16 @@ async def analizar_ip(ip: str, guild_id: Optional[int] = None, mensaje_original:
                 await update_stats(guild_id, "error")
                 log.debug(f"VT IP NO ENCONTRADA → {ip} status={resp.status} t={time.time()-_t0:.1f}s")
                 embed = discord.Embed(title="IP no encontrada", description="No se pudo analizar la IP", color=discord.Color.red())
-                if guardar_cache:
-                    await guardar_analisis_db(f"ip:{ip}", "ip", "error", embed, 0)
-                    set_cache_mem(f"ip:{ip}", "error", embed, 0)
                 return "error", embed, 0
     except asyncio.TimeoutError:
         log.error(f"VT IP TIMEOUT → {ip} t={time.time()-_t0:.1f}s")
         await update_stats(guild_id, "error")
         embed = discord.Embed(title="Error", description="La solicitud a VirusTotal expiró.", color=discord.Color.red())
-        if guardar_cache:
-            await guardar_analisis_db(f"ip:{ip}", "ip", "error", embed, 0)
-            set_cache_mem(f"ip:{ip}", "error", embed, 0)
         return "error", embed, 0
     except Exception as e:
         log.error(f"VT IP EXCEPTION → {ip}: {e} t={time.time()-_t0:.1f}s")
         await update_stats(guild_id, "error")
         embed = discord.Embed(title="Error", description="No se pudo contactar con VirusTotal", color=discord.Color.red())
-        if guardar_cache:
-            await guardar_analisis_db(f"ip:{ip}", "ip", "error", embed, 0)
-            set_cache_mem(f"ip:{ip}", "error", embed, 0)
         return "error", embed, 0
 
 async def analizar_archivo(archivo: discord.Attachment, file_bytes: Optional[bytes] = None, file_hash: Optional[str] = None, guild_id: Optional[int] = None, mensaje_original: Optional[discord.Message] = None, guardar_cache: bool = True) -> tuple[str, discord.Embed, int]:

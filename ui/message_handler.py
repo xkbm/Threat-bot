@@ -122,18 +122,8 @@ async def _procesar_adjuntos(
             except Exception:
                 resultados_arch.append((archivo.filename, "error", 0, "", ""))
                 continue
-            tipo, embed, mal = get_from_cache_mem(f"filehash:{file_hash}")
-            if embed is None:
-                tipo, embed, mal = await obtener_analisis_db(f"filehash:{file_hash}")
-                if embed is not None:
-                    set_cache_mem(f"filehash:{file_hash}", tipo, embed, mal)
-            if embed is not None:
-                if tipo == "malicioso":
-                    await registrar_infraccion(guild_id, message.author.id, f"filehash:{file_hash}")
-                resultados_arch.append((archivo.filename, tipo, mal, file_hash, wm))
-            else:
-                tipo, embed, mal = await analizar_archivo(archivo, file_bytes=file_data, file_hash=file_hash, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
-                resultados_arch.append((archivo.filename, tipo, mal, file_hash, wm))
+            tipo, embed, mal = await analizar_archivo(archivo, file_bytes=file_data, file_hash=file_hash, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
+            resultados_arch.append((archivo.filename, tipo, mal, file_hash, wm))
 
     finally:
         await safe_remove_loading(bot, message)
@@ -278,6 +268,48 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
             log.debug(f"URL única: {url}")
             if url_es_imagen(url):
                 log.debug(f"URL es imagen → SSRF check + Sightengine")
+                url_hash_key = hashlib.sha256(url.encode()).hexdigest()
+                clave_meta_url = f"nsfw_url:{url_hash_key}"
+                tipo_meta, embed_meta, _ = get_from_cache_mem(clave_meta_url)
+                cached_hash = None
+                if embed_meta is not None:
+                    try:
+                        cached_hash = json.loads(tipo_meta).get("hash")
+                    except Exception:
+                        pass
+                if not cached_hash:
+                    cached_hash = await obtener_hash_desde_metadatos(clave_meta_url)
+                if cached_hash:
+                    is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(cached_hash, b"")
+                    if from_cache:
+                        if is_nsfw:
+                            if guild_id:
+                                await registrar_infraccion(guild_id, message.author.id, f"nsfw:{cached_hash}")
+                            await safe_add_reaction(message, EMOJI_WARNING)
+                            detectados: list[str] = []
+                            if models.get('nudity', 0.0) >= 0.5: detectados.append(f"Desnudez {models['nudity']*100:.0f}%")
+                            if models.get('weapon', 0.0) >= 0.5: detectados.append(f"Armas {models['weapon']*100:.0f}%")
+                            if models.get('offensive', 0.0) >= 0.7: detectados.append(f"Ofensivo {models['offensive']*100:.0f}%")
+                            if models.get('alcohol', 0.0) >= 0.7: detectados.append(f"Alcohol {models['alcohol']*100:.0f}%")
+                            detalles_str = ", ".join(detectados) if detectados else "Contenido inapropiado"
+                            embed = discord.Embed(title=f"{EMOJI_WARNING} Contenido Inapropiado Detectado", description=f"{detalles_str}", color=discord.Color.orange())
+                            embed.add_field(name="Resultados", value=f"{EMOJI_WARNING} Imagen NSFW\n{detalles_str}", inline=False)
+                            await safe_send(message, embed, reference=message)
+                            if log_channel_id:
+                                await enviar_log_guild(guild_id, "Imagen NSFW", url, detalles_str, message.author, elemento_id=f"nsfw:{cached_hash}")
+                            if strict_mode:
+                                try:
+                                    await message.delete()
+                                except Exception:
+                                    pass
+                        else:
+                            await safe_add_reaction(message, EMOJI_CORRECTO)
+                            if not silent_mode:
+                                embed = discord.Embed(title=f"{EMOJI_CORRECTO} Imagen Segura", description="No se detectó contenido inapropiado.", color=discord.Color.green())
+                                embed.add_field(name="Resultados", value=f"{EMOJI_CORRECTO} Imagen segura", inline=False)
+                                await safe_send(message, embed, reference=message)
+                        await _procesar_adjuntos_si_hay(bot, message, guild_id, silent_mode, strict_mode, log_channel_id)
+                        return
                 await safe_add_reaction(message, EMOJI_LOADING)
                 try:
                     img_data, error = await descargar_url_segura(bot, url, max_size=MAX_IMAGE_SIZE)
@@ -294,6 +326,9 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                         return
                     content_hash = hashlib.sha256(img_data).hexdigest()
                     is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(content_hash, img_data)
+                    dummy = discord.Embed(title="NSFW URL Meta")
+                    set_cache_mem(clave_meta_url, json.dumps({"hash": content_hash}), dummy, 0)
+                    await guardar_metadatos_hash(clave_meta_url, content_hash)
                 finally:
                     await safe_remove_loading(bot, message)
 

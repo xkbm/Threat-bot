@@ -28,13 +28,17 @@ Optional multi-key: `VT_API_KEY_2/3`, `SIGHTENGINE_API_USER_2/3` + `SIGHTENGINE_
 ## CI/CD
 `push dev` → GitHub Actions (`test-bot.yml`): `python -m compileall .` + `timeout 15s python bot.py` (dummy env) → if OK → `merge-to-main.yml`: merge dev→main → Pterodactyl git pull + restart.
 
+## Verificación local (no instalar nada)
+El bot corre en un servidor Pterodactyl. Para verificar cambios localmente solo ejecutar `python -m compileall .` — si compila sin errores, está correcto. No instalar requirements ni ejecutar `bot.py` en local.
+
 ## Architecture
 - **Entrypoint** `bot.py:114` `setup_hook` loads `cogs/*.py`; `on_ready` inits DB + syncs slash commands.
 - **State** `core/state.py` — `state.bot = bot` set at `bot.py:29`. Import `from core import state` then `state.bot` anywhere.
 - **Shutdown** `bot.py:183-195` monkey-patches `bot.close` to close `bot.session` + `bot.db`.
 - **Guild cleanup** `bot.py:176-181` — `on_guild_remove` handler removes guild from `bot.guilds_data` and flushes to disk immediately.
 - **Background tasks**: `_rotar_estado()` rotates bot presence every 30s; `_limpiar_cron()` clears expired SQLite cache every hour.
-- **Persistence**: `core/analisis.db` (SQLite, cached scans) + `core/data.json` (JSON, guild configs). `guardar_datos()` debounces 3s; pass `inmediato=True` for instant writes.
+- **Persistence**: `core/analisis.db` (SQLite, cached scans) + `core/data.json` (JSON, guild configs). Both resolved as absolute paths from `core/config.py`. `guardar_datos()` debounces 3s; pass `inmediato=True` for instant writes.
+- **Error results (not cached)**: `_finalizar_error` (`api/virustotal.py:476-477`) no longer calls `guardar_analisis_db` or `set_cache_mem` — errors are never cached so transient failures don't block reanalysis.
 - **Timeouts**: bot session `total=60` (`bot.py:119`), VT `total=180` (`api/virustotal.py:20`), SE `total=30` (`api/sightengine.py:12`).
 - **Size limits**: `MAX_FILE_SIZE = 32MB` for VT file uploads, `MAX_IMAGE_SIZE = 2MB` for SightEngine image scans (`core/config.py:26-27`).
 - **Cogs**: `/scan` (30s cooldown per user+guild, `cogs/analisis.py:17`), `/silentmode`, `/strictmode`, `/setlogchannel`, `/settings`, `/disablelogchannel`, `/whitelist`, `/usercheck` (`cogs/rep.py`), `/stats`, `/about`, `/uptime`, `/ping`, `/help`, `/eval` (owner), `/reboot` (owner).
