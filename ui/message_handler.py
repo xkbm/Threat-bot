@@ -256,9 +256,11 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
         bot.user_scan_history[user_id] = [t for t in bot.user_scan_history[user_id] if ahora - t < 3600]
         if len(bot.user_scan_history[user_id]) >= ANTISPAM_URLS_PER_HOUR:
             await safe_add_reaction(message, EMOJI_COOLDOWN)
+            await _procesar_adjuntos_si_hay(bot, message, guild_id, silent_mode, strict_mode, log_channel_id)
             return
         if user_id in bot.antispam_scan and ahora - bot.antispam_scan[user_id] < ANTISPAM_COOLDOWN:
             await safe_add_reaction(message, EMOJI_COOLDOWN)
+            await _procesar_adjuntos_si_hay(bot, message, guild_id, silent_mode, strict_mode, log_channel_id)
             return
         bot.antispam_scan[user_id] = ahora
         bot.user_scan_history[user_id].append(ahora)

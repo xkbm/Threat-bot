@@ -1,4 +1,4 @@
-# Commit: 38d3303
+# Commit: 632f80a
 # Prueba de commit
 import discord
 from discord.ext import commands
@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 from core import state
 from core.config import TOKEN, VT_API_KEYS, SE_API_KEYS_PAIRS, OWNER_ID
-from core.database import init_db, cargar_datos
+from core.database import init_db, cargar_datos, guardar_datos
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(name)s: %(message)s")
 logging.getLogger("cache").setLevel(logging.DEBUG)
@@ -176,6 +176,14 @@ async def on_message_edit(before, after):
         return
     from ui.message_handler import procesar_analisis
     await procesar_analisis(bot, after)
+
+@bot.event
+async def on_guild_remove(guild):
+    guild_id = guild.id
+    if guild_id in bot.guilds_data:
+        bot.guilds_data.pop(guild_id, None)
+        await guardar_datos(inmediato=True)
+        log.info(f"Guild {guild_id} ({guild.name}) eliminada — datos limpiados")
 
 async def shutdown():
     if bot.db:
