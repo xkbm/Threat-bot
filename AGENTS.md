@@ -32,14 +32,14 @@ Optional multi-key: `VT_API_KEY_2/3`, `SIGHTENGINE_API_USER_2/3` + `SIGHTENGINE_
 El bot corre en un servidor Pterodactyl. Para verificar cambios localmente solo ejecutar `python -m compileall .` — si compila sin errores, está correcto. No instalar requirements ni ejecutar `bot.py` en local.
 
 ## Architecture
-- **Entrypoint** `bot.py:114` `setup_hook` loads `cogs/*.py`; `on_ready` inits DB + syncs slash commands.
+- **Entrypoint** `bot.py:116` `setup_hook` loads `cogs/*.py`; `on_ready` inits DB + syncs slash commands.
 - **State** `core/state.py` — `state.bot = bot` set at `bot.py:29`. Import `from core import state` then `state.bot` anywhere.
-- **Shutdown** `bot.py:183-195` monkey-patches `bot.close` to close `bot.session` + `bot.db`.
-- **Guild cleanup** `bot.py:176-181` — `on_guild_remove` handler removes guild from `bot.guilds_data` and flushes to disk immediately.
+- **Shutdown** `bot.py:195-205` monkey-patches `bot.close` to close `bot.session` + `POOL.stop()`.
+- **Guild cleanup** `bot.py:187-193` — `on_guild_remove` handler removes guild from `bot.guilds_data` and flushes to disk immediately.
 - **Background tasks**: `_rotar_estado()` rotates bot presence every 30s; `_limpiar_cron()` clears expired SQLite cache every hour.
-- **Persistence**: `core/analisis.db` (SQLite, cached scans) + `core/data.json` (JSON, guild configs). Both resolved as absolute paths from `core/config.py`. `guardar_datos()` debounces 3s; pass `inmediato=True` for instant writes.
+- **Persistence**: `core/analisis.db` (SQLite, cached scans) + `core/data.json` (JSON, guild configs). Both resolved as absolute paths from `core/config.py`. `guardar_datos()` debounces 3s; pass `inmediato=True` for instant writes. DB uses `DatabasePool` (4 connections, WAL mode, async read-round-robin + write-lock) via `core/database.py:POOL`.
 - **Error results (not cached)**: `_finalizar_error` (`api/virustotal.py:476-477`) no longer calls `guardar_analisis_db` or `set_cache_mem` — errors are never cached so transient failures don't block reanalysis.
-- **Timeouts**: bot session `total=60` (`bot.py:119`), VT `total=180` (`api/virustotal.py:20`), SE `total=30` (`api/sightengine.py:12`).
+- **Timeouts**: bot session `total=60` (`bot.py:125`), VT `total=180` (`api/virustotal.py:20`), SE `total=30` (`api/sightengine.py:12`).
 - **Size limits**: `MAX_FILE_SIZE = 32MB` for VT file uploads, `MAX_IMAGE_SIZE = 2MB` for SightEngine image scans (`core/config.py:26-27`).
 - **Cogs**: `/scan` (30s cooldown per user+guild, `cogs/analisis.py:17`), `/silentmode`, `/strictmode`, `/setlogchannel`, `/settings`, `/disablelogchannel`, `/whitelist`, `/usercheck` (`cogs/rep.py`), `/stats`, `/about`, `/uptime`, `/ping`, `/help`, `/eval` (owner), `/reboot` (owner).
 
@@ -85,7 +85,7 @@ Global stats stored at `bot.guilds_data["__global__"]`. API usage and antispam s
 `enviar_log_guild()` sends threat alerts with `LogActionView` (Ban/Kick/Ignore buttons) to the configured log channel. Buttons check user permissions before acting.
 
 ## ⚠️ Gotchas
-- **Bound-method illusion** (`bot.py:51-83`): assigning module funcs as bot attrs does NOT bind `self`. `await self.bot.expandir_url(valor)` passes `valor` as bot param. Fix: import directly and pass `self.bot` explicitly.
+- **Bound-method illusion** (`bot.py:52-82`): assigning module funcs as bot attrs does NOT bind `self`. `await self.bot.expandir_url(valor)` passes `valor` as bot param. Fix: import directly and pass `self.bot` explicitly.
 - **Admin slash commands** use `_safe_followup()` wrapper (`cogs/configuracion.py:13-17`) that catches `discord.errors.NotFound` on expired interactions.
 - **`strict_mode`** uses bare `try/except Exception: pass` for message deletion — will silently fail on missing permissions.
 - **SSRF protection**: `descargar_url_segura()` resolves DNS → checks for private/loopback IPs → downloads via IP with `Host` header.
