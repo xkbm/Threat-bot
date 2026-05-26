@@ -7,7 +7,7 @@
 Usar herramientas MCP (GitHub, Jina) antes que bash, websearch o webfetch.
 
 ## Stack
-Python 3.10+ · discord.py ≥2.3.0 · aiohttp · aiosqlite · python-dotenv · psutil
+Python 3.10+ · discord.py ≥2.3.0 · aiohttp · aiosqlite · python-dotenv
 
 ## Start
 ```
@@ -32,30 +32,33 @@ Optional multi-key: `VT_API_KEY_2/3`, `SIGHTENGINE_API_USER_2/3` + `SIGHTENGINE_
 El bot corre en un servidor Pterodactyl. Para verificar cambios localmente solo ejecutar `python -m compileall .` — si compila sin errores, está correcto. No instalar requirements ni ejecutar `bot.py` en local.
 
 ## Architecture
-- **Entrypoint** `bot.py:116` `setup_hook` loads `cogs/*.py`; `on_ready` inits DB + syncs slash commands.
+- **Entrypoint** `bot.py:116` `setup_hook` loads `cogs/*.py`; `on_ready` inits DB + syncs slash commands. `bot._ready_done` guard prevents double init.
+- **Concurrency guard**: `core/state.py:ANALYSIS_SEMAPHORE = asyncio.Semaphore(20)` limits concurrent analyses.
 - **State** `core/state.py` — `state.bot = bot` set at `bot.py:29`. Import `from core import state` then `state.bot` anywhere.
-- **Shutdown** `bot.py:195-205` monkey-patches `bot.close` to close `bot.session` + `POOL.stop()`.
+- **Shutdown** `bot.py:207-211` monkey-patches `bot.close` → calls `shutdown()` (cancel tasks, flush data, stop DB pool, close session) then original close.
 - **Guild cleanup** `bot.py:187-193` — `on_guild_remove` handler removes guild from `bot.guilds_data` and flushes to disk immediately.
 - **Background tasks**: `_rotar_estado()` rotates bot presence every 30s; `_limpiar_cron()` clears expired SQLite cache every hour.
 - **Persistence**: `core/analisis.db` (SQLite, cached scans) + `core/data.json` (JSON, guild configs). Both resolved as absolute paths from `core/config.py`. `guardar_datos()` debounces 3s; pass `inmediato=True` for instant writes. DB uses `DatabasePool` (4 connections, WAL mode, async read-round-robin + write-lock) via `core/database.py:POOL`.
-- **Error results (not cached)**: `_finalizar_error` (`api/virustotal.py:476-477`) no longer calls `guardar_analisis_db` or `set_cache_mem` — errors are never cached so transient failures don't block reanalysis.
+- **`load_dotenv()`** called in both `bot.py:23` and `core/config.py:5` — harmless (no override) but relevant for env load order.
+- **Error results (not cached)**: `_finalizar_error` (`api/virustotal.py:460`) solo llama `update_stats` — errors nunca se cachean para no bloquear reanálisis.
 - **Timeouts**: bot session `total=60` (`bot.py:125`), VT `total=180` (`api/virustotal.py:20`), SE `total=30` (`api/sightengine.py:12`).
 - **Size limits**: `MAX_FILE_SIZE = 32MB` for VT file uploads, `MAX_IMAGE_SIZE = 2MB` for SightEngine image scans (`core/config.py:26-27`).
-- **Cogs**: `/scan` (30s cooldown per user+guild, `cogs/analisis.py:17`), `/silentmode`, `/strictmode`, `/setlogchannel`, `/settings`, `/disablelogchannel`, `/whitelist`, `/usercheck` (`cogs/rep.py`), `/stats`, `/about`, `/uptime`, `/ping`, `/help`, `/eval` (owner), `/reboot` (owner).
+- **Cogs**: `/scan` (30s cooldown per user+guild, `cogs/analisis.py:18`), `/silentmode`, `/strictmode`, `/setlogchannel`, `/settings`, `/disablelogchannel`, `/whitelist`, `/usercheck` (`cogs/rep.py`), `/stats`, `/about`, `/uptime`, `/ping`, `/help`, `/eval` (owner), `/reboot` (owner).
 
 ## Auto-analysis pipeline
-`on_message` / `on_message_edit` → `ui/message_handler.py:procesar_analisis(bot, message)`.
+`on_message` / `on_message_edit` → `ui/message_handler.py:232` `procesar_analisis(bot, message)`.
 - **URLs** (non-image, not whitelisted): expand shorteners first → RAM cache → SQLite cache → VT API.
-- **Image URLs** (single, non-whitelisted, detected by `url_es_imagen` path extension check): SSRF-safe download via `descargar_url_segura()` (`core/utils.py:133`) — DNS resolve → private-IP check → download → SightEngine NSFW.
-- **Attachments**: images → SightEngine, other files → VirusTotal. Batch cap: 5 per message. Attachment processing (`_procesar_adjuntos`) runs alongside URL analysis (called from all URL return points).
-- **Double extension**: `tiene_doble_extension()` (`core/utils.py:162`) warns on e.g. `file.jpg.vbs`.
+- **Image URLs** (single, non-whitelisted, detected by `url_es_imagen` path extension check): SSRF-safe download via `descargar_url_segura()` (`core/utils.py:150`) — DNS resolve → private-IP check → download → SightEngine NSFW.
+- **Attachments**: images → SightEngine (`es_imagen()` checks extension + content-type), other files → VirusTotal. Batch cap: 5 per message. Attachment processing (`_procesar_adjuntos`) runs alongside URL analysis (called from all URL return points).
+- **Double extension**: `tiene_doble_extension()` (`core/utils.py:180`) warns on e.g. `file.jpg.vbs`.
 - **MIME mismatch**: warns when `.jpg` has non-`image/jpeg` content-type or `.png` non-`image/png`.
 
 ## Caching
-- **RAM**: `OrderedDict` max 1000 entries, 1h TTL. Returns `(tipo, embed, mal)` or `(None, None, 0)`.
+- **RAM**: `OrderedDict` max 100000 entries, 1h TTL. Returns `(tipo, embed, mal)` or `(None, None, 0)`.
 - **SQLite**: `analisis.db` table `analisis(clave, tipo, resultado, embed_json, timestamp, expira)`. Expiry: URL/IP 7d, hash/file/NSFW 30d.
+- **DNS cache**: `core/utils.py:14` — `_dns_cache` dict, 300s TTL. Avoids redundant lookups during SSRF checks.
 - Cache keys: `f"url:{expanded_url}"`, `f"ip:{ip}"`, `f"hash:{hash}"`, `f"filehash:{sha256}"`, `f"nsfw:{sha256}"`.
-- Always expand URLs before cache lookup (`expandir_url` in `core/utils.py:110`).
+- Always expand URLs before cache lookup (`expandir_url` in `core/utils.py:126`).
 
 ## VT integration (`api/virustotal.py`)
 - `analizar_*` return `(tipo: str, embed: discord.Embed, mal: int)`. `tipo`: `"malicioso"`, `"seguro"`, `"error"`.
@@ -73,9 +76,9 @@ El bot corre en un servidor Pterodactyl. Para verificar cambios localmente solo 
 - 30 URLs/hour per user, 10s cooldown between scans. Tracks in `bot.user_scan_history` and `bot.antispam_scan`. Applied to all scan paths including image URLs.
 
 ## Whitelist
-- `dominio_en_whitelist(dominio, whitelist)` checks exact match or subdomain (`core/utils.py:40`).
+- `dominio_en_whitelist(dominio, whitelist)` checks exact match or subdomain (`core/utils.py:43`).
 - Protected domains (`core/config.py:68-73`: youtube.com, github.com, etc.) cannot be removed via `/whitelist remove`. New guilds inherit these as default whitelist.
-- `/whitelist list` uses `WhitelistPaginatorView` (`ui/views.py:104`) with Anterior/Siguiente buttons when >20 domains.
+- `/whitelist list` uses `WhitelistPaginatorView` (`ui/views.py:114`) with Anterior/Siguiente buttons when >20 domains.
 
 ## Guild config
 `bot.guilds_data[guild_id]` = `{silent_mode, strict_mode, log_channel_id, whitelist, stats, infracciones, infracciones_registradas}`.
@@ -91,3 +94,4 @@ Global stats stored at `bot.guilds_data["__global__"]`. API usage and antispam s
 - **SSRF protection**: `descargar_url_segura()` resolves DNS → checks for private/loopback IPs → downloads via IP with `Host` header.
 - **Logger DEBUG** only on: `cache`, `db`, `handler`, `virustotal`, `sightengine`. Cog loggers inherit INFO from root.
 - **`/scan` file downloads** from attachment URL inside cog (not via `descargar_url_segura`).
+- **`psutil` in requirements.txt** is unused (never imported) — dependency solely from a template or prior version.

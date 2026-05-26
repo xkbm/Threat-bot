@@ -9,6 +9,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 TOKEN: Optional[str] = os.getenv("DISCORD_TOKEN")
 
+DATABASE_URL: Optional[str] = os.getenv("DATABASE_URL")
+
 VT_KEYS_RAW: list[Optional[str]] = [
     os.getenv("VT_API_KEY"),
     os.getenv("VT_API_KEY_2"),
