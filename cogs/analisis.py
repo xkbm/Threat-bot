@@ -27,9 +27,20 @@ class AnalisisCog(commands.Cog):
         app_commands.Choice(name="Archivo", value="file")
     ])
     async def scan(self, interaction: discord.Interaction, tipo: app_commands.Choice[str], valor: Optional[str] = None, archivo: Optional[discord.Attachment] = None) -> None:
+        guild_id = interaction.guild.id if interaction.guild else None
+
+        ahora = time.time()
+        user_id = interaction.user.id
+        self.bot.user_scan_history.setdefault(user_id, [])
+        self.bot.user_scan_history[user_id] = [t for t in self.bot.user_scan_history[user_id] if ahora - t < 3600]
+        if len(self.bot.user_scan_history[user_id]) >= self.bot.ANTISPAM_URLS_PER_HOUR:
+            await interaction.response.send_message(
+                f"{self.bot.EMOJI_COOLDOWN} Has alcanzado el límite de 30 análisis por hora.", ephemeral=True)
+            return
+        self.bot.user_scan_history[user_id].append(ahora)
+
         await interaction.response.defer()
 
-        guild_id = interaction.guild.id if interaction.guild else None
         url_original: Optional[str] = None
         expanded: Optional[str] = None
 
@@ -77,13 +88,13 @@ class AnalisisCog(commands.Cog):
             clave = ""
 
         log.debug(f"SCAN CACHE → buscando clave={clave}")
-        tipo_res, embed, _ = self.bot.get_from_cache_mem(clave)
+        tipo_res, embed, _ = await self.bot.get_from_cache_mem(clave)
         if embed is None:
             try:
                 tipo_res, embed, mal_db = await self.bot.obtener_analisis_db(clave)
                 if embed is not None:
                     log.debug(f"SCAN CACHE SQLITE HIT → clave={clave} tipo={tipo_res} mal={mal_db}")
-                    self.bot.set_cache_mem(clave, tipo_res, embed, mal_db)
+                    await self.bot.set_cache_mem(clave, tipo_res, embed, mal_db)
                 else:
                     log.debug(f"SCAN CACHE MISS → clave={clave}")
             except Exception as e:
@@ -173,12 +184,12 @@ class AnalisisCog(commands.Cog):
                     return
 
                 log.debug(f"SCAN ARCHIVO CACHE → buscando filehash:{file_hash}")
-                tipo_cache, embed_cache, mal_cache = self.bot.get_from_cache_mem(f"filehash:{file_hash}")
+                tipo_cache, embed_cache, mal_cache = await self.bot.get_from_cache_mem(f"filehash:{file_hash}")
                 if embed_cache is None:
                     tipo_cache, embed_cache, mal_cache = await self.bot.obtener_analisis_db(f"filehash:{file_hash}")
                     if embed_cache is not None:
                         log.debug(f"SCAN ARCHIVO CACHE SQLITE HIT → filehash:{file_hash} tipo={tipo_cache}")
-                        self.bot.set_cache_mem(f"filehash:{file_hash}", tipo_cache, embed_cache, mal_cache)
+                        await self.bot.set_cache_mem(f"filehash:{file_hash}", tipo_cache, embed_cache, mal_cache)
                     else:
                         log.debug(f"SCAN ARCHIVO CACHE MISS → filehash:{file_hash}")
                 else:
@@ -243,6 +254,12 @@ class AnalisisCog(commands.Cog):
         log.debug(f"SCAN FINAL → tipo={tipo.value} resultado={tipo_res} mal={mal} t={time.time()-_t0:.1f}s")
         await interaction.edit_original_response(content=None, embed=embed)
 
+    async def _safe_followup(self, interaction: discord.Interaction, *args, **kwargs) -> None:
+        try:
+            await interaction.followup.send(*args, **kwargs)
+        except discord.errors.NotFound:
+            pass
+
     @scan.error
     async def scan_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError) -> None:
         if isinstance(error, app_commands.CommandOnCooldown):
@@ -254,11 +271,10 @@ class AnalisisCog(commands.Cog):
             )
         else:
             log.error(f"SCAN ERROR → {type(error).__name__}: {error}")
-            if not interaction.response.is_done():
-                await interaction.response.send_message(
-                    f"{self.bot.EMOJI_INCORRECTO} Ocurrió un error inesperado.",
-                    ephemeral=True
-                )
+            await self._safe_followup(interaction,
+                f"{self.bot.EMOJI_INCORRECTO} Ocurrió un error inesperado.",
+                ephemeral=True
+            )
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(AnalisisCog(bot))

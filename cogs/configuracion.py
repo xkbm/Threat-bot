@@ -24,7 +24,7 @@ class ConfiguracionCog(commands.Cog):
         if not interaction.guild:
             await self._safe_followup(interaction, f"{self.bot.EMOJI_INCORRECTO} Este comando solo funciona en servidores.", ephemeral=True)
             return
-        config = self.bot.obtener_config_guild(interaction.guild.id)
+        config = await self.bot.obtener_config_guild(interaction.guild.id)
         config["silent_mode"] = estado
         await self.bot.guardar_datos(inmediato=True)
         log.debug(f"SILENTMODE → guild={interaction.guild.id} estado={estado} admin={interaction.user.id}")
@@ -38,7 +38,7 @@ class ConfiguracionCog(commands.Cog):
         if not interaction.guild:
             await self._safe_followup(interaction, f"{self.bot.EMOJI_INCORRECTO} Este comando solo funciona en servidores.", ephemeral=True)
             return
-        config = self.bot.obtener_config_guild(interaction.guild.id)
+        config = await self.bot.obtener_config_guild(interaction.guild.id)
         config["strict_mode"] = estado
         await self.bot.guardar_datos(inmediato=True)
         log.debug(f"STRICTMODE → guild={interaction.guild.id} estado={estado} admin={interaction.user.id}")
@@ -52,7 +52,7 @@ class ConfiguracionCog(commands.Cog):
         if not interaction.guild:
             await self._safe_followup(interaction, f"{self.bot.EMOJI_INCORRECTO} Este comando solo funciona en servidores.", ephemeral=True)
             return
-        config = self.bot.obtener_config_guild(interaction.guild.id)
+        config = await self.bot.obtener_config_guild(interaction.guild.id)
         config["log_channel_id"] = canal.id
         await self.bot.guardar_datos(inmediato=True)
         log.debug(f"SETLOGCHANNEL → guild={interaction.guild.id} canal={canal.id} admin={interaction.user.id}")
@@ -65,7 +65,7 @@ class ConfiguracionCog(commands.Cog):
         if not interaction.guild:
             await self._safe_followup(interaction, f"{self.bot.EMOJI_INCORRECTO} Este comando solo funciona en servidores.", ephemeral=True)
             return
-        config = self.bot.obtener_config_guild(interaction.guild.id)
+        config = await self.bot.obtener_config_guild(interaction.guild.id)
         config["log_channel_id"] = None
         await self.bot.guardar_datos(inmediato=True)
         log.debug(f"DISABLELOGCHANNEL → guild={interaction.guild.id} admin={interaction.user.id}")
@@ -78,7 +78,7 @@ class ConfiguracionCog(commands.Cog):
         if not interaction.guild:
             await self._safe_followup(interaction, f"{self.bot.EMOJI_INCORRECTO} Este comando solo funciona en servidores.", ephemeral=True)
             return
-        config = self.bot.obtener_config_guild(interaction.guild.id)
+        config = await self.bot.obtener_config_guild(interaction.guild.id)
         silent = config.get("silent_mode", False)
         strict = config.get("strict_mode", False)
         log_id = config.get("log_channel_id")

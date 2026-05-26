@@ -43,7 +43,7 @@ async def _procesar_adjuntos(
                 resultados_img.append((img.filename, "error", {"error": "too_large"}, ""))
                 continue
             clave_meta = f"nsfw_filename:{img.filename}:{img.size}"
-            tipo_meta, embed_meta, _ = get_from_cache_mem(clave_meta)
+            tipo_meta, embed_meta, _ = await get_from_cache_mem(clave_meta)
             content_hash: Optional[str] = None
             if embed_meta is not None:
                 try:
@@ -72,7 +72,7 @@ async def _procesar_adjuntos(
                         await registrar_infraccion(guild_id, message.author.id, f"nsfw:{content_hash}")
                     resultados_img.append((img.filename, "nsfw" if is_nsfw else "seguro", models, content_hash))
                     dummy = discord.Embed(title="NSFW Meta")
-                    set_cache_mem(clave_meta, json.dumps({"hash": content_hash}), dummy, 0)
+                    await set_cache_mem(clave_meta, json.dumps({"hash": content_hash}), dummy, 0)
                     await guardar_metadatos_hash(clave_meta, content_hash)
             except Exception:
                 resultados_img.append((img.filename, "error", {}, ""))
@@ -87,7 +87,7 @@ async def _procesar_adjuntos(
                 resultados_arch.append((archivo.filename, "error", 0, "", ""))
                 continue
             clave_meta = f"file:{archivo.filename}:{archivo.size}"
-            tipo_meta, embed_meta, _ = get_from_cache_mem(clave_meta)
+            tipo_meta, embed_meta, _ = await get_from_cache_mem(clave_meta)
             file_hash: Optional[str] = None
             if embed_meta is not None:
                 try:
@@ -97,11 +97,11 @@ async def _procesar_adjuntos(
             if not file_hash:
                 file_hash = await obtener_hash_desde_metadatos(clave_meta)
             if file_hash:
-                tipo, embed, mal = get_from_cache_mem(f"filehash:{file_hash}")
+                tipo, embed, mal = await get_from_cache_mem(f"filehash:{file_hash}")
                 if embed is None:
                     tipo, embed, mal = await obtener_analisis_db(f"filehash:{file_hash}")
                     if embed is not None:
-                        set_cache_mem(f"filehash:{file_hash}", tipo, embed, mal)
+                        await set_cache_mem(f"filehash:{file_hash}", tipo, embed, mal)
                 if embed is not None:
                     if tipo == "malicioso":
                         await registrar_infraccion(guild_id, message.author.id, f"filehash:{file_hash}")
@@ -115,9 +115,10 @@ async def _procesar_adjuntos(
                     file_data = await resp.read()
                     file_hash = hashlib.sha256(file_data).hexdigest()
                     content_type = resp.headers.get('Content-Type', '')
-                    if archivo.filename.endswith('.jpg') and content_type not in ('image/jpeg', 'image/jpg'):
+                    ct_lower = content_type.lower()
+                    if archivo.filename.lower().endswith(('.jpg', '.jpeg')) and ct_lower not in ('image/jpeg', 'image/jpg'):
                         wm = f"Extensión .jpg pero tipo real {content_type}"
-                    elif archivo.filename.endswith('.png') and content_type != 'image/png':
+                    elif archivo.filename.lower().endswith('.png') and ct_lower != 'image/png':
                         wm = f"Extensión .png pero tipo real {content_type}"
             except Exception:
                 resultados_arch.append((archivo.filename, "error", 0, "", ""))
@@ -220,7 +221,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
     if message.guild is None:
         return
     guild_id = message.guild.id
-    config = obtener_config_guild(guild_id)
+    config = await obtener_config_guild(guild_id)
     silent_mode = config["silent_mode"]
     strict_mode = config["strict_mode"]
     log_channel_id = config["log_channel_id"]
@@ -268,11 +269,11 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
         if len(todas_urls) == 1:
             url = todas_urls[0]
             log.debug(f"URL única: {url}")
-            if url_es_imagen(url):
+            if await url_es_imagen(url, bot):
                 log.debug(f"URL es imagen → SSRF check + Sightengine")
                 url_hash_key = hashlib.sha256(url.encode()).hexdigest()
                 clave_meta_url = f"nsfw_url:{url_hash_key}"
-                tipo_meta, embed_meta, _ = get_from_cache_mem(clave_meta_url)
+                tipo_meta, embed_meta, _ = await get_from_cache_mem(clave_meta_url)
                 cached_hash = None
                 if embed_meta is not None:
                     try:
@@ -329,7 +330,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                     content_hash = hashlib.sha256(img_data).hexdigest()
                     is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(content_hash, img_data)
                     dummy = discord.Embed(title="NSFW URL Meta")
-                    set_cache_mem(clave_meta_url, json.dumps({"hash": content_hash}), dummy, 0)
+                    await set_cache_mem(clave_meta_url, json.dumps({"hash": content_hash}), dummy, 0)
                     await guardar_metadatos_hash(clave_meta_url, content_hash)
                 finally:
                     await safe_remove_loading(bot, message)
@@ -385,14 +386,14 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                         return
                     log.debug(f"URL expandida: {url_original} → {url}")
                 clave = f"url:{url}"
-                tipo, embed, mal = get_from_cache_mem(clave)
+                tipo, embed, mal = await get_from_cache_mem(clave)
                 if embed is not None:
                     log.debug(f"Cache HIT (RAM) para URL → resultado={tipo}")
                 else:
                     tipo, embed, mal = await obtener_analisis_db(clave)
                     if embed is not None:
                         log.debug(f"Cache HIT (SQLite) para URL → resultado={tipo}")
-                        set_cache_mem(clave, tipo, embed, mal)
+                        await set_cache_mem(clave, tipo, embed, mal)
                     else:
                         log.debug(f"Cache MISS para URL → llamando VT")
 
@@ -465,14 +466,14 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                         continue
                     log.debug(f"[{i}/{len(todas_urls)}] URL expandida: {url_original} → {url_exp}")
                 clave = f"url:{url_exp}"
-                tipo, embed, mal = get_from_cache_mem(clave)
+                tipo, embed, mal = await get_from_cache_mem(clave)
                 if embed is not None:
                     log.debug(f"[{i}/{len(todas_urls)}] Cache HIT (RAM) → {url_original} resultado={tipo}")
                 else:
                     tipo, embed, mal = await obtener_analisis_db(clave)
                     if embed is not None:
                         log.debug(f"[{i}/{len(todas_urls)}] Cache HIT (SQLite) → {url_original} resultado={tipo}")
-                        set_cache_mem(clave, tipo, embed, mal)
+                        await set_cache_mem(clave, tipo, embed, mal)
                     else:
                         log.debug(f"[{i}/{len(todas_urls)}] Cache MISS → {url_original} llamando VT")
                 if embed is not None:
@@ -521,7 +522,8 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                 for url_orig, url_exp, tipo, _ in resultados:
                     if tipo == "malicioso":
                         await enviar_log_guild(guild_id, "URL (múltiples)", url_orig, "Detectado en análisis múltiple", message.author, elemento_id=f"url:{url_exp}")
-            await safe_send(message, embed_resumen, reference=message)
+            if maliciosas or not silent_mode:
+                await safe_send(message, embed_resumen, reference=message)
         finally:
             await safe_remove_loading(bot, message)
         if maliciosas:

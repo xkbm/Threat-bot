@@ -3,11 +3,12 @@ import asyncio
 import socket
 import ipaddress
 from typing import Optional
+import aiohttp
 import discord
 import urllib.parse
 import logging
 from discord.ext import commands
-from core.config import EMOJI_LOADING, ANTIVIRUS_CONOCIDOS
+from core.config import EMOJI_LOADING, ANTIVIRUS_CONOCIDOS, IMAGE_EXTENSIONS
 
 log = logging.getLogger("utils")
 
@@ -20,7 +21,7 @@ async def safe_remove_loading(bot: commands.Bot, msg: discord.Message) -> None:
 async def safe_add_reaction(msg: discord.Message, emoji: str) -> None:
     try:
         await msg.add_reaction(emoji)
-    except (discord.NotFound, discord.Forbidden):
+    except (discord.NotFound, discord.Forbidden, discord.HTTPException):
         pass
 
 async def safe_send(msg: discord.Message, embed: discord.Embed, reference: Optional[discord.Message] = None) -> None:
@@ -53,9 +54,18 @@ def es_imagen(archivo: discord.Attachment) -> bool:
         return True
     return False
 
-def url_es_imagen(url: str) -> bool:
+async def url_es_imagen(url: str, bot: Optional[commands.Bot] = None) -> bool:
     ruta = url.split('?')[0]
-    return any(ruta.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.ico', '.heic', '.heif'])
+    if any(ruta.lower().endswith(ext) for ext in IMAGE_EXTENSIONS):
+        return True
+    if bot is None:
+        return False
+    try:
+        async with bot.session.head(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+            ct = resp.headers.get('Content-Type', '')
+            return ct.startswith('image/')
+    except Exception:
+        return False
 
 def obtener_top_antivirus(results: dict) -> list[str]:
     detectados: list[str] = []
@@ -117,7 +127,7 @@ async def expandir_url(bot: commands.Bot, url: str) -> str:
             port_part = f":{parsed.port}" if parsed.port else ""
             url_ip = urllib.parse.urlunparse(parsed._replace(netloc=f"{ip}{port_part}"))
             headers = {"Host": hostname}
-            async with bot.session.head(url_ip, allow_redirects=False, headers=headers) as resp:
+            async with bot.session.head(url_ip, allow_redirects=False, headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as resp:
                 if resp.status in (301, 302, 303, 307, 308):
                     location = resp.headers.get('Location')
                     if location:
@@ -161,4 +171,4 @@ def es_hash_valido(valor: str) -> bool:
 
 def tiene_doble_extension(filename: str) -> bool:
     partes = filename.rsplit('.', 2)
-    return len(partes) == 3 and partes[1].lower() in ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'pdf', 'doc', 'xls']
+    return len(partes) == 3 and partes[1].lower() in ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'pdf', 'doc', 'xls', 'exe', 'vbs', 'ps1', 'bat', 'cmd', 'msi', 'scr', 'lnk', 'com', 'gadget', 'docx', 'xlsx', 'ppt', 'pptx', 'jar', 'py']

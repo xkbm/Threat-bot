@@ -35,6 +35,8 @@ bot.guilds_data = {}
 
 bot.antispam_scan = {}
 bot.user_scan_history = {}
+bot._ready_done = False
+bot._background_tasks: list[asyncio.Task] = []
 
 bot.vt_key_index = 0
 bot.vt_key_usage = {}
@@ -65,10 +67,9 @@ bot.guardar_analisis_db = guardar_analisis_db
 bot.obtener_analisis_db = obtener_analisis_db
 bot.guardar_datos = guardar_datos
 
-from core.cache import get_from_cache_mem, set_cache_mem, cache_mem
+from core.cache import get_from_cache_mem, set_cache_mem
 bot.get_from_cache_mem = get_from_cache_mem
 bot.set_cache_mem = set_cache_mem
-bot.cache_mem = cache_mem
 
 from core.guild_config import obtener_config_guild, obtener_stats_globales, update_stats
 bot.obtener_config_guild = obtener_config_guild
@@ -107,6 +108,7 @@ bot.EMOJI_KICK = EMOJI_KICK
 bot.EMOJI_BAN = EMOJI_BAN
 bot.EMOJI_CLEAN = EMOJI_CLEAN
 bot.MAX_FILE_SIZE = MAX_FILE_SIZE
+bot.ANTISPAM_URLS_PER_HOUR = 30
 bot.CACHE_DURATION = CACHE_DURATION
 bot.DATA_FILE = DATA_FILE
 bot.DB_FILE = DB_FILE
@@ -119,14 +121,18 @@ async def setup_hook():
 # ========== EVENTOS ==========
 @bot.event
 async def on_ready():
-    bot.session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10))
+    if bot._ready_done:
+        return
+    bot._ready_done = True
+    bot.session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60))
     bot.vt_key_count = len(VT_API_KEYS)
     bot.se_key_count = len(SE_API_KEYS_PAIRS)
     await init_db()
-    cargar_datos()
+    await cargar_datos()
     await bot.tree.sync()
-    asyncio.create_task(_rotar_estado())
-    asyncio.create_task(_limpiar_cron())
+    task_estado = asyncio.create_task(_rotar_estado())
+    task_cron = asyncio.create_task(_limpiar_cron())
+    bot._background_tasks = [task_estado, task_cron]
     log.info(f"Bot conectado como {bot.user}")
     log.info("Bot Ready - comandos slash sincronizados")
 
@@ -141,12 +147,15 @@ async def _rotar_estado():
     ]
     indice = 0
     while True:
-        await bot.change_presence(
-            activity=discord.Activity(type=discord.ActivityType.watching, name=estados[indice]),
-            status=discord.Status.dnd
-        )
-        log.debug(f"Estado rotated: {estados[indice]}")
-        indice = (indice + 1) % len(estados)
+        try:
+            await bot.change_presence(
+                activity=discord.Activity(type=discord.ActivityType.watching, name=estados[indice]),
+                status=discord.Status.dnd
+            )
+            log.debug(f"Estado rotated: {estados[indice]}")
+            indice = (indice + 1) % len(estados)
+        except Exception:
+            log.exception("Error rotando estado")
         await asyncio.sleep(30)
 
 async def _limpiar_cron():
@@ -186,6 +195,10 @@ async def on_guild_remove(guild):
         log.info(f"Guild {guild_id} ({guild.name}) eliminada — datos limpiados")
 
 async def shutdown():
+    for task in bot._background_tasks:
+        task.cancel()
+    if bot._background_tasks:
+        await asyncio.gather(*bot._background_tasks, return_exceptions=True)
     if bot.db:
         await bot.db.close()
         bot.db = None
@@ -202,8 +215,11 @@ bot.close = close_with_cleanup
 async def load_cogs():
     for archivo in os.listdir("./cogs"):
         if archivo.endswith(".py"):
-            await bot.load_extension(f"cogs.{archivo[:-3]}")
-            log.info(f"Cargado cog: {archivo}")
+            try:
+                await bot.load_extension(f"cogs.{archivo[:-3]}")
+                log.info(f"Cargado cog: {archivo}")
+            except Exception as e:
+                log.error(f"Error cargando cog {archivo}: {e}")
 
 if __name__ == "__main__":
     if not TOKEN:

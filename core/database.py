@@ -133,7 +133,12 @@ async def _flush_datos() -> None:
                 json.dump(data_to_save, f, indent=4)
                 f.flush()
                 os.fsync(f.fileno())
-            os.replace(tmp, DATA_FILE)
+            try:
+                os.replace(tmp, DATA_FILE)
+            except OSError:
+                if os.path.exists(DATA_FILE):
+                    os.remove(DATA_FILE)
+                os.rename(tmp, DATA_FILE)
         except Exception as e:
             log.error(f"Error al guardar datos: {e}")
 
@@ -142,6 +147,10 @@ async def guardar_datos(inmediato: bool = False) -> None:
     if inmediato:
         if _guardar_datos_task and not _guardar_datos_task.done():
             _guardar_datos_task.cancel()
+            try:
+                await _guardar_datos_task
+            except asyncio.CancelledError:
+                pass
         _guardar_datos_pendiente = False
         await _flush_datos()
         return
@@ -168,7 +177,10 @@ async def cargar_datos() -> None:
             elif gid in ("__api_usage__", "__antispam__"):
                 continue
             else:
-                state.bot.guilds_data[int(gid)] = val
+                try:
+                    state.bot.guilds_data[int(gid)] = val
+                except ValueError:
+                    continue
         state.bot.vt_key_total_requests = api_usage.get("total_requests", {})
         state.bot.vt_key_daily_usage = api_usage.get("daily_usage", {})
         if not hasattr(state.bot, 'vt_key_usage') or not state.bot.vt_key_usage:

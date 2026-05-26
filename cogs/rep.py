@@ -16,7 +16,7 @@ class ReputacionCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
         
         guild_id = interaction.guild.id
-        config = self.bot.obtener_config_guild(guild_id)
+        config = await self.bot.obtener_config_guild(guild_id)
         infracciones = config.get("infracciones", {})
         count = infracciones.get(str(usuario.id), 0)
 

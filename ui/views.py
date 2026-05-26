@@ -55,7 +55,7 @@ class LogActionView(discord.ui.View):
         if not interaction.user.guild_permissions.administrator:
             await interaction.response.send_message("Solo administradores pueden ignorar infracciones.", ephemeral=True)
             return
-        config = obtener_config_guild(self.guild_id)
+        config = await obtener_config_guild(self.guild_id)
         uid = str(self.user_id)
         if self.elemento_id and uid in config.get("infracciones_registradas", {}):
             registradas = config["infracciones_registradas"][uid]
@@ -104,6 +104,7 @@ class ConfirmBanView(discord.ui.View):
 class WhitelistPaginatorView(discord.ui.View):
     def __init__(self, guild_name: str, domains: list[str], shield_emoji: str, per_page: int = 20) -> None:
         super().__init__(timeout=60)
+        self.message: Optional[discord.Message] = None
         self.domains = domains
         self.guild_name = guild_name
         self.shield_emoji = shield_emoji
@@ -128,6 +129,15 @@ class WhitelistPaginatorView(discord.ui.View):
     def _update_buttons(self) -> None:
         self.prev_btn.disabled = self.current_page <= 0
         self.next_btn.disabled = self.current_page >= self.total_pages - 1
+
+    async def on_timeout(self) -> None:
+        for child in self.children:
+            child.disabled = True
+        if self.message:
+            try:
+                await self.message.edit(view=self)
+            except discord.NotFound:
+                pass
 
     @discord.ui.button(label="◀ Anterior", style=discord.ButtonStyle.secondary)
     async def prev_btn(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:

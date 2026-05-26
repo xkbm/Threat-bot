@@ -40,13 +40,16 @@ async def obtener_siguiente_key() -> Optional[str]:
                 log.debug(f"VT key rate-limited: {key[:8]}... ({len(state.bot.vt_key_usage[key])} req in 60s)")
                 continue
 
-            state.bot.vt_key_usage[key].append(ahora)
-
             hoy = time.strftime("%Y-%m-%d", time.gmtime())
             if key not in state.bot.vt_key_total_requests:
                 state.bot.vt_key_total_requests[key] = 0
             if key not in state.bot.vt_key_daily_usage:
                 state.bot.vt_key_daily_usage[key] = {"count": 0, "date": hoy}
+            if state.bot.vt_key_daily_usage[key]["count"] >= 500 and state.bot.vt_key_daily_usage[key]["date"] == hoy:
+                log.debug(f"VT key daily limit: {key[:8]}... (500 req/day)")
+                continue
+
+            state.bot.vt_key_usage[key].append(ahora)
             if state.bot.vt_key_daily_usage[key]["date"] != hoy:
                 state.bot.vt_key_daily_usage[key] = {"count": 1, "date": hoy}
             else:
@@ -62,18 +65,28 @@ async def obtener_siguiente_se_key() -> Optional[tuple[str, str]]:
         if not SE_API_KEYS_PAIRS:
             return None
         ahora = time.time()
+        hoy = time.strftime("%Y-%m-%d", time.gmtime())
         intentos = len(SE_API_KEYS_PAIRS)
         for _ in range(intentos):
             pair = SE_API_KEYS_PAIRS[state.bot.se_key_index]
             state.bot.se_key_index = (state.bot.se_key_index + 1) % len(SE_API_KEYS_PAIRS)
             api_key = pair[0]
 
-            if api_key in state.bot.se_key_usage:
-                usage = [t for t in state.bot.se_key_usage[api_key] if ahora - t <= 60]
-                if len(usage) >= 4:
-                    log.debug(f"SE key rate-limited: {api_key[:8]}... ({len(usage)} req in 60s)")
-                    continue
+            state.bot.se_key_usage.setdefault(api_key, [])
+            state.bot.se_key_usage[api_key] = [t for t in state.bot.se_key_usage[api_key] if ahora - t <= 60]
+            if len(state.bot.se_key_usage[api_key]) >= 4:
+                log.debug(f"SE key rate-limited: {api_key[:8]}... ({len(state.bot.se_key_usage[api_key])} req in 60s)")
+                continue
 
+            state.bot.se_key_usage[api_key].append(ahora)
+
+            state.bot.se_key_total_requests.setdefault(api_key, 0)
+            state.bot.se_key_daily_usage.setdefault(api_key, {"count": 0, "date": hoy})
+            if state.bot.se_key_daily_usage[api_key]["date"] != hoy:
+                state.bot.se_key_daily_usage[api_key] = {"count": 1, "date": hoy}
+            else:
+                state.bot.se_key_daily_usage[api_key]["count"] += 1
+            state.bot.se_key_total_requests[api_key] += 1
             return pair
 
         log.warning("Todas las keys de SightEngine están rate-limited")
@@ -97,25 +110,26 @@ async def registrar_uso_se(api_key: str) -> None:
             state.bot.se_key_daily_usage[api_key]["count"] += 4
         state.bot.se_key_total_requests[api_key] += 4
 
-def registrar_uso_vt(key: str) -> None:
-    ahora = time.time()
-    hoy = time.strftime("%Y-%m-%d", time.gmtime())
-    if key not in state.bot.vt_key_usage:
-        state.bot.vt_key_usage[key] = []
-    if key not in state.bot.vt_key_total_requests:
-        state.bot.vt_key_total_requests[key] = 0
-    if key not in state.bot.vt_key_daily_usage:
-        state.bot.vt_key_daily_usage[key] = {"count": 0, "date": hoy}
-    state.bot.vt_key_usage[key] = [t for t in state.bot.vt_key_usage[key] if ahora - t <= 60]
-    state.bot.vt_key_usage[key].append(ahora)
-    if state.bot.vt_key_daily_usage[key]["date"] != hoy:
-        state.bot.vt_key_daily_usage[key] = {"count": 1, "date": hoy}
-    else:
-        state.bot.vt_key_daily_usage[key]["count"] += 1
-    state.bot.vt_key_total_requests[key] += 1
+async def registrar_uso_vt(key: str) -> None:
+    async with _vt_lock:
+        ahora = time.time()
+        hoy = time.strftime("%Y-%m-%d", time.gmtime())
+        if key not in state.bot.vt_key_usage:
+            state.bot.vt_key_usage[key] = []
+        if key not in state.bot.vt_key_total_requests:
+            state.bot.vt_key_total_requests[key] = 0
+        if key not in state.bot.vt_key_daily_usage:
+            state.bot.vt_key_daily_usage[key] = {"count": 0, "date": hoy}
+        state.bot.vt_key_usage[key] = [t for t in state.bot.vt_key_usage[key] if ahora - t <= 60]
+        state.bot.vt_key_usage[key].append(ahora)
+        if state.bot.vt_key_daily_usage[key]["date"] != hoy:
+            state.bot.vt_key_daily_usage[key] = {"count": 1, "date": hoy}
+        else:
+            state.bot.vt_key_daily_usage[key]["count"] += 1
+        state.bot.vt_key_total_requests[key] += 1
 
 async def enviar_log_guild(guild_id: int, tipo: str, valor: str, detalles: str, usuario: discord.User, url_vt: Optional[str] = None, elemento_id: Optional[str] = None) -> None:
-    config = obtener_config_guild(guild_id)
+    config = await obtener_config_guild(guild_id)
     log_channel_id = config["log_channel_id"]
     if log_channel_id is None:
         return
@@ -153,8 +167,9 @@ async def analizar_url(url: str, guild_id: Optional[int] = None, mensaje_origina
                 scan_id = data["data"]["id"]
                 log.debug(f"VT URL SCAN ID → {scan_id} t={time.time()-_t0:.1f}s")
                 for intento in range(3):
-                    await asyncio.sleep(10)
-                    registrar_uso_vt(key)
+                    if intento > 0:
+                        await asyncio.sleep(10)
+                    await registrar_uso_vt(key)
                     _t2 = time.time()
                     async with state.bot.session.get(f"https://www.virustotal.com/api/v3/analyses/{scan_id}", headers=headers, timeout=VT_TIMEOUT) as resp2:
                         log.debug(f"VT URL POLL → intento={intento+1}/3 status={resp2.status} t={time.time()-_t2:.1f}s acum={time.time()-_t0:.1f}s")
@@ -214,7 +229,7 @@ async def analizar_hash(hash_valor: str, guild_id: Optional[int] = None, mensaje
                     embed.add_field(name="\u200b", value=f"{EMOJI_LINK} [Ver informe completo]({vt_link})", inline=False)
                     if guardar_cache:
                         await guardar_analisis_db(f"hash:{hash_valor}", "hash", "malicioso", embed, mal)
-                        set_cache_mem(f"hash:{hash_valor}", "malicioso", embed, mal)
+                        await set_cache_mem(f"hash:{hash_valor}", "malicioso", embed, mal)
                     log.debug(f"VT HASH MALICIOSO → {hash_valor} mal={mal} t={time.time()-_t0:.1f}s")
                     return "malicioso", embed, mal
                 else:
@@ -223,7 +238,7 @@ async def analizar_hash(hash_valor: str, guild_id: Optional[int] = None, mensaje
                     embed.add_field(name="\u200b", value=f"{EMOJI_LINK} [Ver informe completo]({vt_link})", inline=False)
                     if guardar_cache:
                         await guardar_analisis_db(f"hash:{hash_valor}", "hash", "seguro", embed, 0)
-                        set_cache_mem(f"hash:{hash_valor}", "seguro", embed, 0)
+                        await set_cache_mem(f"hash:{hash_valor}", "seguro", embed, 0)
                     await update_stats(guild_id, "seguro")
                     log.debug(f"VT HASH SEGURO → {hash_valor} t={time.time()-_t0:.1f}s")
                     return "seguro", embed, 0
@@ -266,7 +281,7 @@ async def analizar_ip(ip: str, guild_id: Optional[int] = None, mensaje_original:
                     embed.add_field(name="\u200b", value=f"{EMOJI_LINK} [Ver informe completo]({vt_link})", inline=False)
                     if guardar_cache:
                         await guardar_analisis_db(f"ip:{ip}", "ip", "malicioso", embed, mal)
-                        set_cache_mem(f"ip:{ip}", "malicioso", embed, mal)
+                        await set_cache_mem(f"ip:{ip}", "malicioso", embed, mal)
                     log.debug(f"VT IP MALICIOSA → {ip} mal={mal} t={time.time()-_t0:.1f}s")
                     return "malicioso", embed, mal
                 else:
@@ -275,7 +290,7 @@ async def analizar_ip(ip: str, guild_id: Optional[int] = None, mensaje_original:
                     embed.add_field(name="\u200b", value=f"{EMOJI_LINK} [Ver informe completo]({vt_link})", inline=False)
                     if guardar_cache:
                         await guardar_analisis_db(f"ip:{ip}", "ip", "seguro", embed, 0)
-                        set_cache_mem(f"ip:{ip}", "seguro", embed, 0)
+                        await set_cache_mem(f"ip:{ip}", "seguro", embed, 0)
                     await update_stats(guild_id, "seguro")
                     log.debug(f"VT IP SEGURA → {ip} t={time.time()-_t0:.1f}s")
                     return "seguro", embed, 0
@@ -355,8 +370,9 @@ async def analizar_archivo(archivo: discord.Attachment, file_bytes: Optional[byt
                 scan_id = result_json["data"]["id"]
                 log.debug(f"VT FILE SCAN ID → {scan_id} t={time.time()-_t0:.1f}s")
                 for i in range(10):
-                    await asyncio.sleep(15)
-                    registrar_uso_vt(key)
+                    if i > 0:
+                        await asyncio.sleep(15)
+                    await registrar_uso_vt(key)
                     _t3 = time.time()
                     async with state.bot.session.get(f"https://www.virustotal.com/api/v3/analyses/{scan_id}", headers=headers, timeout=VT_TIMEOUT) as resp2:
                         log.debug(f"VT FILE POLL → intento={i+1}/10 status={resp2.status} t={time.time()-_t3:.1f}s acum={time.time()-_t0:.1f}s")
@@ -410,7 +426,7 @@ async def _procesar_resultado_vt(analysis: dict, tipo: str, valor: str, guild_id
 
     if guardar_cache:
         await guardar_analisis_db(clave, tipo, tipo_str, embed, mal)
-        set_cache_mem(clave, tipo_str, embed, mal)
+        await set_cache_mem(clave, tipo_str, embed, mal)
     return tipo_str, embed, mal
 
 async def _procesar_analisis_archivo(analysis: dict, archivo: discord.Attachment, file_hash: str, guild_id: Optional[int], mensaje_original: Optional[discord.Message], guardar_cache: bool) -> tuple[str, discord.Embed, int]:
@@ -424,14 +440,14 @@ async def _procesar_analisis_archivo(analysis: dict, archivo: discord.Attachment
         embed = discord.Embed(title=f"{EMOJI_WARNING} Archivo Malicioso Detectado", description=f"**{mal}** antivirus detectaron {EMOJI_FILE} `{archivo.filename}`", color=discord.Color.orange())
         if guardar_cache:
             await guardar_analisis_db(clave, "file", "malicioso", embed, mal)
-            set_cache_mem(clave, "malicioso", embed, mal)
+            await set_cache_mem(clave, "malicioso", embed, mal)
             await guardar_metadatos_hash(f"file:{archivo.filename}:{archivo.size}", file_hash)
         return "malicioso", embed, mal
     else:
         embed = discord.Embed(title=f"{EMOJI_CORRECTO} Archivo Seguro", description=f"{EMOJI_FILE} `{archivo.filename}` parece limpio (0 detecciones)", color=discord.Color.green())
         if guardar_cache:
             await guardar_analisis_db(clave, "file", "seguro", embed, 0)
-            set_cache_mem(clave, "seguro", embed, 0)
+            await set_cache_mem(clave, "seguro", embed, 0)
             await guardar_metadatos_hash(f"file:{archivo.filename}:{archivo.size}", file_hash)
         await update_stats(guild_id, "seguro")
         return "seguro", embed, 0
@@ -449,7 +465,7 @@ async def _on_threat_found(tipo_str: str, valor: str, mal: int, guild_id: Option
             await enviar_log_guild(guild_id, tipo_str, valor, f"{mal} detecciones", mensaje_original.author, vt_link, elemento_id=eid)
         else:
             await enviar_log_guild(guild_id, tipo_str, valor, f"{mal} detecciones", mensaje_original.author, elemento_id=eid)
-        config = obtener_config_guild(guild_id)
+        config = await obtener_config_guild(guild_id)
         if config["strict_mode"]:
             try:
                 await mensaje_original.delete()

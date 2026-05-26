@@ -8,18 +8,19 @@ from core.database import guardar_datos
 log = logging.getLogger("guild_config")
 GUILD_LOCK = asyncio.Lock()
 
-def obtener_config_guild(guild_id: int) -> dict[str, Any]:
-    if guild_id not in state.bot.guilds_data:
-        state.bot.guilds_data[guild_id] = {
-            "silent_mode": False,
-            "strict_mode": False,
-            "log_channel_id": None,
-            "whitelist": list(DOMINIOS_PROTEGIDOS),
-            "stats": {"total_analisis": 0, "seguros": 0, "maliciosos": 0, "errores": 0},
-            "infracciones": {},
-            "infracciones_registradas": {},
-        }
-    return state.bot.guilds_data[guild_id]
+async def obtener_config_guild(guild_id: int) -> dict[str, Any]:
+    async with GUILD_LOCK:
+        if guild_id not in state.bot.guilds_data:
+            state.bot.guilds_data[guild_id] = {
+                "silent_mode": False,
+                "strict_mode": False,
+                "log_channel_id": None,
+                "whitelist": list(DOMINIOS_PROTEGIDOS),
+                "stats": {"total_analisis": 0, "seguros": 0, "maliciosos": 0, "errores": 0},
+                "infracciones": {},
+                "infracciones_registradas": {},
+            }
+        return state.bot.guilds_data[guild_id]
 
 def obtener_stats_globales() -> dict[str, int]:
     if "__global__" not in state.bot.guilds_data:
@@ -29,7 +30,7 @@ def obtener_stats_globales() -> dict[str, int]:
 async def update_stats(guild_id: Optional[int], tipo: str) -> None:
     async with GUILD_LOCK:
         if guild_id:
-            config = obtener_config_guild(guild_id)
+            config = await obtener_config_guild(guild_id)
             stats = config["stats"]
             stats["total_analisis"] += 1
             if tipo == "seguro":
@@ -51,7 +52,7 @@ async def update_stats(guild_id: Optional[int], tipo: str) -> None:
 
 async def registrar_infraccion(guild_id: int, user_id: int, elemento_id: str) -> int:
     async with GUILD_LOCK:
-        config = obtener_config_guild(guild_id)
+        config = await obtener_config_guild(guild_id)
         if "infracciones" not in config:
             config["infracciones"] = {}
         if "infracciones_registradas" not in config:

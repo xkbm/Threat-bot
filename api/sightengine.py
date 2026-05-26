@@ -16,7 +16,7 @@ log = logging.getLogger("sightengine")
 async def analizar_imagen_multimodelo(image_content_hash: str, image_bytes: bytes) -> tuple[bool, float, dict, bool]:
     clave = f"nsfw:{image_content_hash}"
     log.debug(f"SE check → hash={image_content_hash[:16]}... clave={clave}")
-    tipo, embed_cache, mal = get_from_cache_mem(clave)
+    tipo, embed_cache, mal = await get_from_cache_mem(clave)
     if embed_cache is not None:
         try:
             details = json.loads(tipo) if isinstance(tipo, str) else tipo
@@ -29,7 +29,7 @@ async def analizar_imagen_multimodelo(image_content_hash: str, image_bytes: byte
         try:
             details = json.loads(tipo_db)
             log.debug(f"SE HIT (SQLite) → {clave} is_nsfw={details['is_nsfw']}")
-            set_cache_mem(clave, tipo_db, embed_db, mal_db)
+            await set_cache_mem(clave, tipo_db, embed_db, mal_db)
             return details["is_nsfw"], details["max_confidence"], details["models"], True
         except Exception:
             pass
@@ -74,18 +74,14 @@ async def analizar_imagen_multimodelo(image_content_hash: str, image_bytes: byte
                 cache_json = json.dumps(cache_details)
                 dummy_embed = discord.Embed(title="NSFW Cache")
                 await guardar_analisis_db(clave, "nsfw", cache_json, dummy_embed, 1 if is_nsfw else 0)
-                set_cache_mem(clave, cache_json, dummy_embed, 1 if is_nsfw else 0)
-                await guardar_datos(inmediato=True)
+                await set_cache_mem(clave, cache_json, dummy_embed, 1 if is_nsfw else 0)
+                await guardar_datos()
                 return is_nsfw, max_confidence, models, False
             else:
                 log.debug(f"SE API ERROR → status={resp.status}")
                 if resp.status == 400:
-                    error_details = {"is_nsfw": False, "max_confidence": 0.0, "models": {}, "error": "sightengine_400"}
-                    error_json = json.dumps(error_details)
-                    dummy_embed = discord.Embed(title="NSFW Error Cache")
-                    await guardar_analisis_db(clave, "nsfw", error_json, dummy_embed, 0)
-                    set_cache_mem(clave, error_json, dummy_embed, 0)
                     return False, 0.0, {"error": "too_large"}, False
     except Exception as e:
         log.error(f"Excepción en análisis multimodelo: {e}")
+        return False, 0.0, {"error": str(e)}, False
     return False, 0.0, {}, False

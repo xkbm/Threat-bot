@@ -1,10 +1,12 @@
 import re
+import asyncio
 from typing import Optional
 import logging
 import discord
 from discord.ext import commands
 from discord import app_commands
 from core.config import DOMINIOS_PROTEGIDOS
+from core.guild_config import GUILD_LOCK
 from ui.views import WhitelistPaginatorView
 
 log = logging.getLogger("whitelist")
@@ -14,12 +16,12 @@ class WhitelistCog(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-    def obtener_whitelist(self, guild_id: int) -> list[str]:
-        config = self.bot.obtener_config_guild(guild_id)
+    async def obtener_whitelist(self, guild_id: int) -> list[str]:
+        config = await self.bot.obtener_config_guild(guild_id)
         return config["whitelist"]
 
     async def guardar_whitelist(self, guild_id: int, whitelist: list[str]) -> None:
-        config = self.bot.obtener_config_guild(guild_id)
+        config = await self.bot.obtener_config_guild(guild_id)
         config["whitelist"] = whitelist
         await self.bot.guardar_datos(inmediato=True)
 
@@ -38,7 +40,7 @@ class WhitelistCog(commands.Cog):
                 pass
             return
 
-        whitelist = self.obtener_whitelist(interaction.guild.id)
+        whitelist = await self.obtener_whitelist(interaction.guild.id)
 
         if accion.value == "add":
             if not dominio:
@@ -65,8 +67,9 @@ class WhitelistCog(commands.Cog):
                 except discord.errors.NotFound:
                     pass
                 return
-            whitelist.append(dominio)
-            await self.guardar_whitelist(interaction.guild.id, whitelist)
+            async with GUILD_LOCK:
+                whitelist.append(dominio)
+                await self.guardar_whitelist(interaction.guild.id, whitelist)
             log.debug(f"WHITELIST ADD OK → guild={interaction.guild.id} dominio={dominio} admin={interaction.user.id}")
             try:
                 await interaction.response.send_message(f"{self.bot.EMOJI_CORRECTO} Dominio `{dominio}` añadido a la whitelist.", ephemeral=True)
@@ -98,8 +101,9 @@ class WhitelistCog(commands.Cog):
                 except discord.errors.NotFound:
                     pass
                 return
-            whitelist.remove(dominio)
-            await self.guardar_whitelist(interaction.guild.id, whitelist)
+            async with GUILD_LOCK:
+                whitelist.remove(dominio)
+                await self.guardar_whitelist(interaction.guild.id, whitelist)
             log.debug(f"WHITELIST REMOVE OK → guild={interaction.guild.id} dominio={dominio} admin={interaction.user.id}")
             try:
                 await interaction.response.send_message(f"{self.bot.EMOJI_CORRECTO} Dominio `{dominio}` eliminado de la whitelist.", ephemeral=True)

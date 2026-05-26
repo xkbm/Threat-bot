@@ -34,7 +34,6 @@ class RebootCog(commands.Cog):
             log.warning(f"REBOOT CONFIRMADO → usuario={btn_interaction.user} ({btn_interaction.user.id})")
             await btn_interaction.response.edit_message(content="🔄 Reiniciando el bot...", view=view)
             await self.bot.close()
-            sys.exit(0)
 
         async def cancel_callback(btn_interaction: discord.Interaction) -> None:
             confirm_btn.disabled = True
