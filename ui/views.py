@@ -77,10 +77,20 @@ class LogActionView(discord.ui.View):
 class ConfirmBanView(discord.ui.View):
     def __init__(self, guild: discord.Guild, user: discord.User, parent_view: LogActionView, parent_interaction: discord.Interaction) -> None:
         super().__init__(timeout=30)
+        self.message: Optional[discord.Message] = None
         self.guild = guild
         self.user = user
         self.parent_view = parent_view
         self.parent_interaction = parent_interaction
+
+    async def on_timeout(self) -> None:
+        for child in self.children:
+            child.disabled = True
+        if self.message:
+            try:
+                await self.message.edit(content="⏱️ Tiempo de confirmación agotado.", view=self)
+            except discord.NotFound:
+                pass
 
     @discord.ui.button(label="Confirmar Ban", style=discord.ButtonStyle.danger)
     async def confirm_btn(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:

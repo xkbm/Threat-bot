@@ -47,8 +47,7 @@ def dominio_en_whitelist(dominio: str, whitelist: list[str]) -> bool:
     return False
 
 def es_imagen(archivo: discord.Attachment) -> bool:
-    extensiones = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.ico', '.heic', '.heif']
-    if any(archivo.filename.lower().endswith(ext) for ext in extensiones):
+    if any(archivo.filename.lower().endswith(ext) for ext in IMAGE_EXTENSIONS):
         return True
     if archivo.content_type and archivo.content_type.startswith('image/'):
         return True
@@ -125,7 +124,8 @@ async def expandir_url(bot: commands.Bot, url: str) -> str:
                 return url
             parsed = urllib.parse.urlparse(url)
             port_part = f":{parsed.port}" if parsed.port else ""
-            url_ip = urllib.parse.urlunparse(parsed._replace(netloc=f"{ip}{port_part}"))
+            ip_netloc = f"[{ip}]{port_part}" if ":" in ip else f"{ip}{port_part}"
+            url_ip = urllib.parse.urlunparse(parsed._replace(netloc=ip_netloc))
             headers = {"Host": hostname}
             async with bot.session.head(url_ip, allow_redirects=False, headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as resp:
                 if resp.status in (301, 302, 303, 307, 308):
@@ -146,7 +146,8 @@ async def descargar_url_segura(bot: commands.Bot, url: str, max_size: Optional[i
         return None, err
     parsed = urllib.parse.urlparse(url)
     port_part = f":{parsed.port}" if parsed.port else ""
-    url_ip = urllib.parse.urlunparse(parsed._replace(netloc=f"{ip}{port_part}"))
+    ip_netloc = f"[{ip}]{port_part}" if ":" in ip else f"{ip}{port_part}"
+    url_ip = urllib.parse.urlunparse(parsed._replace(netloc=ip_netloc))
     headers = {"Host": hostname}
     try:
         async with bot.session.get(url_ip, headers=headers) as resp:

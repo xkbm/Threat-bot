@@ -9,7 +9,7 @@ import logging
 from dotenv import load_dotenv
 
 from core import state
-from core.config import TOKEN, VT_API_KEYS, SE_API_KEYS_PAIRS, OWNER_ID
+from core.config import TOKEN, VT_API_KEYS, SE_API_KEYS_PAIRS, OWNER_ID, ANTISPAM_URLS_PER_HOUR
 from core.database import init_db, cargar_datos, guardar_datos
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(name)s: %(message)s")
@@ -108,7 +108,7 @@ bot.EMOJI_KICK = EMOJI_KICK
 bot.EMOJI_BAN = EMOJI_BAN
 bot.EMOJI_CLEAN = EMOJI_CLEAN
 bot.MAX_FILE_SIZE = MAX_FILE_SIZE
-bot.ANTISPAM_URLS_PER_HOUR = 30
+bot.ANTISPAM_URLS_PER_HOUR = ANTISPAM_URLS_PER_HOUR
 bot.CACHE_DURATION = CACHE_DURATION
 bot.DATA_FILE = DATA_FILE
 bot.DB_FILE = DB_FILE

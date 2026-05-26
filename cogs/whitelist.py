@@ -1,5 +1,4 @@
 import re
-import asyncio
 from typing import Optional
 import logging
 import discord
@@ -21,8 +20,14 @@ class WhitelistCog(commands.Cog):
         return config["whitelist"]
 
     async def guardar_whitelist(self, guild_id: int, whitelist: list[str]) -> None:
-        config = await self.bot.obtener_config_guild(guild_id)
-        config["whitelist"] = whitelist
+        from core import state
+        if guild_id not in state.bot.guilds_data:
+            state.bot.guilds_data[guild_id] = {
+                "silent_mode": False, "strict_mode": False, "log_channel_id": None,
+                "whitelist": [], "stats": {"total_analisis": 0, "seguros": 0, "maliciosos": 0, "errores": 0},
+                "infracciones": {}, "infracciones_registradas": {},
+            }
+        state.bot.guilds_data[guild_id]["whitelist"] = whitelist
         await self.bot.guardar_datos(inmediato=True)
 
     @app_commands.command(name="whitelist", description="Gestiona la lista de dominios seguros (solo admins)")

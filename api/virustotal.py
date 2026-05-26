@@ -10,7 +10,7 @@ import discord
 from core import state
 from core.config import VT_API_KEYS, SE_API_KEYS_PAIRS, MAX_FILE_SIZE, EMOJI_WARNING, EMOJI_CORRECTO, EMOJI_INCORRECTO, EMOJI_LINK, EMOJI_FILE, EMOJI_FINGERPRINT, EMOJI_GUARDIAN, EMOJI_SHIELD
 from core.cache import get_from_cache_mem, set_cache_mem
-from core.database import guardar_analisis_db, obtener_analisis_db, guardar_metadatos_hash, guardar_datos
+from core.database import guardar_analisis_db, guardar_metadatos_hash
 from core.utils import obtener_top_antivirus, es_hash_valido
 from ui.views import LogActionView
 from core.guild_config import obtener_config_guild, update_stats, registrar_infraccion
@@ -49,12 +49,6 @@ async def obtener_siguiente_key() -> Optional[str]:
                 log.debug(f"VT key daily limit: {key[:8]}... (500 req/day)")
                 continue
 
-            state.bot.vt_key_usage[key].append(ahora)
-            if state.bot.vt_key_daily_usage[key]["date"] != hoy:
-                state.bot.vt_key_daily_usage[key] = {"count": 1, "date": hoy}
-            else:
-                state.bot.vt_key_daily_usage[key]["count"] += 1
-            state.bot.vt_key_total_requests[key] += 1
             return key
 
         log.warning("Todas las keys de VT están rate-limited")
@@ -78,15 +72,6 @@ async def obtener_siguiente_se_key() -> Optional[tuple[str, str]]:
                 log.debug(f"SE key rate-limited: {api_key[:8]}... ({len(state.bot.se_key_usage[api_key])} req in 60s)")
                 continue
 
-            state.bot.se_key_usage[api_key].append(ahora)
-
-            state.bot.se_key_total_requests.setdefault(api_key, 0)
-            state.bot.se_key_daily_usage.setdefault(api_key, {"count": 0, "date": hoy})
-            if state.bot.se_key_daily_usage[api_key]["date"] != hoy:
-                state.bot.se_key_daily_usage[api_key] = {"count": 1, "date": hoy}
-            else:
-                state.bot.se_key_daily_usage[api_key]["count"] += 1
-            state.bot.se_key_total_requests[api_key] += 1
             return pair
 
         log.warning("Todas las keys de SightEngine están rate-limited")
@@ -214,6 +199,7 @@ async def analizar_hash(hash_valor: str, guild_id: Optional[int] = None, mensaje
         async with state.bot.session.get(f"https://www.virustotal.com/api/v3/files/{hash_valor}", headers=headers, timeout=VT_TIMEOUT) as resp:
             log.debug(f"VT HASH GET → status={resp.status} t={time.time()-_t:.1f}s")
             if resp.status == 200:
+                await registrar_uso_vt(key)
                 data = await resp.json()
                 stats = data["data"]["attributes"]["last_analysis_stats"]
                 results = data["data"]["attributes"]["last_analysis_results"]
@@ -270,6 +256,7 @@ async def analizar_ip(ip: str, guild_id: Optional[int] = None, mensaje_original:
         async with state.bot.session.get(f"https://www.virustotal.com/api/v3/ip_addresses/{ip}", headers=headers, timeout=VT_TIMEOUT) as resp:
             log.debug(f"VT IP GET → status={resp.status} t={time.time()-_t:.1f}s")
             if resp.status == 200:
+                await registrar_uso_vt(key)
                 data = await resp.json()
                 stats = data["data"]["attributes"]["last_analysis_stats"]
                 mal = stats["malicious"]

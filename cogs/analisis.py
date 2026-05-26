@@ -163,7 +163,7 @@ class AnalisisCog(commands.Cog):
                         file_hash = hashlib.sha256(file_bytes).hexdigest()
                         log.debug(f"SCAN ARCHIVO DESCARGADO → {archivo.filename} hash={file_hash} t={time.time()-_t0:.1f}s")
 
-                        content_type = resp.headers.get('Content-Type', '')
+                        content_type = resp.headers.get('Content-Type', '').lower()
                         if archivo.filename.lower().endswith('.jpg') or archivo.filename.lower().endswith('.jpeg'):
                             if content_type not in ('image/jpeg', 'image/jpg'):
                                 warning_mime = f"El archivo tiene extensión .jpg pero el tipo real es `{content_type}`."

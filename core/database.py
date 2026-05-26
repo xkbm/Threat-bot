@@ -26,10 +26,6 @@ async def init_db() -> None:
     await state.bot.db.execute('CREATE INDEX IF NOT EXISTS idx_expira ON analisis(expira)')
     await state.bot.db.commit()
 
-async def close_db() -> None:
-    if state.bot and state.bot.db:
-        await state.bot.db.close()
-
 async def guardar_analisis_db(clave: str, tipo_analisis: str, resultado: str, embed: Optional[discord.Embed], mal: int = 0) -> None:
     async with state.bot.db_lock:
         now = time.time()
@@ -190,8 +186,20 @@ async def cargar_datos() -> None:
         state.bot.se_key_daily_usage = se_data.get("daily_usage", {})
         if not hasattr(state.bot, 'se_key_usage') or not state.bot.se_key_usage:
             state.bot.se_key_usage = {}
-        state.bot.user_scan_history = {int(k): v for k, v in antispam_data.get("user_scan_history", {}).items()}
-        state.bot.antispam_scan = {int(k): v for k, v in antispam_data.get("antispam_scan", {}).items()}
+        user_scan_history = {}
+        for k, v in antispam_data.get("user_scan_history", {}).items():
+            try:
+                user_scan_history[int(k)] = v
+            except (ValueError, TypeError):
+                continue
+        state.bot.user_scan_history = user_scan_history
+        antispam_scan = {}
+        for k, v in antispam_data.get("antispam_scan", {}).items():
+            try:
+                antispam_scan[int(k)] = v
+            except (ValueError, TypeError):
+                continue
+        state.bot.antispam_scan = antispam_scan
     except Exception as e:
         log.error(f"Error al cargar datos: {e}")
         state.bot.guilds_data = {}
