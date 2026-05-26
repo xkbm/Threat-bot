@@ -20,6 +20,7 @@ async def init_db() -> None:
         return
     state.bot.db = await aiosqlite.connect(DB_FILE)
     state.bot.db_lock = DB_LOCK
+    await state.bot.db.execute('PRAGMA journal_mode=WAL')
     await state.bot.db.execute('''CREATE TABLE IF NOT EXISTS analisis (
         clave TEXT PRIMARY KEY, tipo TEXT, resultado TEXT, embed_json TEXT, timestamp REAL, expira REAL
     )''')
@@ -108,21 +109,23 @@ _guardar_datos_pendiente: bool = False
 _guardar_datos_task: Optional[asyncio.Task] = None
 _GUARDAR_DEBOUNCE: float = 3.0
 
-async def _flush_datos() -> None:
+async def _flush_datos(include_runtime: bool = False) -> None:
     async with DATA_LOCK:
-        state.bot.guilds_data["__api_usage__"] = {
-            "total_requests": state.bot.vt_key_total_requests,
-            "daily_usage": state.bot.vt_key_daily_usage,
-            "sightengine": {
-                "total_requests": state.bot.se_key_total_requests,
-                "daily_usage": state.bot.se_key_daily_usage,
+        data_to_save = {str(gid): val for gid, val in state.bot.guilds_data.items()
+                        if gid not in ("__api_usage__", "__antispam__")}
+        if include_runtime:
+            data_to_save["__api_usage__"] = {
+                "total_requests": state.bot.vt_key_total_requests,
+                "daily_usage": state.bot.vt_key_daily_usage,
+                "sightengine": {
+                    "total_requests": state.bot.se_key_total_requests,
+                    "daily_usage": state.bot.se_key_daily_usage,
+                }
             }
-        }
-        state.bot.guilds_data["__antispam__"] = {
-            "user_scan_history": {str(k): v for k, v in state.bot.user_scan_history.items()},
-            "antispam_scan": {str(k): v for k, v in state.bot.antispam_scan.items()},
-        }
-        data_to_save = {str(gid): val for gid, val in state.bot.guilds_data.items()}
+            data_to_save["__antispam__"] = {
+                "user_scan_history": {str(k): v for k, v in state.bot.user_scan_history.items()},
+                "antispam_scan": {str(k): v for k, v in state.bot.antispam_scan.items()},
+            }
         try:
             fd, tmp = tempfile.mkstemp(dir=os.path.dirname(DATA_FILE) or ".")
             with os.fdopen(fd, "w", encoding="utf-8") as f:
@@ -138,7 +141,7 @@ async def _flush_datos() -> None:
         except Exception as e:
             log.error(f"Error al guardar datos: {e}")
 
-async def guardar_datos(inmediato: bool = False) -> None:
+async def guardar_datos(inmediato: bool = False, include_runtime: bool = False) -> None:
     global _guardar_datos_pendiente, _guardar_datos_task
     if inmediato:
         if _guardar_datos_task and not _guardar_datos_task.done():
@@ -148,7 +151,7 @@ async def guardar_datos(inmediato: bool = False) -> None:
             except asyncio.CancelledError:
                 pass
         _guardar_datos_pendiente = False
-        await _flush_datos()
+        await _flush_datos(include_runtime=include_runtime)
         return
     if not _guardar_datos_pendiente:
         _guardar_datos_pendiente = True

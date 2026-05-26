@@ -5,7 +5,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from core.config import DOMINIOS_PROTEGIDOS
-from core.guild_config import GUILD_LOCK
+from core.guild_config import _get_guild_lock
 from ui.views import WhitelistPaginatorView
 
 log = logging.getLogger("whitelist")
@@ -72,7 +72,7 @@ class WhitelistCog(commands.Cog):
                 except discord.errors.NotFound:
                     pass
                 return
-            async with GUILD_LOCK:
+            async with _get_guild_lock(interaction.guild.id):
                 whitelist.append(dominio)
                 await self.guardar_whitelist(interaction.guild.id, whitelist)
             log.debug(f"WHITELIST ADD OK → guild={interaction.guild.id} dominio={dominio} admin={interaction.user.id}")
@@ -106,7 +106,7 @@ class WhitelistCog(commands.Cog):
                 except discord.errors.NotFound:
                     pass
                 return
-            async with GUILD_LOCK:
+            async with _get_guild_lock(interaction.guild.id):
                 whitelist.remove(dominio)
                 await self.guardar_whitelist(interaction.guild.id, whitelist)
             log.debug(f"WHITELIST REMOVE OK → guild={interaction.guild.id} dominio={dominio} admin={interaction.user.id}")

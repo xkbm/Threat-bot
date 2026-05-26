@@ -6,10 +6,17 @@ from core.config import DOMINIOS_PROTEGIDOS
 from core.database import guardar_datos
 
 log = logging.getLogger("guild_config")
-GUILD_LOCK = asyncio.Lock()
+_guild_locks: dict[int, asyncio.Lock] = {}
+_guild_locks_lock = asyncio.Lock()
+_global_lock = asyncio.Lock()
+
+def _get_guild_lock(guild_id: int) -> asyncio.Lock:
+    if guild_id not in _guild_locks:
+        _guild_locks[guild_id] = asyncio.Lock()
+    return _guild_locks[guild_id]
 
 async def obtener_config_guild(guild_id: int) -> dict[str, Any]:
-    async with GUILD_LOCK:
+    async with _get_guild_lock(guild_id):
         if guild_id not in state.bot.guilds_data:
             state.bot.guilds_data[guild_id] = {
                 "silent_mode": False,
@@ -28,8 +35,8 @@ def obtener_stats_globales() -> dict[str, int]:
     return state.bot.guilds_data["__global__"]
 
 async def update_stats(guild_id: Optional[int], tipo: str) -> None:
-    async with GUILD_LOCK:
-        if guild_id:
+    if guild_id:
+        async with _get_guild_lock(guild_id):
             if guild_id not in state.bot.guilds_data:
                 state.bot.guilds_data[guild_id] = {
                     "silent_mode": False, "strict_mode": False, "log_channel_id": None,
@@ -45,6 +52,7 @@ async def update_stats(guild_id: Optional[int], tipo: str) -> None:
                 stats["maliciosos"] += 1
             else:
                 stats["errores"] += 1
+    async with _global_lock:
         if "__global__" not in state.bot.guilds_data:
             state.bot.guilds_data["__global__"] = {"total_analisis": 0, "seguros": 0, "maliciosos": 0, "errores": 0}
         global_stats = state.bot.guilds_data["__global__"]
@@ -59,7 +67,7 @@ async def update_stats(guild_id: Optional[int], tipo: str) -> None:
     log.debug(f"STATS UPDATE → guild={guild_id} tipo={tipo} total={global_stats['total_analisis']}")
 
 async def registrar_infraccion(guild_id: int, user_id: int, elemento_id: str) -> int:
-    async with GUILD_LOCK:
+    async with _get_guild_lock(guild_id):
         if guild_id not in state.bot.guilds_data:
             state.bot.guilds_data[guild_id] = {
                 "silent_mode": False, "strict_mode": False, "log_channel_id": None,

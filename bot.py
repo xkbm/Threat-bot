@@ -1,4 +1,4 @@
-# Commit: 65eaf63
+# Commit: f2fad89
 # Prueba de commit
 import discord
 from discord.ext import commands
@@ -199,6 +199,8 @@ async def shutdown():
         task.cancel()
     if bot._background_tasks:
         await asyncio.gather(*bot._background_tasks, return_exceptions=True)
+    from core.database import guardar_datos
+    await guardar_datos(inmediato=True, include_runtime=True)
     if bot.db:
         await bot.db.close()
         bot.db = None

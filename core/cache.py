@@ -9,7 +9,7 @@ from core import config
 log = logging.getLogger("cache")
 
 _cache_lock = asyncio.Lock()
-MAX_CACHE_SIZE: int = 1000
+MAX_CACHE_SIZE: int = 100000
 _cache: OrderedDict = OrderedDict()
 
 async def get_from_cache_mem(key: str) -> tuple[Optional[str], Optional[discord.Embed], int]:
