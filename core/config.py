@@ -10,17 +10,10 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TOKEN: Optional[str] = os.getenv("DISCORD_TOKEN")
 
 DB_HOST: Optional[str] = os.getenv("DB_HOST")
-DB_PORT: Optional[str] = os.getenv("DB_PORT", "5432")
+DB_PORT: Optional[str] = os.getenv("DB_PORT", "3306")
 DB_USER: Optional[str] = os.getenv("DB_USER")
 DB_PASSWORD: Optional[str] = os.getenv("DB_PASSWORD")
 DB_NAME: Optional[str] = os.getenv("DB_NAME")
-
-def build_database_url() -> Optional[str]:
-    if all([DB_HOST, DB_USER, DB_PASSWORD, DB_NAME]):
-        return f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-    return None
-
-DATABASE_URL: Optional[str] = build_database_url()
 
 VT_KEYS_RAW: list[Optional[str]] = [
     os.getenv("VT_API_KEY"),
