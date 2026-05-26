@@ -1,0 +1,63 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout>
+  <nav class="fixed top-0 inset-x-0 z-50 border-b border-border-subtle/50 backdrop-blur-md">
+    <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+      <a href="/" class="flex items-center gap-2">
+        <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-blurple font-heading text-base font-bold text-white">T</span>
+        <span class="font-heading text-lg font-bold text-text-primary">Threat-bot</span>
+      </a>
+      <div class="flex items-center gap-6">
+        <a href="#features" class="text-sm text-text-muted transition-colors hover:text-text-primary">Features</a>
+        <a href="#stats" class="text-sm text-text-muted transition-colors hover:text-text-primary">Estadísticas</a>
+        <a href="#cta" class="text-sm text-text-muted transition-colors hover:text-text-primary">Comienza</a>
+        <a
+          href="https://discord.com/oauth2/authorize"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="rounded-lg bg-blurple px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blurple-hover"
+        >
+          Invitar al bot
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    <section class="relative flex min-h-screen items-center overflow-hidden px-6 pt-24">
+      <div class="mx-auto max-w-6xl">
+        <div class="mx-auto max-w-3xl text-center">
+          <div class="mb-6 inline-flex items-center gap-2 rounded-full border border-border-subtle bg-bg-surface px-4 py-1.5 text-xs font-medium text-text-muted">
+            <span class="flex h-2 w-2 rounded-full bg-green shadow-[0_0_8px_#57f287]"></span>
+            Versión 2.0 — Ahora con análisis de imágenes
+          </div>
+          <h1 class="font-heading text-5xl font-bold leading-tight tracking-tight text-text-primary md:text-6xl lg:text-7xl">
+            Seguridad inteligente<br />
+            <span class="text-blurple">para tu servidor Discord</span>
+          </h1>
+          <p class="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-text-secondary">
+            Threat-bot analiza URLs, archivos e imágenes en tiempo real usando VirusTotal y SightEngine. Detecta malware, phishing y NSFW antes de que lleguen a tu comunidad.
+          </p>
+          <div class="mt-10 flex items-center justify-center gap-4">
+            <a
+              href="https://discord.com/oauth2/authorize"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="rounded-lg bg-blurple px-8 py-3.5 font-heading text-base font-bold text-white shadow-lg shadow-blurple/25 transition-all hover:bg-blurple-hover hover:shadow-blurple/40"
+            >
+              Invitar al bot
+            </a>
+            <a
+              href="#features"
+              class="rounded-lg border border-border-strong bg-bg-elevated px-8 py-3.5 font-heading text-base font-bold text-text-primary transition-colors hover:bg-bg-hover"
+            >
+              Cómo funciona
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</BaseLayout>
