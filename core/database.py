@@ -2,7 +2,7 @@ import json
 import os
 import time
 import tempfile
-from typing import Optional, Any
+from typing import Optional
 import aiosqlite
 import discord
 import asyncio
