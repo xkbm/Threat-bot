@@ -2,7 +2,7 @@ import json
 import os
 import time
 import tempfile
-from typing import Optional
+from typing import Optional, Any
 import aiosqlite
 import discord
 import asyncio
@@ -13,41 +13,75 @@ from discord.ext import commands
 
 log = logging.getLogger("db")
 
-DB_LOCK = asyncio.Lock()
+POOL_SIZE = 4
+
+
+class DatabasePool:
+    def __init__(self, path: str, size: int = POOL_SIZE) -> None:
+        self._path = path
+        self._size = size
+        self._conns: list[aiosqlite.Connection] = []
+        self._write_lock = asyncio.Lock()
+        self._rr = 0
+
+    async def start(self) -> None:
+        for _ in range(self._size):
+            conn = await aiosqlite.connect(self._path)
+            await conn.execute('PRAGMA journal_mode=WAL')
+            await conn.execute('''CREATE TABLE IF NOT EXISTS analisis (
+                clave TEXT PRIMARY KEY, tipo TEXT, resultado TEXT, embed_json TEXT, timestamp REAL, expira REAL
+            )''')
+            await conn.execute('CREATE INDEX IF NOT EXISTS idx_expira ON analisis(expira)')
+            await conn.commit()
+            self._conns.append(conn)
+
+    async def stop(self) -> None:
+        for conn in self._conns:
+            await conn.close()
+        self._conns.clear()
+
+    def _read_conn(self) -> aiosqlite.Connection:
+        conn = self._conns[self._rr % self._size]
+        self._rr += 1
+        return conn
+
+    async def fetchone(self, sql: str, params: tuple = ()) -> Optional[tuple]:
+        conn = self._read_conn()
+        async with conn.execute(sql, params) as cursor:
+            return await cursor.fetchone()
+
+    async def execute(self, sql: str, params: tuple = ()) -> None:
+        async with self._write_lock:
+            await self._conns[0].execute(sql, params)
+            await self._conns[0].commit()
+
+
+POOL = DatabasePool(DB_FILE)
+
 
 async def init_db() -> None:
-    if state.bot is None:
-        return
-    state.bot.db = await aiosqlite.connect(DB_FILE)
-    state.bot.db_lock = DB_LOCK
-    await state.bot.db.execute('PRAGMA journal_mode=WAL')
-    await state.bot.db.execute('''CREATE TABLE IF NOT EXISTS analisis (
-        clave TEXT PRIMARY KEY, tipo TEXT, resultado TEXT, embed_json TEXT, timestamp REAL, expira REAL
-    )''')
-    await state.bot.db.execute('CREATE INDEX IF NOT EXISTS idx_expira ON analisis(expira)')
-    await state.bot.db.commit()
+    await POOL.start()
+    state.bot.db_pool = POOL
+
 
 async def guardar_analisis_db(clave: str, tipo_analisis: str, resultado: str, embed: Optional[discord.Embed], mal: int = 0) -> None:
-    async with state.bot.db_lock:
-        now = time.time()
-        expira = now + EXPIRACION.get(tipo_analisis, 7 * 24 * 3600)
-        embed_dict = embed.to_dict() if embed else None
-        embed_json = json.dumps(embed_dict) if embed_dict else None
-        resultado_json = json.dumps({"tipo": resultado, "mal": mal})
-        await state.bot.db.execute(
-            'INSERT OR REPLACE INTO analisis (clave, tipo, resultado, embed_json, timestamp, expira) VALUES (?, ?, ?, ?, ?, ?)',
-            (clave, tipo_analisis, resultado_json, embed_json, now, expira)
-        )
-        await state.bot.db.commit()
-        log.debug(f"SQLITE SAVE → clave={clave} tipo={tipo_analisis} resultado={resultado} mal={mal} expira={expira-now:.0f}s")
+    now = time.time()
+    expira = now + EXPIRACION.get(tipo_analisis, 7 * 24 * 3600)
+    embed_dict = embed.to_dict() if embed else None
+    embed_json = json.dumps(embed_dict) if embed_dict else None
+    resultado_json = json.dumps({"tipo": resultado, "mal": mal})
+    await POOL.execute(
+        'INSERT OR REPLACE INTO analisis (clave, tipo, resultado, embed_json, timestamp, expira) VALUES (?, ?, ?, ?, ?, ?)',
+        (clave, tipo_analisis, resultado_json, embed_json, now, expira)
+    )
+    log.debug(f"SQLITE SAVE → clave={clave} tipo={tipo_analisis} resultado={resultado} mal={mal} expira={expira-now:.0f}s")
+
 
 async def obtener_analisis_db(clave: str) -> tuple[Optional[str], Optional[discord.Embed], int]:
-    async with state.bot.db_lock:
-        now = time.time()
-        async with state.bot.db.execute(
-            'SELECT resultado, embed_json, expira FROM analisis WHERE clave = ?', (clave,)
-        ) as cursor:
-            row = await cursor.fetchone()
+    now = time.time()
+    row = await POOL.fetchone(
+        'SELECT resultado, embed_json, expira FROM analisis WHERE clave = ?', (clave,)
+    )
     if row:
         resultado_json, embed_json, expira = row
         if now < expira:
@@ -71,18 +105,16 @@ async def obtener_analisis_db(clave: str) -> tuple[Optional[str], Optional[disco
     log.debug(f"SQLITE MISS → clave={clave}")
     return None, None, 0
 
+
 async def limpiar_db_expirados() -> None:
-    async with state.bot.db_lock:
-        await state.bot.db.execute('DELETE FROM analisis WHERE expira < ?', (time.time(),))
-        await state.bot.db.commit()
+    await POOL.execute('DELETE FROM analisis WHERE expira < ?', (time.time(),))
+
 
 async def obtener_hash_desde_metadatos(clave_metadatos: str) -> Optional[str]:
-    async with state.bot.db_lock:
-        now = time.time()
-        async with state.bot.db.execute(
-            'SELECT resultado, expira FROM analisis WHERE clave = ?', (clave_metadatos,)
-        ) as cursor:
-            row = await cursor.fetchone()
+    now = time.time()
+    row = await POOL.fetchone(
+        'SELECT resultado, expira FROM analisis WHERE clave = ?', (clave_metadatos,)
+    )
     if row:
         resultado, expira = row
         if now < expira:
@@ -93,16 +125,15 @@ async def obtener_hash_desde_metadatos(clave_metadatos: str) -> Optional[str]:
                 pass
     return None
 
+
 async def guardar_metadatos_hash(clave_metadatos: str, file_hash: str) -> None:
     data = json.dumps({"hash": file_hash})
-    async with state.bot.db_lock:
-        now = time.time()
-        expira = now + EXPIRACION.get("file", 30 * 24 * 3600)
-        await state.bot.db.execute(
-            'INSERT OR REPLACE INTO analisis (clave, tipo, resultado, embed_json, timestamp, expira) VALUES (?, ?, ?, ?, ?, ?)',
-            (clave_metadatos, "metadata", data, None, now, expira)
-        )
-        await state.bot.db.commit()
+    now = time.time()
+    expira = now + EXPIRACION.get("file", 30 * 24 * 3600)
+    await POOL.execute(
+        'INSERT OR REPLACE INTO analisis (clave, tipo, resultado, embed_json, timestamp, expira) VALUES (?, ?, ?, ?, ?, ?)',
+        (clave_metadatos, "metadata", data, None, now, expira)
+    )
 
 DATA_LOCK = asyncio.Lock()
 _guardar_datos_pendiente: bool = False
@@ -123,8 +154,8 @@ async def _flush_datos(include_runtime: bool = False) -> None:
                 }
             }
             data_to_save["__antispam__"] = {
-                "user_scan_history": {str(k): v for k, v in state.bot.user_scan_history.items()},
-                "antispam_scan": {str(k): v for k, v in state.bot.antispam_scan.items()},
+                "user_scan_history": {json.dumps(k) if isinstance(k, tuple) else str(k): v for k, v in state.bot.user_scan_history.items()},
+                "antispam_scan": {json.dumps(k) if isinstance(k, tuple) else str(k): v for k, v in state.bot.antispam_scan.items()},
             }
         try:
             fd, tmp = tempfile.mkstemp(dir=os.path.dirname(DATA_FILE) or ".")
@@ -192,15 +223,17 @@ async def cargar_datos() -> None:
         user_scan_history = {}
         for k, v in antispam_data.get("user_scan_history", {}).items():
             try:
-                user_scan_history[int(k)] = v
-            except (ValueError, TypeError):
+                parsed = json.loads(k) if k.startswith("[") else int(k)
+                user_scan_history[parsed] = v
+            except (ValueError, TypeError, json.JSONDecodeError):
                 continue
         state.bot.user_scan_history = user_scan_history
         antispam_scan = {}
         for k, v in antispam_data.get("antispam_scan", {}).items():
             try:
-                antispam_scan[int(k)] = v
-            except (ValueError, TypeError):
+                parsed = json.loads(k) if k.startswith("[") else int(k)
+                antispam_scan[parsed] = v
+            except (ValueError, TypeError, json.JSONDecodeError):
                 continue
         state.bot.antispam_scan = antispam_scan
     except Exception as e:

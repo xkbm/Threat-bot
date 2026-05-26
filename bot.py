@@ -29,8 +29,6 @@ bot = commands.Bot(command_prefix="-", intents=intents, allowed_mentions=discord
 state.bot = bot
 
 bot.session = None
-bot.db = None
-bot.db_lock = None
 bot.guilds_data = {}
 
 bot.antispam_scan = {}
@@ -174,7 +172,7 @@ async def on_message(message):
         await bot.process_commands(message)
         return
     from ui.message_handler import procesar_analisis
-    await procesar_analisis(bot, message)
+    asyncio.create_task(procesar_analisis(bot, message))
     await bot.process_commands(message)
 
 @bot.event
@@ -184,7 +182,7 @@ async def on_message_edit(before, after):
     if before.content == after.content and len(before.attachments) == len(after.attachments):
         return
     from ui.message_handler import procesar_analisis
-    await procesar_analisis(bot, after)
+    asyncio.create_task(procesar_analisis(bot, after))
 
 @bot.event
 async def on_guild_remove(guild):
@@ -199,11 +197,9 @@ async def shutdown():
         task.cancel()
     if bot._background_tasks:
         await asyncio.gather(*bot._background_tasks, return_exceptions=True)
-    from core.database import guardar_datos
+    from core.database import guardar_datos, POOL
     await guardar_datos(inmediato=True, include_runtime=True)
-    if bot.db:
-        await bot.db.close()
-        bot.db = None
+    await POOL.stop()
     if bot.session:
         await bot.session.close()
         bot.session = None

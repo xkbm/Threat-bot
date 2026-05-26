@@ -32,13 +32,14 @@ class AnalisisCog(commands.Cog):
 
         ahora = time.time()
         user_id = interaction.user.id
-        self.bot.user_scan_history.setdefault(user_id, [])
-        self.bot.user_scan_history[user_id] = [t for t in self.bot.user_scan_history[user_id] if ahora - t < 3600]
-        if len(self.bot.user_scan_history[user_id]) >= self.bot.ANTISPAM_URLS_PER_HOUR:
+        spam_key = (guild_id, user_id) if guild_id else user_id
+        self.bot.user_scan_history.setdefault(spam_key, [])
+        self.bot.user_scan_history[spam_key] = [t for t in self.bot.user_scan_history[spam_key] if ahora - t < 3600]
+        if len(self.bot.user_scan_history[spam_key]) >= self.bot.ANTISPAM_URLS_PER_HOUR:
             await interaction.response.send_message(
                 f"{self.bot.EMOJI_COOLDOWN} Has alcanzado el límite de 30 análisis por hora.", ephemeral=True)
             return
-        self.bot.user_scan_history[user_id].append(ahora)
+        self.bot.user_scan_history[spam_key].append(ahora)
 
         await interaction.response.defer()
 

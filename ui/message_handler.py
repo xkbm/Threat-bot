@@ -268,18 +268,19 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
 
         ahora = time.time()
         user_id = message.author.id
-        bot.user_scan_history.setdefault(user_id, [])
-        bot.user_scan_history[user_id] = [t for t in bot.user_scan_history[user_id] if ahora - t < 3600]
-        if len(bot.user_scan_history[user_id]) >= ANTISPAM_URLS_PER_HOUR:
+        spam_key = (guild_id, user_id) if guild_id else user_id
+        bot.user_scan_history.setdefault(spam_key, [])
+        bot.user_scan_history[spam_key] = [t for t in bot.user_scan_history[spam_key] if ahora - t < 3600]
+        if len(bot.user_scan_history[spam_key]) >= ANTISPAM_URLS_PER_HOUR:
             await safe_add_reaction(message, EMOJI_COOLDOWN)
             await _procesar_adjuntos_si_hay(bot, message, guild_id, silent_mode, strict_mode, log_channel_id)
             return
-        if user_id in bot.antispam_scan and ahora - bot.antispam_scan[user_id] < ANTISPAM_COOLDOWN:
+        if spam_key in bot.antispam_scan and ahora - bot.antispam_scan[spam_key] < ANTISPAM_COOLDOWN:
             await safe_add_reaction(message, EMOJI_COOLDOWN)
             await _procesar_adjuntos_si_hay(bot, message, guild_id, silent_mode, strict_mode, log_channel_id)
             return
-        bot.antispam_scan[user_id] = ahora
-        bot.user_scan_history[user_id].append(ahora)
+        bot.antispam_scan[spam_key] = ahora
+        bot.user_scan_history[spam_key].append(ahora)
 
         if len(todas_urls) == 1:
             url = todas_urls[0]
