@@ -2,7 +2,7 @@ import logging
 import discord
 from discord.ext import commands
 from discord import app_commands
-from core.config import OWNER_ID, DATABASE_URL
+from core.config import OWNER_ID, DATABASE_URL, DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME
 
 log = logging.getLogger("dbtest")
 
@@ -20,9 +20,13 @@ class DbTestCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         if not DATABASE_URL:
+            campos = []
+            for var, val in [("DB_HOST", DB_HOST), ("DB_PORT", DB_PORT), ("DB_USER", DB_USER), ("DB_PASSWORD", DB_PASSWORD), ("DB_NAME", DB_NAME)]:
+                estado = f"{self.bot.EMOJI_CORRECTO} {var}" if val else f"{self.bot.EMOJI_INCORRECTO} {var}"
+                campos.append(estado)
             embed = discord.Embed(
-                title=f"{self.bot.EMOJI_INCORRECTO} Sin configurar",
-                description="`DATABASE_URL` no está definida en el entorno.\nAgrega `DATABASE_URL` al archivo `.env`.",
+                title=f"{self.bot.EMOJI_INCORRECTO} Configuración incompleta",
+                description="Faltan variables de base de datos en `.env`:\n" + "\n".join(campos),
                 color=discord.Color.red()
             )
             await interaction.edit_original_response(embed=embed)
