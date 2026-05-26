@@ -16,8 +16,102 @@ from core.database import obtener_analisis_db, guardar_metadatos_hash, obtener_h
 from api.virustotal import analizar_url, analizar_archivo, enviar_log_guild
 from api.sightengine import analizar_imagen_multimodelo
 from core.guild_config import obtener_config_guild, registrar_infraccion
+from core.state import ANALYSIS_SEMAPHORE
 
 log = logging.getLogger("handler")
+
+async def _procesar_imagen(
+    bot: commands.Bot,
+    message: discord.Message,
+    img: discord.Attachment,
+    guild_id: int,
+) -> tuple[str, str, dict, str]:
+    log.debug(f"Imagen: {img.filename} ({img.size} bytes)")
+    if img.size > MAX_IMAGE_SIZE:
+        return (img.filename, "error", {"error": "too_large"}, "")
+    clave_meta = f"nsfw_filename:{img.filename}:{img.size}"
+    tipo_meta, embed_meta, _ = await get_from_cache_mem(clave_meta)
+    content_hash: Optional[str] = None
+    if embed_meta is not None:
+        try:
+            content_hash = json.loads(tipo_meta).get("hash")
+        except Exception:
+            pass
+    if not content_hash:
+        content_hash = await obtener_hash_desde_metadatos(clave_meta)
+    if content_hash:
+        is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(content_hash, b"")
+        if from_cache:
+            return (img.filename, "nsfw" if is_nsfw else "seguro", models, content_hash)
+    try:
+        async with bot.session.get(img.url) as resp:
+            if resp.status != 200:
+                return (img.filename, "error", {}, "")
+            img_data = await resp.read()
+            if len(img_data) > MAX_IMAGE_SIZE:
+                return (img.filename, "error", {"error": "too_large"}, "")
+            content_hash = hashlib.sha256(img_data).hexdigest()
+            async with ANALYSIS_SEMAPHORE:
+                is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(content_hash, img_data)
+            if is_nsfw and guild_id:
+                await registrar_infraccion(guild_id, message.author.id, f"nsfw:{content_hash}")
+            dummy = discord.Embed(title="NSFW Meta")
+            await set_cache_mem(clave_meta, json.dumps({"hash": content_hash}), dummy, 0)
+            await guardar_metadatos_hash(clave_meta, content_hash)
+            return (img.filename, "nsfw" if is_nsfw else "seguro", models, content_hash)
+    except Exception:
+        return (img.filename, "error", {}, "")
+
+async def _procesar_archivo(
+    bot: commands.Bot,
+    message: discord.Message,
+    archivo: discord.Attachment,
+    guild_id: int,
+) -> tuple[str, str, int, str, str]:
+    log.debug(f"Archivo: {archivo.filename} ({archivo.size} bytes)")
+    doble_ext = tiene_doble_extension(archivo.filename)
+    wm = ""
+    if doble_ext:
+        await safe_add_reaction(message, EMOJI_WARNING)
+    if archivo.size > MAX_FILE_SIZE:
+        return (archivo.filename, "error", 0, "", "")
+    clave_meta = f"file:{archivo.filename}:{archivo.size}"
+    tipo_meta, embed_meta, _ = await get_from_cache_mem(clave_meta)
+    file_hash: Optional[str] = None
+    if embed_meta is not None:
+        try:
+            file_hash = json.loads(tipo_meta).get("hash")
+        except Exception:
+            pass
+    if not file_hash:
+        file_hash = await obtener_hash_desde_metadatos(clave_meta)
+    if file_hash:
+        tipo, embed, mal = await get_from_cache_mem(f"filehash:{file_hash}")
+        if embed is None:
+            tipo, embed, mal = await obtener_analisis_db(f"filehash:{file_hash}")
+            if embed is not None:
+                await set_cache_mem(f"filehash:{file_hash}", tipo, embed, mal)
+        if embed is not None:
+            if tipo == "malicioso":
+                await registrar_infraccion(guild_id, message.author.id, f"filehash:{file_hash}")
+            return (archivo.filename, tipo, mal, file_hash, wm)
+    try:
+        async with bot.session.get(archivo.url) as resp:
+            if resp.status != 200:
+                return (archivo.filename, "error", 0, "", "")
+            file_data = await resp.read()
+            file_hash = hashlib.sha256(file_data).hexdigest()
+            content_type = resp.headers.get('Content-Type', '')
+            ct_lower = content_type.lower()
+            if archivo.filename.lower().endswith(('.jpg', '.jpeg')) and ct_lower not in ('image/jpeg', 'image/jpg'):
+                wm = f"Extensión .jpg pero tipo real {content_type}"
+            elif archivo.filename.lower().endswith('.png') and ct_lower != 'image/png':
+                wm = f"Extensión .png pero tipo real {content_type}"
+    except Exception:
+        return (archivo.filename, "error", 0, "", "")
+    async with ANALYSIS_SEMAPHORE:
+        tipo, embed, mal = await analizar_archivo(archivo, file_bytes=file_data, file_hash=file_hash, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
+    return (archivo.filename, tipo, mal, file_hash, wm)
 
 async def _procesar_adjuntos(
     bot: commands.Bot,
@@ -32,103 +126,24 @@ async def _procesar_adjuntos(
     otros = [a for a in adjuntos if not es_imagen(a)]
     log.debug(f"Adjuntos: {len(imagenes)} imágenes, {len(otros)} archivos")
 
-    resultados_img: list[tuple[str, str, dict, str]] = []
-    resultados_arch: list[tuple[str, str, int, str, str]] = []
-
     await safe_add_reaction(message, EMOJI_LOADING)
     try:
-        for img in imagenes:
-            log.debug(f"Imagen: {img.filename} ({img.size} bytes)")
-            if img.size > MAX_IMAGE_SIZE:
-                resultados_img.append((img.filename, "error", {"error": "too_large"}, ""))
-                continue
-            clave_meta = f"nsfw_filename:{img.filename}:{img.size}"
-            tipo_meta, embed_meta, _ = await get_from_cache_mem(clave_meta)
-            content_hash: Optional[str] = None
-            if embed_meta is not None:
-                try:
-                    content_hash = json.loads(tipo_meta).get("hash")
-                except Exception:
-                    pass
-            if not content_hash:
-                content_hash = await obtener_hash_desde_metadatos(clave_meta)
-            if content_hash:
-                is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(content_hash, b"")
-                if from_cache:
-                    resultados_img.append((img.filename, "nsfw" if is_nsfw else "seguro", models, content_hash))
-                    continue
-            try:
-                async with bot.session.get(img.url) as resp:
-                    if resp.status != 200:
-                        resultados_img.append((img.filename, "error", {}, ""))
-                        continue
-                    img_data = await resp.read()
-                    if len(img_data) > MAX_IMAGE_SIZE:
-                        resultados_img.append((img.filename, "error", {"error": "too_large"}, ""))
-                        continue
-                    content_hash = hashlib.sha256(img_data).hexdigest()
-                    is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(content_hash, img_data)
-                    if is_nsfw and guild_id:
-                        await registrar_infraccion(guild_id, message.author.id, f"nsfw:{content_hash}")
-                    resultados_img.append((img.filename, "nsfw" if is_nsfw else "seguro", models, content_hash))
-                    dummy = discord.Embed(title="NSFW Meta")
-                    await set_cache_mem(clave_meta, json.dumps({"hash": content_hash}), dummy, 0)
-                    await guardar_metadatos_hash(clave_meta, content_hash)
-            except Exception:
-                resultados_img.append((img.filename, "error", {}, ""))
+        if imagenes:
+            tareas_img = [_procesar_imagen(bot, message, img, guild_id) for img in imagenes]
+            resultados_img = await asyncio.gather(*tareas_img)
+        else:
+            resultados_img = []
 
-        for archivo in otros:
-            log.debug(f"Archivo: {archivo.filename} ({archivo.size} bytes)")
-            doble_ext = tiene_doble_extension(archivo.filename)
-            wm = ""
-            if doble_ext:
-                await safe_add_reaction(message, EMOJI_WARNING)
-            if archivo.size > MAX_FILE_SIZE:
-                resultados_arch.append((archivo.filename, "error", 0, "", ""))
-                continue
-            clave_meta = f"file:{archivo.filename}:{archivo.size}"
-            tipo_meta, embed_meta, _ = await get_from_cache_mem(clave_meta)
-            file_hash: Optional[str] = None
-            if embed_meta is not None:
-                try:
-                    file_hash = json.loads(tipo_meta).get("hash")
-                except Exception:
-                    pass
-            if not file_hash:
-                file_hash = await obtener_hash_desde_metadatos(clave_meta)
-            if file_hash:
-                tipo, embed, mal = await get_from_cache_mem(f"filehash:{file_hash}")
-                if embed is None:
-                    tipo, embed, mal = await obtener_analisis_db(f"filehash:{file_hash}")
-                    if embed is not None:
-                        await set_cache_mem(f"filehash:{file_hash}", tipo, embed, mal)
-                if embed is not None:
-                    if tipo == "malicioso":
-                        await registrar_infraccion(guild_id, message.author.id, f"filehash:{file_hash}")
-                    resultados_arch.append((archivo.filename, tipo, mal, file_hash, wm))
-                    continue
-            try:
-                async with bot.session.get(archivo.url) as resp:
-                    if resp.status != 200:
-                        resultados_arch.append((archivo.filename, "error", 0, "", ""))
-                        continue
-                    file_data = await resp.read()
-                    file_hash = hashlib.sha256(file_data).hexdigest()
-                    content_type = resp.headers.get('Content-Type', '')
-                    ct_lower = content_type.lower()
-                    if archivo.filename.lower().endswith(('.jpg', '.jpeg')) and ct_lower not in ('image/jpeg', 'image/jpg'):
-                        wm = f"Extensión .jpg pero tipo real {content_type}"
-                    elif archivo.filename.lower().endswith('.png') and ct_lower != 'image/png':
-                        wm = f"Extensión .png pero tipo real {content_type}"
-            except Exception:
-                resultados_arch.append((archivo.filename, "error", 0, "", ""))
-                continue
-            tipo, embed, mal = await analizar_archivo(archivo, file_bytes=file_data, file_hash=file_hash, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
-            resultados_arch.append((archivo.filename, tipo, mal, file_hash, wm))
-
+        if otros:
+            tareas_arch = [_procesar_archivo(bot, message, archivo, guild_id) for archivo in otros]
+            resultados_arch = await asyncio.gather(*tareas_arch)
+        else:
+            resultados_arch = []
     finally:
         await safe_remove_loading(bot, message)
 
+    resultados_img = [r for r in resultados_img if isinstance(r, tuple)]
+    resultados_arch = [r for r in resultados_arch if isinstance(r, tuple)]
     total = len(resultados_img) + len(resultados_arch)
     if total == 0:
         return
@@ -450,9 +465,8 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
         await safe_add_reaction(message, EMOJI_LOADING)
         try:
             todas_urls = list(dict.fromkeys(todas_urls))[:5]
-            resultados: list[tuple[str, str, str, int]] = []
-            maliciosas = seguras = errores = 0
-            for i, url in enumerate(todas_urls, 1):
+
+            async def _expandir_y_cache(url: str) -> Optional[tuple[str, str, str, discord.Embed, int, bool]]:
                 url_original = url
                 url_exp = await expandir_url(bot, url)
                 fue_exp = url_exp != url_original
@@ -462,39 +476,45 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                     if dominio_exp.startswith("www."):
                         dominio_exp = dominio_exp[4:]
                     if dominio_en_whitelist(dominio_exp, whitelist):
-                        log.debug(f"[{i}/{len(todas_urls)}] URL expandida redirige a dominio en whitelist: {dominio_exp}")
-                        continue
-                    log.debug(f"[{i}/{len(todas_urls)}] URL expandida: {url_original} → {url_exp}")
+                        return None
                 clave = f"url:{url_exp}"
                 tipo, embed, mal = await get_from_cache_mem(clave)
-                if embed is not None:
-                    log.debug(f"[{i}/{len(todas_urls)}] Cache HIT (RAM) → {url_original} resultado={tipo}")
-                else:
+                if embed is None:
                     tipo, embed, mal = await obtener_analisis_db(clave)
                     if embed is not None:
-                        log.debug(f"[{i}/{len(todas_urls)}] Cache HIT (SQLite) → {url_original} resultado={tipo}")
                         await set_cache_mem(clave, tipo, embed, mal)
-                    else:
-                        log.debug(f"[{i}/{len(todas_urls)}] Cache MISS → {url_original} llamando VT")
+                return (url_original, url_exp, tipo, embed, mal, fue_exp)
+
+            expandidos = await asyncio.gather(*[_expandir_y_cache(url) for url in todas_urls], return_exceptions=True)
+            expandidos = [r for r in expandidos if isinstance(r, tuple)]
+
+            resultados: list[tuple[str, str, str, int]] = []
+            urls_api: list[tuple[str, str, bool]] = []
+            for r in expandidos:
+                url_original, url_exp, tipo, embed, mal, fue_exp = r
                 if embed is not None:
                     resultados.append((url_original, url_exp, tipo, mal))
-                    if tipo == "malicioso":
-                        maliciosas += 1
-                        await registrar_infraccion(guild_id, message.author.id, f"url:{url_exp}")
-                    elif tipo == "seguro":
-                        seguras += 1
-                    else:
-                        errores += 1
-                    continue
-                await asyncio.sleep(1)
-                tipo, embed, mal = await analizar_url(url_exp, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
-                resultados.append((url_original, url_exp, tipo, mal))
-                if tipo == "malicioso":
-                    maliciosas += 1
-                elif tipo == "seguro":
-                    seguras += 1
                 else:
-                    errores += 1
+                    urls_api.append((url_original, url_exp, fue_exp))
+
+            if urls_api:
+                async def _api_url(url_original: str, url_exp: str, fue_exp: bool) -> tuple[str, str, str, int]:
+                    async with ANALYSIS_SEMAPHORE:
+                        tipo, embed, mal = await analizar_url(url_exp, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
+                    return (url_original, url_exp, tipo, mal)
+
+                api_resultados = await asyncio.gather(*[_api_url(uo, ue, fe) for uo, ue, fe in urls_api], return_exceptions=True)
+                for r in api_resultados:
+                    if isinstance(r, tuple):
+                        resultados.append(r)
+
+            maliciosas = sum(1 for _, _, t, _ in resultados if t == "malicioso")
+            seguras = sum(1 for _, _, t, _ in resultados if t == "seguro")
+            errores = sum(1 for _, _, t, _ in resultados if t == "error")
+
+            for url_orig, url_exp, tipo, mal in resultados:
+                if tipo == "malicioso":
+                    await registrar_infraccion(guild_id, message.author.id, f"url:{url_exp}")
 
             color = discord.Color.orange() if maliciosas else (discord.Color.red() if errores else discord.Color.green())
             titulo = f"{EMOJI_WARNING} Amenazas detectadas" if maliciosas else (f"{EMOJI_WARNING} Errores en el análisis" if errores else f"{EMOJI_CORRECTO} Todos los enlaces son seguros")

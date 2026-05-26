@@ -6,6 +6,7 @@ import time
 from typing import Optional
 import logging
 from core.utils import expandir_url
+from core.state import ANALYSIS_SEMAPHORE
 
 log = logging.getLogger("analisis")
 
@@ -127,7 +128,8 @@ class AnalisisCog(commands.Cog):
         try:
             if tipo.value == "url":
                 log.debug(f"SCAN URL ANALIZANDO → {valor}")
-                tipo_res, embed, mal = await self.bot.analizar_url(valor, guild_id=guild_id, guardar_cache=True)
+                async with ANALYSIS_SEMAPHORE:
+                    tipo_res, embed, mal = await self.bot.analizar_url(valor, guild_id=guild_id, guardar_cache=True)
                 if expanded and expanded != url_original:
                     embed.add_field(
                         name=f"{self.bot.EMOJI_REPLY} Redirección",
@@ -137,11 +139,13 @@ class AnalisisCog(commands.Cog):
                 log.debug(f"SCAN URL RESULT → tipo={tipo_res} mal={mal} url={valor} t={time.time()-_t0:.1f}s")
             elif tipo.value == "ip":
                 log.debug(f"SCAN IP ANALIZANDO → {valor}")
-                tipo_res, embed, mal = await self.bot.analizar_ip(valor, guild_id=guild_id, guardar_cache=True)
+                async with ANALYSIS_SEMAPHORE:
+                    tipo_res, embed, mal = await self.bot.analizar_ip(valor, guild_id=guild_id, guardar_cache=True)
                 log.debug(f"SCAN IP RESULT → tipo={tipo_res} mal={mal} ip={valor} t={time.time()-_t0:.1f}s")
             elif tipo.value == "hash":
                 log.debug(f"SCAN HASH ANALIZANDO → {valor}")
-                tipo_res, embed, mal = await self.bot.analizar_hash(valor, guild_id=guild_id, guardar_cache=True)
+                async with ANALYSIS_SEMAPHORE:
+                    tipo_res, embed, mal = await self.bot.analizar_hash(valor, guild_id=guild_id, guardar_cache=True)
                 log.debug(f"SCAN HASH RESULT → tipo={tipo_res} mal={mal} hash={valor} t={time.time()-_t0:.1f}s")
             elif tipo.value == "file":
                 doble_ext = self.bot.tiene_doble_extension(archivo.filename)
@@ -207,10 +211,11 @@ class AnalisisCog(commands.Cog):
 
                 try:
                     log.debug(f"SCAN ARCHIVO ANALIZANDO → {archivo.filename} t={time.time()-_t0:.1f}s")
-                    tipo_res, embed, mal = await self.bot.analizar_archivo(
-                        archivo, file_bytes=file_bytes, file_hash=file_hash,
-                        guild_id=guild_id, guardar_cache=True
-                    )
+                    async with ANALYSIS_SEMAPHORE:
+                        tipo_res, embed, mal = await self.bot.analizar_archivo(
+                            archivo, file_bytes=file_bytes, file_hash=file_hash,
+                            guild_id=guild_id, guardar_cache=True
+                        )
                 except Exception as e:
                     log.error(f"SCAN ARCHIVO ERROR ANÁLISIS → {archivo.filename}: {e} t={time.time()-_t0:.1f}s")
                     embed = discord.Embed(

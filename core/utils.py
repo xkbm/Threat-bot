@@ -101,7 +101,7 @@ async def _resolve_url(url: str) -> tuple[bool, str, str, str]:
         cached = _dns_cache.get(hostname)
         if cached and ahora < cached[0]:
             return True, hostname, cached[1], ""
-        addrs = await asyncio.to_thread(socket.getaddrinfo, hostname, 80, type=socket.SOCK_STREAM)
+        addrs = await asyncio.get_running_loop().getaddrinfo(hostname, 80, type=socket.SOCK_STREAM)
         ips: list[str] = []
         for addr in addrs:
             ip_str = addr[4][0]
