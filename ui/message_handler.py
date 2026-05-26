@@ -44,10 +44,11 @@ async def _procesar_imagen(
         if from_cache:
             return (img.filename, "nsfw" if is_nsfw else "seguro", models, content_hash)
     try:
-        async with bot.session.get(img.url) as resp:
-            if resp.status != 200:
-                return (img.filename, "error", {}, "")
-            img_data = await resp.read()
+        async with bot._download_sem:
+            async with bot.session.get(img.url) as resp:
+                if resp.status != 200:
+                    return (img.filename, "error", {}, "")
+                img_data = await resp.read()
             if len(img_data) > MAX_IMAGE_SIZE:
                 return (img.filename, "error", {"error": "too_large"}, "")
             content_hash = hashlib.sha256(img_data).hexdigest()
@@ -96,10 +97,11 @@ async def _procesar_archivo(
                 await registrar_infraccion(guild_id, message.author.id, f"filehash:{file_hash}")
             return (archivo.filename, tipo, mal, file_hash, wm)
     try:
-        async with bot.session.get(archivo.url) as resp:
-            if resp.status != 200:
-                return (archivo.filename, "error", 0, "", "")
-            file_data = await resp.read()
+        async with bot._download_sem:
+            async with bot.session.get(archivo.url) as resp:
+                if resp.status != 200:
+                    return (archivo.filename, "error", 0, "", "")
+                file_data = await resp.read()
             file_hash = hashlib.sha256(file_data).hexdigest()
             content_type = resp.headers.get('Content-Type', '')
             ct_lower = content_type.lower()
@@ -331,7 +333,8 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                         return
                 await safe_add_reaction(message, EMOJI_LOADING)
                 try:
-                    img_data, error = await descargar_url_segura(bot, url, max_size=MAX_IMAGE_SIZE)
+                    async with bot._download_sem:
+                        img_data, error = await descargar_url_segura(bot, url, max_size=MAX_IMAGE_SIZE)
                     if error:
                         if error == "too_large":
                             await safe_add_reaction(message, EMOJI_INCORRECTO)

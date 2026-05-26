@@ -33,7 +33,7 @@ El bot corre en un servidor Pterodactyl. Para verificar cambios localmente solo 
 
 ## Architecture
 - **Entrypoint** `bot.py:116` `setup_hook` loads `cogs/*.py`; `on_ready` inits DB + syncs slash commands. `bot._ready_done` guard prevents double init.
-- **Concurrency guard**: `core/state.py:ANALYSIS_SEMAPHORE = asyncio.Semaphore(20)` limits concurrent analyses.
+- **Concurrency guards**: `core/state.py:ANALYSIS_SEMAPHORE = asyncio.Semaphore(20)` limits concurrent API calls. `bot.py:bot._analysis_sem = Semaphore(100)` caps total in-flight analysis tasks. `bot.py:bot._download_sem = Semaphore(5)` limits concurrent attachment downloads.
 - **State** `core/state.py` — `state.bot = bot` set at `bot.py:29`. Import `from core import state` then `state.bot` anywhere.
 - **Shutdown** `bot.py:207-211` monkey-patches `bot.close` → calls `shutdown()` (cancel tasks, flush data, stop DB pool, close session) then original close.
 - **Guild cleanup** `bot.py:187-193` — `on_guild_remove` handler removes guild from `bot.guilds_data` and flushes to disk immediately.
@@ -56,7 +56,7 @@ El bot corre en un servidor Pterodactyl. Para verificar cambios localmente solo 
 ## Caching
 - **RAM**: `OrderedDict` max 100000 entries, 1h TTL. Returns `(tipo, embed, mal)` or `(None, None, 0)`.
 - **SQLite**: `analisis.db` table `analisis(clave, tipo, resultado, embed_json, timestamp, expira)`. Expiry: URL/IP 7d, hash/file/NSFW 30d.
-- **DNS cache**: `core/utils.py:14` — `_dns_cache` dict, 300s TTL. Avoids redundant lookups during SSRF checks.
+- **DNS cache**: `core/utils.py:14` — `OrderedDict`, 300s TTL, max 5000 entries with LRU eviction. Avoids redundant lookups during SSRF checks.
 - Cache keys: `f"url:{expanded_url}"`, `f"ip:{ip}"`, `f"hash:{hash}"`, `f"filehash:{sha256}"`, `f"nsfw:{sha256}"`.
 - Always expand URLs before cache lookup (`expandir_url` in `core/utils.py:126`).
 

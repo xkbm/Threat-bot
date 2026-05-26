@@ -7,12 +7,14 @@ import aiohttp
 import discord
 import urllib.parse
 import logging
+from collections import OrderedDict
 from discord.ext import commands
 from core.config import EMOJI_LOADING, ANTIVIRUS_CONOCIDOS, IMAGE_EXTENSIONS
 
 log = logging.getLogger("utils")
-_dns_cache: dict[str, tuple[float, str]] = {}
+_dns_cache: OrderedDict[str, tuple[float, str]] = OrderedDict()
 _DNS_CACHE_TTL: float = 300.0
+_DNS_CACHE_MAX: int = 5000
 
 async def safe_remove_loading(bot: commands.Bot, msg: discord.Message) -> None:
     try:
@@ -100,6 +102,7 @@ async def _resolve_url(url: str) -> tuple[bool, str, str, str]:
         ahora = time.time()
         cached = _dns_cache.get(hostname)
         if cached and ahora < cached[0]:
+            _dns_cache.move_to_end(hostname)
             return True, hostname, cached[1], ""
         addrs = await asyncio.get_running_loop().getaddrinfo(hostname, 80, type=socket.SOCK_STREAM)
         ips: list[str] = []
@@ -115,6 +118,9 @@ async def _resolve_url(url: str) -> tuple[bool, str, str, str]:
         if not ips:
             return False, "", "", f"No se pudo resolver {hostname}"
         _dns_cache[hostname] = (ahora + _DNS_CACHE_TTL, ips[0])
+        _dns_cache.move_to_end(hostname)
+        while len(_dns_cache) > _DNS_CACHE_MAX:
+            _dns_cache.popitem(last=False)
         return True, hostname, ips[0], ""
     except Exception as e:
         return False, "", "", f"Error verificando URL: {e}"

@@ -1,4 +1,4 @@
-# Commit: 99cc4b8
+# Commit: 8b2f564
 # Prueba de commit
 import discord
 from discord.ext import commands
@@ -7,6 +7,8 @@ import asyncio
 import os
 import logging
 from dotenv import load_dotenv
+
+MAX_ANALYSIS_TASKS = 100
 
 from core import state
 from core.config import TOKEN, VT_API_KEYS, SE_API_KEYS_PAIRS, OWNER_ID, ANTISPAM_URLS_PER_HOUR
@@ -35,6 +37,8 @@ bot.antispam_scan = {}
 bot.user_scan_history = {}
 bot._ready_done = False
 bot._background_tasks: list[asyncio.Task] = []
+bot._analysis_sem = asyncio.Semaphore(MAX_ANALYSIS_TASKS)
+bot._download_sem = asyncio.Semaphore(5)
 
 bot.vt_key_index = 0
 bot.vt_key_usage = {}
@@ -172,7 +176,10 @@ async def on_message(message):
         await bot.process_commands(message)
         return
     from ui.message_handler import procesar_analisis
-    asyncio.create_task(procesar_analisis(bot, message))
+    async def _analisis_con_sem():
+        async with bot._analysis_sem:
+            await procesar_analisis(bot, message)
+    asyncio.create_task(_analisis_con_sem())
     await bot.process_commands(message)
 
 @bot.event
@@ -182,7 +189,10 @@ async def on_message_edit(before, after):
     if before.content == after.content and len(before.attachments) == len(after.attachments):
         return
     from ui.message_handler import procesar_analisis
-    asyncio.create_task(procesar_analisis(bot, after))
+    async def _analisis_edit_con_sem():
+        async with bot._analysis_sem:
+            await procesar_analisis(bot, after)
+    asyncio.create_task(_analisis_edit_con_sem())
 
 @bot.event
 async def on_guild_remove(guild):
