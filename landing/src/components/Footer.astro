@@ -1,17 +1,18 @@
 ---
+import { Shield } from '@lucide/astro';
 
 const year = new Date().getFullYear();
 ---
 
-<footer class="border-t border-border-subtle px-6 py-12">
+<footer class="bg-bg-elevated px-6 py-12">
   <div class="mx-auto max-w-6xl">
     <div class="flex flex-col items-center justify-between gap-6 md:flex-row">
       <div class="flex items-center gap-2">
-        <span
-          class="flex h-7 w-7 items-center justify-center rounded-md bg-blurple font-heading text-xs font-bold text-white"
+        <div
+          class="flex h-7 w-7 items-center justify-center rounded-md bg-blurple text-white"
         >
-          T
-        </span>
+          <Shield size={15} stroke-width={2} />
+        </div>
         <span class="font-heading text-sm font-semibold text-text-primary"
           >Threat-bot</span
         >
@@ -35,7 +36,7 @@ const year = new Date().getFullYear();
           GitHub
         </a>
         <a
-          href="https://discord.com/oauth2/authorize"
+          href="https://discord.com/api/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands"
           target="_blank"
           rel="noopener noreferrer"
           class="transition-colors hover:text-text-primary"

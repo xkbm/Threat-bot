@@ -48,6 +48,12 @@
   }
 
   --animate-pulse-dot: pulse-dot 2s ease-in-out infinite;
+  --animate-bg-shift: bg-shift 12s ease-in-out infinite alternate;
+
+  @keyframes bg-shift {
+    0% { transform: translate(0%, 0%); }
+    100% { transform: translate(5%, 5%); }
+  }
 
   @keyframes pulse-dot {
     0%, 100% { opacity: 1; }

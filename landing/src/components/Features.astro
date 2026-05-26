@@ -1,5 +1,6 @@
 ---
 import Reveal from './Reveal.astro';
+import { Link, EyeOff, FileSearch, ShieldCheck, ListChecks, ZapOff } from '@lucide/astro';
 
 interface Feature {
   icon: string;
@@ -9,37 +10,37 @@ interface Feature {
 
 const features: Feature[] = [
   {
-    icon: '🔗',
+    icon: 'link',
     title: 'Análisis de URLs',
     description:
       'Escanea enlaces con VirusTotal. Acortadores expandidos, caché RAM+SQLite, detección de phishing y malware.',
   },
   {
-    icon: '🖼️',
+    icon: 'eye-off',
     title: 'NSFW en imágenes',
     description:
       'SightEngine analiza desnudos, armas, alcohol y contenido ofensivo. Descarga segura con protección SSRF.',
   },
   {
-    icon: '📁',
+    icon: 'file-search',
     title: 'Escaneo de archivos',
     description:
       'Archivos adjuntos enviados a VirusTotal. Detección de doble extensión y MIME mismatch.',
   },
   {
-    icon: '🛡️',
+    icon: 'shield-check',
     title: 'Auto-análisis',
     description:
       'on_message escanea automáticamente URLs, imágenes y adjuntos. Modo silencioso y estricto configurables.',
   },
   {
-    icon: '📋',
+    icon: 'list-checks',
     title: 'Whitelist inteligente',
     description:
       'Dominios protegidos no removibles. Subdomain matching. Por servidor, con lista por defecto.',
   },
   {
-    icon: '⚡',
+    icon: 'zap-off',
     title: 'Anti-spam',
     description:
       '30 URLs/hora por usuario, 10s de cooldown. Límite de 5 adjuntos por mensaje. Sin abusos.',
@@ -47,7 +48,7 @@ const features: Feature[] = [
 ];
 ---
 
-<section id="features" class="scroll-mt-24 px-6 py-28">
+<section id="features" class="scroll-mt-24 bg-bg-surface px-6 py-28">
   <div class="mx-auto max-w-6xl">
     <div class="mx-auto mb-16 max-w-2xl text-center reveal">
       <h2 class="font-heading text-3xl font-bold text-text-primary md:text-4xl">
@@ -62,12 +63,19 @@ const features: Feature[] = [
       {
         features.map((f, i) => (
           <div
-            class={`reveal reveal-delay-${Math.min(i + 1, 4)} group rounded-xl border border-border-subtle bg-bg-surface p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-border-strong hover:bg-bg-elevated hover:shadow-lg hover:shadow-black/10`}
+            class={`reveal reveal-delay-${Math.min(i + 1, 4)} group rounded-xl border border-border-subtle bg-bg-surface p-6 transition-all duration-300 hover:scale-[1.02] hover:border-border-strong hover:bg-bg-elevated hover:shadow-lg hover:shadow-black/10`}
           >
             <div
-              class="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-blurple/10 text-xl"
+              class="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-blurple/10 text-blurple"
             >
-              {f.icon}
+              {
+                f.icon === 'link' ? <Link size={22} stroke-width={1.5} /> :
+                f.icon === 'eye-off' ? <EyeOff size={22} stroke-width={1.5} /> :
+                f.icon === 'file-search' ? <FileSearch size={22} stroke-width={1.5} /> :
+                f.icon === 'shield-check' ? <ShieldCheck size={22} stroke-width={1.5} /> :
+                f.icon === 'list-checks' ? <ListChecks size={22} stroke-width={1.5} /> :
+                f.icon === 'zap-off' ? <ZapOff size={22} stroke-width={1.5} /> : null
+              }
             </div>
             <h3 class="mb-2 font-heading text-lg font-semibold text-text-primary">{f.title}</h3>
             <p class="text-sm leading-relaxed text-text-muted">{f.description}</p>

@@ -1,17 +1,75 @@
 ---
 import Reveal from './Reveal.astro';
+import { Shield, Ban, Link, FolderArchive } from '@lucide/astro';
 
-const stats = [
-  { label: 'Servidores activos', value: '1,200+' },
-  { label: 'Amenazas bloqueadas', value: '84,500+' },
-  { label: 'URLs analizadas', value: '320K+' },
-  { label: 'Archivos escaneados', value: '45K+' },
+interface Stat {
+  icon: string;
+  value: string;
+  label: string;
+  target: number;
+  suffix: string;
+}
+
+const stats: Stat[] = [
+  { icon: 'shield', value: '1,200+', label: 'Servidores activos', target: 1200, suffix: '+' },
+  { icon: 'ban', value: '84,500+', label: 'Amenazas bloqueadas', target: 84500, suffix: '+' },
+  { icon: 'link', value: '320K+', label: 'URLs analizadas', target: 320, suffix: 'K+' },
+  { icon: 'folder-archive', value: '45K+', label: 'Archivos escaneados', target: 45, suffix: 'K+' },
 ];
-
-const icons = ['🛡️', '🚫', '🔗', '📁'];
 ---
 
-<section id="stats" class="scroll-mt-24 px-6 py-28">
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const section = document.getElementById('stats');
+  if (!section) return;
+
+  const els = section.querySelectorAll('.stat-value');
+  if (!els.length) return;
+  const targets = Array.from(els).map((el) =>
+    parseInt(el.getAttribute('data-target') || '0', 10)
+  );
+  const suffixes = Array.from(els).map(
+    (el) => el.getAttribute('data-suffix') || ''
+  );
+  let started = false;
+
+  const observer = new IntersectionObserver(
+    ([entry]) => {
+      if (entry.isIntersecting && !started) {
+        started = true;
+        observer.disconnect();
+        animate();
+      }
+    },
+    { threshold: 0.3 }
+  );
+  observer.observe(section);
+
+  function animate() {
+    const duration = 1500;
+    const start = performance.now();
+
+    function tick(now: number) {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      const ease = 1 - Math.pow(1 - progress, 3);
+
+      els.forEach((el, i) => {
+        const current = Math.round(ease * targets[i]);
+        el.textContent = current.toLocaleString() + suffixes[i];
+      });
+
+      if (progress < 1) {
+        requestAnimationFrame(tick);
+      }
+    }
+
+    requestAnimationFrame(tick);
+  }
+});
+</script>
+
+<section id="stats" class="scroll-mt-24 bg-bg-base px-6 py-28">
   <div class="mx-auto max-w-6xl">
     <div class="mx-auto mb-16 max-w-2xl text-center reveal">
       <h2 class="font-heading text-3xl font-bold text-text-primary md:text-4xl">
@@ -26,11 +84,22 @@ const icons = ['🛡️', '🚫', '🔗', '📁'];
       {
         stats.map((s, i) => (
           <div
-            class={`reveal reveal-delay-${Math.min(i + 1, 4)} rounded-xl border border-border-subtle bg-bg-surface p-8 text-center transition-all hover:border-blurple/30`}
+            class={`reveal reveal-delay-${Math.min(i + 1, 4)} rounded-xl border border-border-subtle bg-bg-surface p-8 text-center transition-all duration-300 hover:scale-[1.02] hover:border-blurple/30`}
           >
-            <div class="mb-3 text-3xl">{icons[i]}</div>
-            <div class="font-heading text-3xl font-bold text-text-primary">
-              {s.value}
+            <div class="mb-4 flex items-center justify-center text-blurple">
+              {
+                s.icon === 'shield' ? <Shield size={28} stroke-width={1.5} /> :
+                s.icon === 'ban' ? <Ban size={28} stroke-width={1.5} /> :
+                s.icon === 'link' ? <Link size={28} stroke-width={1.5} /> :
+                s.icon === 'folder-archive' ? <FolderArchive size={28} stroke-width={1.5} /> : null
+              }
+            </div>
+            <div
+              class="stat-value font-heading text-3xl font-bold text-text-primary"
+              data-target={s.target}
+              data-suffix={s.suffix}
+            >
+              0
             </div>
             <div class="mt-1 text-sm text-text-muted">{s.label}</div>
           </div>

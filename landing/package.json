@@ -10,8 +10,10 @@
     "check": "astro check"
   },
   "dependencies": {
+    "@lucide/astro": "^1.16.0",
     "@tailwindcss/vite": "^4.1.0",
     "astro": "^5.7.0",
+    "lucide-astro": "^0.556.0",
     "tailwindcss": "^4.1.0"
   },
   "devDependencies": {
