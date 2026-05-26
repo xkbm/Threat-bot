@@ -1,7 +1,3 @@
---- README.md (原始)
-# Threat-bot-
-
-+++ README.md (修改后)
 # Threat-bot 🛡️
 
 Bot de Discord para análisis de seguridad que detecta automáticamente malware, URLs maliciosas y contenido NSFW usando VirusTotal y SightEngine.
