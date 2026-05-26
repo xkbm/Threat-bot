@@ -78,40 +78,38 @@ async def obtener_siguiente_se_key() -> Optional[tuple[str, str]]:
         return None
 
 async def registrar_uso_se(api_key: str) -> None:
-    async with _se_lock:
-        ahora = time.time()
-        hoy = time.strftime("%Y-%m-%d", time.gmtime())
-        if api_key not in state.bot.se_key_usage:
-            state.bot.se_key_usage[api_key] = []
-        if api_key not in state.bot.se_key_total_requests:
-            state.bot.se_key_total_requests[api_key] = 0
-        if api_key not in state.bot.se_key_daily_usage:
-            state.bot.se_key_daily_usage[api_key] = {"count": 0, "date": hoy}
-        state.bot.se_key_usage[api_key] = [t for t in state.bot.se_key_usage[api_key] if ahora - t <= 60]
-        state.bot.se_key_usage[api_key].append(ahora)
-        if state.bot.se_key_daily_usage[api_key]["date"] != hoy:
-            state.bot.se_key_daily_usage[api_key] = {"count": 4, "date": hoy}
-        else:
-            state.bot.se_key_daily_usage[api_key]["count"] += 4
-        state.bot.se_key_total_requests[api_key] += 4
+    ahora = time.time()
+    hoy = time.strftime("%Y-%m-%d", time.gmtime())
+    if api_key not in state.bot.se_key_usage:
+        state.bot.se_key_usage[api_key] = []
+    if api_key not in state.bot.se_key_total_requests:
+        state.bot.se_key_total_requests[api_key] = 0
+    if api_key not in state.bot.se_key_daily_usage:
+        state.bot.se_key_daily_usage[api_key] = {"count": 0, "date": hoy}
+    state.bot.se_key_usage[api_key] = [t for t in state.bot.se_key_usage[api_key] if ahora - t <= 60]
+    state.bot.se_key_usage[api_key].append(ahora)
+    if state.bot.se_key_daily_usage[api_key]["date"] != hoy:
+        state.bot.se_key_daily_usage[api_key] = {"count": 4, "date": hoy}
+    else:
+        state.bot.se_key_daily_usage[api_key]["count"] += 4
+    state.bot.se_key_total_requests[api_key] += 4
 
 async def registrar_uso_vt(key: str) -> None:
-    async with _vt_lock:
-        ahora = time.time()
-        hoy = time.strftime("%Y-%m-%d", time.gmtime())
-        if key not in state.bot.vt_key_usage:
-            state.bot.vt_key_usage[key] = []
-        if key not in state.bot.vt_key_total_requests:
-            state.bot.vt_key_total_requests[key] = 0
-        if key not in state.bot.vt_key_daily_usage:
-            state.bot.vt_key_daily_usage[key] = {"count": 0, "date": hoy}
-        state.bot.vt_key_usage[key] = [t for t in state.bot.vt_key_usage[key] if ahora - t <= 60]
-        state.bot.vt_key_usage[key].append(ahora)
-        if state.bot.vt_key_daily_usage[key]["date"] != hoy:
-            state.bot.vt_key_daily_usage[key] = {"count": 1, "date": hoy}
-        else:
-            state.bot.vt_key_daily_usage[key]["count"] += 1
-        state.bot.vt_key_total_requests[key] += 1
+    ahora = time.time()
+    hoy = time.strftime("%Y-%m-%d", time.gmtime())
+    if key not in state.bot.vt_key_usage:
+        state.bot.vt_key_usage[key] = []
+    if key not in state.bot.vt_key_total_requests:
+        state.bot.vt_key_total_requests[key] = 0
+    if key not in state.bot.vt_key_daily_usage:
+        state.bot.vt_key_daily_usage[key] = {"count": 0, "date": hoy}
+    state.bot.vt_key_usage[key] = [t for t in state.bot.vt_key_usage[key] if ahora - t <= 60]
+    state.bot.vt_key_usage[key].append(ahora)
+    if state.bot.vt_key_daily_usage[key]["date"] != hoy:
+        state.bot.vt_key_daily_usage[key] = {"count": 1, "date": hoy}
+    else:
+        state.bot.vt_key_daily_usage[key]["count"] += 1
+    state.bot.vt_key_total_requests[key] += 1
 
 async def enviar_log_guild(guild_id: int, tipo: str, valor: str, detalles: str, usuario: discord.User, url_vt: Optional[str] = None, elemento_id: Optional[str] = None) -> None:
     config = await obtener_config_guild(guild_id)
