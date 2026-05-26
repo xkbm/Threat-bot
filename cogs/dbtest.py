@@ -70,9 +70,10 @@ def _sanitizar_url(url: str) -> str:
     from urllib.parse import urlparse, urlunparse
     parsed = urlparse(url)
     if parsed.password:
-        parsed = parsed._replace(password="****")
-    if parsed.username:
-        parsed = parsed._replace(username=parsed.username)
+        netloc = f"{parsed.username}:****@{parsed.hostname}"
+        if parsed.port:
+            netloc += f":{parsed.port}"
+        parsed = parsed._replace(netloc=netloc)
     return urlunparse(parsed)
 
 
