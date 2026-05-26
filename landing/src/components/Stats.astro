@@ -1,4 +1,5 @@
 ---
+import Reveal from './Reveal.astro';
 
 const stats = [
   { label: 'Servidores activos', value: '1,200+' },
@@ -12,7 +13,7 @@ const icons = ['🛡️', '🚫', '🔗', '📁'];
 
 <section id="stats" class="scroll-mt-24 px-6 py-28">
   <div class="mx-auto max-w-6xl">
-    <div class="mx-auto mb-16 max-w-2xl text-center">
+    <div class="mx-auto mb-16 max-w-2xl text-center reveal">
       <h2 class="font-heading text-3xl font-bold text-text-primary md:text-4xl">
         Protegiendo comunidades en tiempo real
       </h2>
@@ -20,11 +21,12 @@ const icons = ['🛡️', '🚫', '🔗', '📁'];
         Cada día más servidores confían en Threat-bot para mantener a salvo a sus miembros.
       </p>
     </div>
+    <Reveal>
     <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
       {
         stats.map((s, i) => (
           <div
-            class="rounded-xl border border-border-subtle bg-bg-surface p-8 text-center transition-all hover:border-blurple/30"
+            class={`reveal reveal-delay-${Math.min(i + 1, 4)} rounded-xl border border-border-subtle bg-bg-surface p-8 text-center transition-all hover:border-blurple/30`}
           >
             <div class="mb-3 text-3xl">{icons[i]}</div>
             <div class="font-heading text-3xl font-bold text-text-primary">
@@ -35,5 +37,6 @@ const icons = ['🛡️', '🚫', '🔗', '📁'];
         ))
       }
     </div>
+    </Reveal>
   </div>
 </section>

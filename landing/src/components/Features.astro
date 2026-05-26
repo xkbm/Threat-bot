@@ -1,4 +1,5 @@
 ---
+import Reveal from './Reveal.astro';
 
 interface Feature {
   icon: string;
@@ -48,7 +49,7 @@ const features: Feature[] = [
 
 <section id="features" class="scroll-mt-24 px-6 py-28">
   <div class="mx-auto max-w-6xl">
-    <div class="mx-auto mb-16 max-w-2xl text-center">
+    <div class="mx-auto mb-16 max-w-2xl text-center reveal">
       <h2 class="font-heading text-3xl font-bold text-text-primary md:text-4xl">
         Todo lo que necesitas para proteger tu servidor
       </h2>
@@ -56,10 +57,13 @@ const features: Feature[] = [
         Amenazas en tiempo real, múltiples APIs, caché inteligente y control total por servidor.
       </p>
     </div>
+    <Reveal>
     <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
       {
-        features.map((f) => (
-          <div class="group rounded-xl border border-border-subtle bg-bg-surface p-6 transition-all hover:border-border-strong hover:bg-bg-elevated">
+        features.map((f, i) => (
+          <div
+            class={`reveal reveal-delay-${Math.min(i + 1, 4)} group rounded-xl border border-border-subtle bg-bg-surface p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-border-strong hover:bg-bg-elevated hover:shadow-lg hover:shadow-black/10`}
+          >
             <div
               class="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-blurple/10 text-xl"
             >
@@ -71,5 +75,6 @@ const features: Feature[] = [
         ))
       }
     </div>
+    </Reveal>
   </div>
 </section>

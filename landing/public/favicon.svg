@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <path d="M16 2L6 7v8c0 7.5 4.27 12.5 10 14 5.73-1.5 10-6.5 10-14V7l-10-5z" fill="#5865f2"/>
+  <text x="16" y="21" text-anchor="middle" fill="white" font-family="system-ui" font-weight="800" font-size="16">T</text>
+</svg>

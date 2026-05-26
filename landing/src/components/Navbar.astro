@@ -1,3 +1,30 @@
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const menu = document.getElementById('mobile-menu');
+  const iconOpen = document.getElementById('menu-icon-open');
+  const iconClose = document.getElementById('menu-icon-close');
+  const btn = document.getElementById('menu-btn');
+  const links = document.querySelectorAll('#mobile-menu a');
+  function toggle() {
+    if (!menu || !iconOpen || !iconClose || !btn) return;
+    const isOpen = menu.classList.contains('opacity-100');
+    menu.classList.toggle('opacity-100');
+    menu.classList.toggle('pointer-events-auto');
+    iconOpen.classList.toggle('hidden');
+    iconClose.classList.toggle('hidden');
+    document.body.style.overflow = isOpen ? '' : 'hidden';
+    btn.setAttribute('aria-label', isOpen ? 'Abrir menú' : 'Cerrar menú');
+  }
+
+  if (btn) {
+    btn.addEventListener('click', toggle);
+  }
+  for (const link of links) {
+    link.addEventListener('click', toggle);
+  }
+});
+</script>
+
 <nav class="fixed top-0 inset-x-0 z-50 border-b border-border-subtle/50 backdrop-blur-md">
   <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
     <a href="/" class="flex items-center gap-2">
@@ -8,23 +35,15 @@
       </span>
       <span class="font-heading text-lg font-bold text-text-primary">Threat-bot</span>
     </a>
-    <div class="flex items-center gap-6">
-      <a
-        href="#features"
-        class="text-sm text-text-muted transition-colors hover:text-text-primary"
-      >
+
+    <div class="hidden items-center gap-6 md:flex">
+      <a href="#features" class="text-sm text-text-muted transition-colors hover:text-text-primary">
         Features
       </a>
-      <a
-        href="#stats"
-        class="text-sm text-text-muted transition-colors hover:text-text-primary"
-      >
+      <a href="#stats" class="text-sm text-text-muted transition-colors hover:text-text-primary">
         Estadísticas
       </a>
-      <a
-        href="#cta"
-        class="text-sm text-text-muted transition-colors hover:text-text-primary"
-      >
+      <a href="#cta" class="text-sm text-text-muted transition-colors hover:text-text-primary">
         Comienza
       </a>
       <a
@@ -36,5 +55,44 @@
         Invitar al bot
       </a>
     </div>
+
+    <button
+      id="menu-btn"
+      class="flex h-10 w-10 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary md:hidden"
+      aria-label="Abrir menú"
+    >
+      <svg id="menu-icon-open" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="3" y1="6" x2="21" y2="6" />
+        <line x1="3" y1="12" x2="21" y2="12" />
+        <line x1="3" y1="18" x2="21" y2="18" />
+      </svg>
+      <svg id="menu-icon-close" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden">
+        <line x1="18" y1="6" x2="6" y2="18" />
+        <line x1="6" y1="6" x2="18" y2="18" />
+      </svg>
+    </button>
+  </div>
+
+  <div
+    id="mobile-menu"
+    class="fixed inset-0 top-[57px] z-40 flex flex-col items-center gap-6 bg-bg-base px-6 pb-12 pt-8 text-center opacity-0 transition-all duration-300 pointer-events-none md:hidden"
+  >
+    <a href="#features" class="font-heading text-lg font-semibold text-text-primary">
+      Features
+    </a>
+    <a href="#stats" class="font-heading text-lg font-semibold text-text-primary">
+      Estadísticas
+    </a>
+    <a href="#cta" class="font-heading text-lg font-semibold text-text-primary">
+      Comienza
+    </a>
+    <a
+      href="https://discord.com/oauth2/authorize"
+      target="_blank"
+      rel="noopener noreferrer"
+      class="mt-4 w-full max-w-xs rounded-lg bg-blurple px-8 py-3.5 font-heading text-base font-bold text-white transition-colors hover:bg-blurple-hover"
+    >
+      Invitar al bot
+    </a>
   </div>
 </nav>
