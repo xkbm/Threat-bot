@@ -1,0 +1,75 @@
+---
+
+interface Feature {
+  icon: string;
+  title: string;
+  description: string;
+}
+
+const features: Feature[] = [
+  {
+    icon: '🔗',
+    title: 'Análisis de URLs',
+    description:
+      'Escanea enlaces con VirusTotal. Acortadores expandidos, caché RAM+SQLite, detección de phishing y malware.',
+  },
+  {
+    icon: '🖼️',
+    title: 'NSFW en imágenes',
+    description:
+      'SightEngine analiza desnudos, armas, alcohol y contenido ofensivo. Descarga segura con protección SSRF.',
+  },
+  {
+    icon: '📁',
+    title: 'Escaneo de archivos',
+    description:
+      'Archivos adjuntos enviados a VirusTotal. Detección de doble extensión y MIME mismatch.',
+  },
+  {
+    icon: '🛡️',
+    title: 'Auto-análisis',
+    description:
+      'on_message escanea automáticamente URLs, imágenes y adjuntos. Modo silencioso y estricto configurables.',
+  },
+  {
+    icon: '📋',
+    title: 'Whitelist inteligente',
+    description:
+      'Dominios protegidos no removibles. Subdomain matching. Por servidor, con lista por defecto.',
+  },
+  {
+    icon: '⚡',
+    title: 'Anti-spam',
+    description:
+      '30 URLs/hora por usuario, 10s de cooldown. Límite de 5 adjuntos por mensaje. Sin abusos.',
+  },
+];
+---
+
+<section id="features" class="scroll-mt-24 px-6 py-28">
+  <div class="mx-auto max-w-6xl">
+    <div class="mx-auto mb-16 max-w-2xl text-center">
+      <h2 class="font-heading text-3xl font-bold text-text-primary md:text-4xl">
+        Todo lo que necesitas para proteger tu servidor
+      </h2>
+      <p class="mt-4 text-text-secondary">
+        Amenazas en tiempo real, múltiples APIs, caché inteligente y control total por servidor.
+      </p>
+    </div>
+    <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      {
+        features.map((f) => (
+          <div class="group rounded-xl border border-border-subtle bg-bg-surface p-6 transition-all hover:border-border-strong hover:bg-bg-elevated">
+            <div
+              class="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-blurple/10 text-xl"
+            >
+              {f.icon}
+            </div>
+            <h3 class="mb-2 font-heading text-lg font-semibold text-text-primary">{f.title}</h3>
+            <p class="text-sm leading-relaxed text-text-muted">{f.description}</p>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</section>

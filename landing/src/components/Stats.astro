@@ -1,0 +1,39 @@
+---
+
+const stats = [
+  { label: 'Servidores activos', value: '1,200+' },
+  { label: 'Amenazas bloqueadas', value: '84,500+' },
+  { label: 'URLs analizadas', value: '320K+' },
+  { label: 'Archivos escaneados', value: '45K+' },
+];
+
+const icons = ['🛡️', '🚫', '🔗', '📁'];
+---
+
+<section id="stats" class="scroll-mt-24 px-6 py-28">
+  <div class="mx-auto max-w-6xl">
+    <div class="mx-auto mb-16 max-w-2xl text-center">
+      <h2 class="font-heading text-3xl font-bold text-text-primary md:text-4xl">
+        Protegiendo comunidades en tiempo real
+      </h2>
+      <p class="mt-4 text-text-secondary">
+        Cada día más servidores confían en Threat-bot para mantener a salvo a sus miembros.
+      </p>
+    </div>
+    <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      {
+        stats.map((s, i) => (
+          <div
+            class="rounded-xl border border-border-subtle bg-bg-surface p-8 text-center transition-all hover:border-blurple/30"
+          >
+            <div class="mb-3 text-3xl">{icons[i]}</div>
+            <div class="font-heading text-3xl font-bold text-text-primary">
+              {s.value}
+            </div>
+            <div class="mt-1 text-sm text-text-muted">{s.label}</div>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</section>
