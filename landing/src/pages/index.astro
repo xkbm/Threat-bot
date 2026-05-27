@@ -119,14 +119,14 @@ const steps = [
   }
   </script>
   <!-- HERO -->
-  <section class="hero-gradient relative flex min-h-screen items-center justify-center px-6 pt-16" style="background-size: 400% 400%; animation: gradient-shift 8s ease infinite;">
+  <section class="hero-gradient relative flex min-h-screen items-center justify-center px-6 pt-20 sm:pt-24" style="background-size: 400% 400%; animation: gradient-shift 8s ease infinite;">
     <div class="pointer-events-none absolute inset-0 overflow-hidden">
       <div class="absolute left-1/4 top-1/4 h-72 w-72 rounded-full bg-discord opacity-[0.08] blur-[120px] animate-float"></div>
       <div class="absolute right-1/4 bottom-1/4 h-96 w-96 rounded-full bg-discord opacity-[0.05] blur-[150px] animate-float-delayed"></div>
     </div>
 
-    <div class="relative z-10 mx-auto max-w-6xl w-full pb-16 sm:pb-24 px-6">
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+    <div class="relative z-10 mx-auto max-w-6xl w-full pb-16 sm:pb-24">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16 items-start lg:items-center">
         <!-- Left column: title + description + CTA -->
         <div class="text-left">
           <h1 class="mb-6 text-5xl font-black leading-none tracking-tight text-white sm:text-6xl md:text-7xl lg:text-8xl">
@@ -159,13 +159,13 @@ const steps = [
               <div>
                 <span class="usuario-1 text-sm font-medium text-surface-200">Alex</span>
                 <span class="mx-1.5 text-surface-600">—</span>
-                <span class="text-sm text-surface-300">¿Alguien tiene el link del nuevo asset?</span>
+                <span class="msg-u1 text-sm text-surface-300">¿Alguien tiene el link del nuevo asset?</span>
               </div>
 
               <div>
                 <span class="usuario-2 text-sm font-medium text-surface-200">María</span>
                 <span class="mx-1.5 text-surface-600">—</span>
-                <span class="text-sm text-surface-300">creo que sí, te lo paso</span>
+                <span class="msg-u2 text-sm text-surface-300">creo que sí, te lo paso</span>
               </div>
 
               <div id="chat-sent" class="opacity-0">
@@ -235,6 +235,15 @@ const steps = [
             'https://free-bitcoin.tk/claim',
           ];
           const deteccionesArr = [2, 3, 4, 5, 7, 8, 11];
+          const conversaciones = [
+            { u1: '¿Alguien tiene el link del nuevo asset?', u2: 'creo que sí, te lo paso' },
+            { u1: 'Mira lo que encontré', u2: '¿qué es eso?' },
+            { u1: '¿Es seguro este link?', u2: 'ni idea, pásalo' },
+            { u1: 'Necesito ayuda con un archivo', u2: 'tíralo aquí' },
+            { u1: 'Oye, te paso un enlace', u2: 'dale, mándalo' },
+            { u1: 'Alguien sabe si esto es seguro?', u2: 'uuh, pásalo a ver' },
+            { u1: 'Mira esto que me llegó al DM', u2: 'wtf mándalo al general' },
+          ];
 
           function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
           function randDifferent(arr, exclude) {
@@ -243,6 +252,7 @@ const steps = [
             return v;
           }
 
+          const conv = rand(conversaciones);
           const u1 = rand(usuarios);
           const u2 = randDifferent(usuarios, u1);
           const um = rand(usuariosMal);
@@ -251,6 +261,8 @@ const steps = [
 
           document.querySelector('.usuario-1').textContent = u1;
           document.querySelector('.usuario-2').textContent = u2;
+          document.querySelector('.msg-u1').textContent = conv.u1;
+          document.querySelector('.msg-u2').textContent = conv.u2;
           document.querySelector('.usuario-mal').textContent = um;
           document.querySelector('.chat-url-text').textContent = url;
           document.querySelector('.chat-url').textContent = url;
@@ -348,8 +360,8 @@ const steps = [
         </p>
       </div>
 
-      <div class="relative grid gap-8 md:grid-cols-4">
-        <div class="absolute left-0 right-0 top-1/2 hidden h-0.5 bg-gradient-to-r from-discord/0 via-discord/40 to-discord/0 md:block"></div>
+      <div class="relative grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="absolute left-0 right-0 top-1/2 hidden h-0.5 bg-gradient-to-r from-discord/0 via-discord/40 to-discord/0 lg:block"></div>
         {
           steps.map((step, i) => (
             <div class="relative flex flex-col items-center text-center">
