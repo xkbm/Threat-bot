@@ -1,0 +1,55 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Política de Privacidad — Threat">
+  <section class="mx-auto max-w-3xl px-6 pt-32 pb-24">
+    <h1 class="mb-8 text-4xl font-bold tracking-tight md:text-5xl">
+      Política de <span class="gradient-text">Privacidad</span>
+    </h1>
+
+    <div class="space-y-6 text-surface-300 leading-relaxed">
+      <p><strong class="text-white">Última actualización:</strong> Mayo 2026</p>
+
+      <h2 class="text-xl font-semibold text-white">1. Datos que recopilamos</h2>
+      <p>Threat procesa los siguientes datos para proveer el servicio de seguridad:</p>
+      <ul class="list-disc pl-6 space-y-2">
+        <li><strong class="text-surface-200">URLs y enlaces</strong> enviados en mensajes, para análisis de amenazas vía VirusTotal.</li>
+        <li><strong class="text-surface-200">Archivos adjuntos</strong> (imágenes, documentos) para detección NSFW y de malware.</li>
+        <li><strong class="text-surface-200">ID de servidor, canales y usuarios</strong> necesarios para la configuración del bot.</li>
+        <li><strong class="text-surface-200">Hashes SHA-256</strong> de archivos analizados, para caché y evitar reanálisis.</li>
+      </ul>
+
+      <h2 class="text-xl font-semibold text-white">2. Almacenamiento</h2>
+      <p>Los datos se almacenan localmente en:</p>
+      <ul class="list-disc pl-6 space-y-2">
+        <li><strong class="text-surface-200">SQLite</strong> — caché de análisis. URLs/IPs: 7 días. Hashes/NSFW: 30 días.</li>
+        <li><strong class="text-surface-200">JSON</strong> — configuración de servidores (canal de logs, whitelist, modos). Persistente hasta que el usuario lo modifique o el bot sea eliminado del servidor.</li>
+        <li><strong class="text-surface-200">RAM</strong> — caché temporal con expiración de 1 hora (máximo 100,000 entradas).</li>
+      </ul>
+
+      <h2 class="text-xl font-semibold text-white">3. Servicios de terceros</h2>
+      <p>Threat utiliza APIs externas para el análisis de contenido:</p>
+      <ul class="list-disc pl-6 space-y-2">
+        <li><strong class="text-surface-200">VirusTotal</strong> — análisis de URLs y archivos. Su <a href="https://support.virustotal.com/hc/en-us/articles/115002168385-Privacy-Policy" class="text-discord-light hover:underline" target="_blank" rel="noopener">política de privacidad</a> aplica a los datos enviados.</li>
+        <li><strong class="text-surface-200">SightEngine</strong> — detección NSFW en imágenes.</li>
+        <li><strong class="text-surface-200">Discord</strong> — el bot opera dentro de la plataforma de Discord. Su <a href="https://discord.com/privacy" class="text-discord-light hover:underline" target="_blank" rel="noopener">política de privacidad</a> aplica a la interacción con el bot.</li>
+      </ul>
+
+      <h2 class="text-xl font-semibold text-white">4. Retención y eliminación</h2>
+      <p>Los datos de caché expiran automáticamente según los plazos indicados. Al eliminar Threat de un servidor, la configuración de ese servidor se elimina inmediatamente. Los datos de análisis en caché permanecen hasta su expiración natural.</p>
+
+      <h2 class="text-xl font-semibold text-white">5. Tus derechos</h2>
+      <p>Como usuario, tienes derecho a:</p>
+      <ul class="list-disc pl-6 space-y-2">
+        <li>Solicitar información sobre los datos almacenados relacionados con tu usuario.</li>
+        <li>Solicitar la eliminación de tus datos de la caché.</li>
+        <li>Eliminar Threat de tu servidor, lo que borra la configuración asociada.</li>
+      </ul>
+      <p>Para ejercer estos derechos, contacta a imsh4d0w_ a través de Discord.</p>
+
+      <h2 class="text-xl font-semibold text-white">6. Contacto</h2>
+      <p>Si tienes preguntas sobre esta política de privacidad, puedes contactar a imsh4d0w_ mediante un mensaje directo en Discord.</p>
+    </div>
+  </section>
+</BaseLayout>

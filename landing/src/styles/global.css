@@ -147,3 +147,67 @@ body {
   border-color: var(--color-discord);
   box-shadow: 0 8px 32px color-mix(in srgb, var(--color-discord) 20%, transparent);
 }
+
+.scroll-reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+}
+
+.scroll-reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+.faq-details {
+  border-bottom: 1px solid var(--color-surface-700);
+}
+
+.faq-details summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 0;
+  font-weight: 600;
+  color: var(--color-surface-100);
+  transition: color 0.2s;
+}
+
+.faq-details summary:hover {
+  color: white;
+}
+
+.faq-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.faq-details summary i {
+  font-size: 0.875rem;
+  transition: transform 0.3s;
+  color: var(--color-surface-500);
+}
+
+.faq-details[open] summary i {
+  transform: rotate(45deg);
+}
+
+.faq-details[open] .faq-answer {
+  padding-bottom: 1.25rem;
+  color: var(--color-surface-400);
+  font-size: 0.875rem;
+  line-height: 1.7;
+}

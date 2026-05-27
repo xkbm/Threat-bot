@@ -19,8 +19,8 @@ const features = [
   },
   {
     icon: 'las la-sync-alt',
-    title: 'Multi-API Key',
-    description: 'Hasta 3 claves rotativas por servicio (VirusTotal + SightEngine). Sin interrupciones por límite de cuota.',
+    title: 'Balanceo Automático',
+    description: 'Distribución inteligente de solicitudes entre múltiples servicios. Sin interrupciones por límite de cuota.',
   },
   {
     icon: 'las la-database',
@@ -222,14 +222,14 @@ const steps = [
   </section>
 
   <!-- FEATURES -->
-  <section id="features" class="relative border-t border-surface-800 bg-surface-900 px-6 py-16 sm:py-24">
+  <section id="features" class="scroll-reveal relative border-t border-surface-800 bg-surface-900 px-6 py-16 sm:py-24">
     <div class="mx-auto max-w-6xl">
       <div class="mb-16 text-center">
         <h2 class="mb-4 text-4xl font-bold tracking-tight md:text-5xl">
           ¿Por qué <span class="gradient-text">Threat</span>?
         </h2>
         <p class="mx-auto max-w-2xl text-surface-400">
-          Protección integral contra amenazas con análisis multicapa, caché inteligente y rotación de APIs.
+          Protección integral contra amenazas con análisis multicapa, caché inteligente y alta disponibilidad.
         </p>
       </div>
 
@@ -250,7 +250,7 @@ const steps = [
   </section>
 
   <!-- HOW IT WORKS -->
-  <section id="how-it-works" class="relative border-t border-surface-800 bg-surface-850 px-6 py-16 sm:py-24">
+  <section id="how-it-works" class="scroll-reveal relative border-t border-surface-800 bg-surface-850 px-6 py-16 sm:py-24">
     <div class="mx-auto max-w-6xl">
       <div class="mb-16 text-center">
         <h2 class="mb-4 text-4xl font-bold tracking-tight md:text-5xl">
@@ -280,7 +280,7 @@ const steps = [
   </section>
 
   <!-- COMMANDS -->
-  <section id="commands" class="relative border-t border-surface-800 bg-surface-900 px-6 py-16 sm:py-24">
+  <section id="commands" class="scroll-reveal relative border-t border-surface-800 bg-surface-900 px-6 py-16 sm:py-24">
     <div class="mx-auto max-w-6xl">
       <div class="mb-16 text-center">
         <h2 class="mb-4 text-4xl font-bold tracking-tight md:text-5xl">
@@ -311,8 +311,69 @@ const steps = [
     </div>
   </section>
 
+  <!-- FAQ -->
+  <section id="faq" class="scroll-reveal relative border-t border-surface-800 bg-surface-850 px-6 py-16 sm:py-24">
+    <div class="mx-auto max-w-3xl">
+      <div class="mb-12 text-center">
+        <h2 class="mb-4 text-4xl font-bold tracking-tight md:text-5xl">
+          Preguntas <span class="gradient-text">frecuentes</span>
+        </h2>
+      </div>
+
+      <div class="faq-details">
+        <summary>
+          ¿Qué tipo de amenazas detecta Threat?
+          <i class="las la-plus"></i>
+        </summary>
+        <div class="faq-answer">
+          Threat analiza URLs maliciosas (malware, phishing) mediante VirusTotal, detecta contenido NSFW (desnudos, armas, alcohol, ofensivo) con SightEngine, y previene spam con límites inteligentes por usuario.
+        </div>
+      </div>
+
+      <div class="faq-details">
+        <summary>
+          ¿Cómo configuro el bot en mi servidor?
+          <i class="las la-plus"></i>
+        </summary>
+        <div class="faq-answer">
+          Invita al bot con el enlace de arriba, usa <code class="font-mono text-discord-light">/setlogchannel</code> para configurar el canal de logs, y opcionalmente <code class="font-mono text-discord-light">/silentmode</code> o <code class="font-mono text-discord-light">/strictmode</code> según tus necesidades.
+        </div>
+      </div>
+
+      <div class="faq-details">
+        <summary>
+          ¿Threat guarda mis datos personales?
+          <i class="las la-plus"></i>
+        </summary>
+        <div class="faq-answer">
+          Solo almacenamos datos necesarios para el funcionamiento: configuración del servidor y caché temporal de análisis. No almacenamos mensajes completos, información personal ni contenido de conversaciones. Consulta nuestra <a href="/privacidad" class="text-discord-light hover:underline">Política de Privacidad</a> para más detalles.
+        </div>
+      </div>
+
+      <div class="faq-details">
+        <summary>
+          ¿Cuánto cuesta usar Threat?
+          <i class="las la-plus"></i>
+        </summary>
+        <div class="faq-answer">
+          Threat es completamente gratuito. El mantenimiento se financia mediante optimización de caché y consumo eficiente de APIs gratuitas.
+        </div>
+      </div>
+
+      <div class="faq-details">
+        <summary>
+          ¿Qué hago si el bot marca un falso positivo?
+          <i class="las la-plus"></i>
+        </summary>
+        <div class="faq-answer">
+          Puedes agregar el dominio a la whitelist con <code class="font-mono text-discord-light">/whitelist add</code>. Si consideras que es un error recurrente, contacta a <strong class="text-surface-100">imsh4d0w_</strong> para revisar el caso.
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- CTA -->
-  <section class="relative overflow-hidden border-t border-surface-800 bg-surface-900 px-6 py-16 sm:py-24">
+  <section class="scroll-reveal relative overflow-hidden border-t border-surface-800 bg-surface-900 px-6 py-16 sm:py-24">
     <div class="pointer-events-none absolute inset-0">
       <div class="absolute left-1/2 top-1/2 h-80 w-80 -translate-x-1/2 -translate-y-1/2 rounded-full bg-discord opacity-[0.06] blur-[120px]"></div>
     </div>
@@ -330,3 +391,23 @@ const steps = [
     </div>
   </section>
 </BaseLayout>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-visible');
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+
+    document.querySelectorAll('.scroll-reveal').forEach((el) => {
+      observer.observe(el);
+    });
+  });
+</script>
