@@ -102,8 +102,16 @@ class InfoCog(commands.Cog):
             inline=False
         )
 
+        view = discord.ui.View()
+        view.add_item(discord.ui.Button(
+            style=discord.ButtonStyle.link,
+            url="https://threat-bot-discord.vercel.app",
+            label="Sitio Web",
+            emoji=self.bot.EMOJI_LINK
+        ))
+
         try:
-            await interaction.edit_original_response(embed=embed)
+            await interaction.edit_original_response(embed=embed, view=view)
         except discord.errors.NotFound:
             pass
 
