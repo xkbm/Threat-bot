@@ -33,15 +33,55 @@ const { title = 'Threat — Seguridad Inteligente para Discord', description = '
   </head>
   <body class="bg-surface-900 text-surface-100 font-sans antialiased">
     <header class="fixed top-0 left-0 right-0 z-50 glass">
-      <nav class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+      <nav class="mx-auto flex max-w-6xl items-center justify-between px-4 sm:px-6 py-4">
         <a href="/" class="text-lg font-bold tracking-tight text-white">Threat</a>
-        <div class="flex items-center gap-4 sm:gap-6 text-sm text-surface-300">
+
+        <div class="hidden sm:flex items-center gap-6 text-sm text-surface-300">
           <a href="#features" class="transition-colors hover:text-white">Características</a>
           <a href="#how-it-works" class="transition-colors hover:text-white">Cómo funciona</a>
           <a href="#commands" class="transition-colors hover:text-white">Comandos</a>
         </div>
+
+        <button id="menu-btn" class="sm:hidden flex items-center justify-center w-8 h-8 text-surface-300 hover:text-white transition-colors" aria-label="Menú">
+          <i id="menu-icon" class="las la-bars text-xl"></i>
+        </button>
       </nav>
+
+      <div id="mobile-menu" class="sm:hidden max-h-0 opacity-0 overflow-hidden transition-all duration-300 ease-out">
+        <div class="border-t border-surface-700 px-4 py-3 flex flex-col gap-3 text-sm text-surface-300 bg-surface-850/95 backdrop-blur-lg">
+          <a href="#features" class="menu-link block transition-colors hover:text-white py-1.5">Características</a>
+          <a href="#how-it-works" class="menu-link block transition-colors hover:text-white py-1.5">Cómo funciona</a>
+          <a href="#commands" class="menu-link block transition-colors hover:text-white py-1.5">Comandos</a>
+        </div>
+      </div>
     </header>
+
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        const btn = document.getElementById('menu-btn');
+        const menu = document.getElementById('mobile-menu');
+        const icon = document.getElementById('menu-icon');
+
+        if (!btn || !menu || !icon) return;
+
+        btn.addEventListener('click', () => {
+          const isClosed = menu.classList.contains('max-h-0');
+          menu.classList.toggle('max-h-0');
+          menu.classList.toggle('opacity-0');
+          menu.classList.toggle('opacity-100');
+          menu.classList.toggle('max-h-48', isClosed);
+          icon.className = isClosed ? 'las la-times text-xl' : 'las la-bars text-xl';
+        });
+
+        document.querySelectorAll('.menu-link').forEach((link) => {
+          link.addEventListener('click', () => {
+            menu.classList.add('max-h-0', 'opacity-0');
+            menu.classList.remove('opacity-100', 'max-h-48');
+            icon.className = 'las la-bars text-xl';
+          });
+        });
+      });
+    </script>
 
     <main>
       <slot />
