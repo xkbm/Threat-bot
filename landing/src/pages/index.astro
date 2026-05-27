@@ -70,6 +70,54 @@ const steps = [
 ---
 
 <BaseLayout>
+  <script type="application/ld+json" slot="faq">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "¿Qué tipo de amenazas detecta Threat?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Threat analiza URLs maliciosas (malware, phishing) mediante VirusTotal, detecta contenido NSFW (desnudos, armas, alcohol, ofensivo) con SightEngine, y previene spam con límites inteligentes por usuario."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "¿Cómo configuro el bot en mi servidor?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Invita al bot con el enlace en la página, usa /setlogchannel para configurar el canal de logs, y opcionalmente /silentmode o /strictmode según tus necesidades."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "¿Threat guarda mis datos personales?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Solo almacenamos datos necesarios para el funcionamiento: configuración del servidor y caché temporal de análisis. No almacenamos mensajes completos, información personal ni contenido de conversaciones."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "¿Cuánto cuesta usar Threat?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Threat es completamente gratuito. El mantenimiento se financia mediante optimización de caché y consumo eficiente de APIs gratuitas."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "¿Qué hago si el bot marca un falso positivo?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Puedes agregar el dominio a la whitelist con /whitelist add. Si consideras que es un error recurrente, contacta al desarrollador para revisar el caso."
+        }
+      }
+    ]
+  }
+  </script>
   <!-- HERO -->
   <section class="hero-gradient relative flex min-h-screen items-center justify-center px-6 pt-16" style="background-size: 400% 400%; animation: gradient-shift 8s ease infinite;">
     <div class="pointer-events-none absolute inset-0 overflow-hidden">
@@ -131,7 +179,7 @@ const steps = [
 
               <div class="animate-threat-pulse rounded-lg border-l-4 bg-surface-800 p-3.5" style="border-left-color:#f59e0b">
                 <div class="mb-1 flex items-center gap-1.5">
-                  <span>⚠️</span>
+                  <i class="las la-exclamation-triangle text-orange-400" aria-hidden="true"></i>
                   <span class="text-sm font-semibold text-orange-400">URL Maliciosa Detectada</span>
                 </div>
                 <p class="mb-3 text-xs text-surface-300">
@@ -142,7 +190,7 @@ const steps = [
                   <code class="block truncate rounded bg-surface-700 px-2 py-1 font-mono text-xs text-surface-200">https://malware.com/steal-info</code>
                 </div>
                 <span class="inline-flex items-center gap-1 text-xs text-discord-light">
-                  🔗 Ver informe completo
+                  <i class="las la-external-link-alt" aria-hidden="true"></i> Ver informe completo
                 </span>
               </div>
             </div>
@@ -152,13 +200,13 @@ const steps = [
             <div class="flex items-center gap-2 rounded-lg border border-surface-600 bg-surface-800 px-3 py-2 sm:px-4 sm:py-2.5 text-sm text-surface-500">
               <span id="chat-input-text" class="flex-1 text-surface-500">Escribe un mensaje...</span>
               <span id="chat-input-cursor" class="hidden inline-block h-[1.1em] w-[2px] bg-discord animate-composing-cursor"></span>
-              <i class="las la-paperclip text-base"></i>
+              <i class="las la-paperclip text-base" aria-hidden="true"></i>
             </div>
           </div>
         </div>
       </div>
 
-      <script>
+      <script type="module">
         document.addEventListener('DOMContentLoaded', () => {
           const inputText = document.getElementById('chat-input-text');
           const inputCursor = document.getElementById('chat-input-cursor');
@@ -208,7 +256,7 @@ const steps = [
 
       <div class="flex flex-col items-center justify-center gap-4 sm:flex-row animate-fade-up-delayed">
         <a href="https://discord.com/api/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands" target="_blank" rel="noopener noreferrer" class="group inline-flex items-center gap-2 rounded-xl bg-discord px-8 py-3.5 font-semibold text-white transition-all duration-300 hover:bg-discord-light hover:scale-105 hover:shadow-[0_0_40px_rgba(88,101,242,0.4)]">
-          <i class="las la-plus text-lg"></i>
+          <i class="las la-plus text-lg" aria-hidden="true"></i>
           Invitar al servidor
         </a>
       </div>
@@ -216,7 +264,7 @@ const steps = [
 
     <div class="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
       <a href="#features" class="text-surface-600 transition-colors hover:text-surface-400">
-        <i class="las la-chevron-down text-2xl"></i>
+        <i class="las la-chevron-down text-2xl" aria-hidden="true"></i>
       </a>
     </div>
   </section>
@@ -238,7 +286,7 @@ const steps = [
           features.map((f) => (
             <div class="card-hover group rounded-2xl border border-surface-700 bg-surface-800/50 p-6 transition-all duration-300">
               <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-discord/10 text-2xl text-discord transition-all duration-300 group-hover:bg-discord group-hover:text-white">
-                <i class={f.icon}></i>
+                <i class={f.icon} aria-hidden="true"></i>
               </div>
               <h3 class="mb-2 text-lg font-semibold text-white">{f.title}</h3>
               <p class="text-sm leading-relaxed text-surface-400">{f.description}</p>
@@ -267,7 +315,7 @@ const steps = [
           steps.map((step, i) => (
             <div class="relative flex flex-col items-center text-center">
               <div class="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-surface-600 bg-surface-800 text-2xl text-discord shadow-lg shadow-discord/5">
-                <i class={step.icon}></i>
+                <i class={step.icon} aria-hidden="true"></i>
               </div>
               <span class="mb-2 rounded-full bg-discord/10 px-3 py-0.5 text-xs font-semibold text-discord-light">Paso {i + 1}</span>
               <h3 class="mb-2 text-lg font-semibold text-white">{step.title}</h3>
@@ -297,7 +345,7 @@ const steps = [
             <div class="group rounded-xl border border-surface-700 bg-surface-800 p-4 transition-all duration-300 hover:border-discord/50 hover:shadow-lg hover:shadow-discord/5">
               <div class="flex items-center gap-3">
                 <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-700 text-surface-300 transition-all duration-300 group-hover:bg-discord/20 group-hover:text-discord-light">
-                  <i class={cmd.icon}></i>
+                  <i class={cmd.icon} aria-hidden="true"></i>
                 </div>
                 <div class="min-w-0">
                   <code class="block truncate font-mono text-sm font-medium text-white">{cmd.name}</code>
@@ -323,7 +371,7 @@ const steps = [
       <details class="faq-details">
         <summary>
           ¿Qué tipo de amenazas detecta Threat?
-          <i class="las la-plus"></i>
+          <i class="las la-plus" aria-hidden="true"></i>
         </summary>
         <div class="faq-answer">
           Threat analiza URLs maliciosas (malware, phishing) mediante VirusTotal, detecta contenido NSFW (desnudos, armas, alcohol, ofensivo) con SightEngine, y previene spam con límites inteligentes por usuario.
@@ -333,7 +381,7 @@ const steps = [
       <details class="faq-details">
         <summary>
           ¿Cómo configuro el bot en mi servidor?
-          <i class="las la-plus"></i>
+          <i class="las la-plus" aria-hidden="true"></i>
         </summary>
         <div class="faq-answer">
           Invita al bot con el enlace de arriba, usa <code class="font-mono text-discord-light">/setlogchannel</code> para configurar el canal de logs, y opcionalmente <code class="font-mono text-discord-light">/silentmode</code> o <code class="font-mono text-discord-light">/strictmode</code> según tus necesidades.
@@ -343,7 +391,7 @@ const steps = [
       <details class="faq-details">
         <summary>
           ¿Threat guarda mis datos personales?
-          <i class="las la-plus"></i>
+          <i class="las la-plus" aria-hidden="true"></i>
         </summary>
         <div class="faq-answer">
           Solo almacenamos datos necesarios para el funcionamiento: configuración del servidor y caché temporal de análisis. No almacenamos mensajes completos, información personal ni contenido de conversaciones. Consulta nuestra <a href="/privacidad" class="text-discord-light hover:underline">Política de Privacidad</a> para más detalles.
@@ -353,7 +401,7 @@ const steps = [
       <details class="faq-details">
         <summary>
           ¿Cuánto cuesta usar Threat?
-          <i class="las la-plus"></i>
+          <i class="las la-plus" aria-hidden="true"></i>
         </summary>
         <div class="faq-answer">
           Threat es completamente gratuito. El mantenimiento se financia mediante optimización de caché y consumo eficiente de APIs gratuitas.
@@ -363,7 +411,7 @@ const steps = [
       <details class="faq-details">
         <summary>
           ¿Qué hago si el bot marca un falso positivo?
-          <i class="las la-plus"></i>
+          <i class="las la-plus" aria-hidden="true"></i>
         </summary>
         <div class="faq-answer">
           Puedes agregar el dominio a la whitelist con <code class="font-mono text-discord-light">/whitelist add</code>. Si consideras que es un error recurrente, contacta a <strong class="text-surface-100">imsh4d0w_</strong> para revisar el caso.
@@ -385,14 +433,14 @@ const steps = [
         Amenazas en tiempo real. Análisis multicapa. Configuración simple.
       </p>
       <a href="https://discord.com/api/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands" target="_blank" rel="noopener noreferrer" class="animate-glow inline-flex items-center gap-2 rounded-xl bg-discord px-10 py-4 text-lg font-semibold text-white transition-all duration-300 hover:bg-discord-light hover:scale-105">
-        <i class="las la-plus"></i>
+        <i class="las la-plus" aria-hidden="true"></i>
         Añadir a Discord
       </a>
     </div>
   </section>
 </BaseLayout>
 
-<script>
+<script type="module">
   document.addEventListener('DOMContentLoaded', () => {
     const observer = new IntersectionObserver(
       (entries) => {

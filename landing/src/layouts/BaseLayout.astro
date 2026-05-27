@@ -10,7 +10,7 @@ const { title = 'Threat — Seguridad Inteligente para Discord', description = '
 ---
 
 <!doctype html>
-<html lang="es" class="scroll-smooth">
+<html lang="es" class="scroll-smooth" style="color-scheme: dark;">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -19,6 +19,10 @@ const { title = 'Threat — Seguridad Inteligente para Discord', description = '
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://threat-bot-iota.vercel.app/ogimage.png" />
+    <meta property="og:url" content="https://threat-bot-iota.vercel.app" />
+    <meta property="og:locale" content="es_ES" />
+    <meta name="twitter:card" content="summary_large_image" />
 
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" href="/favicon.ico" />
@@ -27,12 +31,25 @@ const { title = 'Threat — Seguridad Inteligente para Discord', description = '
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
 
-    <link rel="stylesheet" href="https://maxst.icons8.com/vue-static/landings/line-awesome/line-awesome/1.3.0/css/line-awesome.min.css" />
+    <link rel="preload" href="https://maxst.icons8.com/vue-static/landings/line-awesome/line-awesome/1.3.0/css/line-awesome.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link rel="stylesheet" href="https://maxst.icons8.com/vue-static/landings/line-awesome/line-awesome/1.3.0/css/line-awesome.min.css" /></noscript>
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "Threat",
+      "url": "https://threat-bot-iota.vercel.app",
+      "description": "Bot de seguridad para Discord con análisis de URLs, detección NSFW, anti-spam y más.",
+      "logo": "https://threat-bot-iota.vercel.app/ogimage.png"
+    }
+    </script>
 
     <title>{title}</title>
   </head>
   <body class="bg-surface-900 text-surface-100 font-sans antialiased">
-    <header class="fixed top-0 left-0 right-0 z-50 glass">
+    <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+    <header class="fixed top-0 left-0 right-0 z-50 glass" style="padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px);">
       <nav class="mx-auto flex max-w-6xl items-center justify-between px-4 sm:px-6 py-4">
         <a href="/" class="text-lg font-bold tracking-tight text-white">Threat</a>
 
@@ -42,8 +59,8 @@ const { title = 'Threat — Seguridad Inteligente para Discord', description = '
           <a href="#commands" class="transition-colors hover:text-white">Comandos</a>
         </div>
 
-        <button id="menu-btn" class="sm:hidden flex items-center justify-center w-8 h-8 text-surface-300 hover:text-white transition-colors" aria-label="Menú">
-          <i id="menu-icon" class="las la-bars text-xl"></i>
+        <button id="menu-btn" class="sm:hidden flex items-center justify-center w-8 h-8 text-surface-300 hover:text-white transition-colors" aria-label="Menú" aria-expanded="false">
+          <i id="menu-icon" class="las la-bars text-xl" aria-hidden="true"></i>
         </button>
       </nav>
 
@@ -56,7 +73,7 @@ const { title = 'Threat — Seguridad Inteligente para Discord', description = '
       </div>
     </header>
 
-    <script>
+    <script type="module">
       document.addEventListener('DOMContentLoaded', () => {
         const btn = document.getElementById('menu-btn');
         const menu = document.getElementById('mobile-menu');
@@ -71,6 +88,7 @@ const { title = 'Threat — Seguridad Inteligente para Discord', description = '
           menu.classList.toggle('opacity-100');
           menu.classList.toggle('max-h-48', isClosed);
           icon.className = isClosed ? 'las la-times text-xl' : 'las la-bars text-xl';
+          btn.setAttribute('aria-expanded', String(!isClosed));
         });
 
         document.querySelectorAll('.menu-link').forEach((link) => {
@@ -78,12 +96,13 @@ const { title = 'Threat — Seguridad Inteligente para Discord', description = '
             menu.classList.add('max-h-0', 'opacity-0');
             menu.classList.remove('opacity-100', 'max-h-48');
             icon.className = 'las la-bars text-xl';
+            btn.setAttribute('aria-expanded', 'false');
           });
         });
       });
     </script>
 
-    <main>
+    <main id="main-content">
       <slot />
     </main>
 
