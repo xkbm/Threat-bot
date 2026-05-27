@@ -234,7 +234,6 @@ const steps = [
             'https://secure-update.ga/package',
             'https://free-bitcoin.tk/claim',
           ];
-          const deteccionesArr = [2, 3, 4, 5, 7, 8, 11];
           const conversaciones = [
             { u1: '¿Alguien tiene el link del nuevo asset?', u2: 'creo que sí, te lo paso' },
             { u1: 'Mira lo que encontré', u2: '¿qué es eso?' },
@@ -257,7 +256,7 @@ const steps = [
           const u2 = randDifferent(usuarios, u1);
           const um = rand(usuariosMal);
           const url = rand(urls);
-          const det = rand(deteccionesArr);
+          const det = Math.floor(Math.random() * 22) + 3;
 
           document.querySelector('.usuario-1').textContent = u1;
           document.querySelector('.usuario-2').textContent = u2;
