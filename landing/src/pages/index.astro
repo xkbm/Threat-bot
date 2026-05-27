@@ -270,7 +270,7 @@ const steps = [
           const malSpan = document.querySelector('.usuario-mal');
           if (conv.tipo === 'intruso') {
             malSpan.textContent = rand(usuariosMal);
-            malSpan.className = 'usuario-mal text-sm font-medium text-discord-light';
+            malSpan.className = 'usuario-mal text-sm font-medium text-red-400';
           } else {
             malSpan.textContent = conv.tipo === 'u1' ? u1 : u2;
             malSpan.className = 'usuario-mal text-sm font-medium text-surface-200';
