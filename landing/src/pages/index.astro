@@ -48,23 +48,23 @@ const commands = [
 const steps = [
   {
     icon: 'las la-envelope',
-    title: 'Mensaje recibido',
-    desc: 'El bot intercepta cada mensaje en los canales configurados.',
+    title: 'Mensaje activado',
+    desc: 'Cada mensaje nuevo o editado se analiza al instante. Detecta URLs, imágenes y archivos adjuntos. Máximo 5 archivos por mensaje.',
   },
   {
     icon: 'las la-expand-arrows-alt',
-    title: 'Expandir y cachear',
-    desc: 'Acortadores expandidos, cache RAM consultado, SQLite verificado.',
+    title: 'Pre-análisis',
+    desc: 'Whitelist omite dominios conocidos. Anti-spam: 30 URLs/hora con 10s de cooldown. Acortadores expandidos (hasta 5 saltos). Cache RAM + SQLite. Doble extensión y MIME mismatch detectados.',
   },
   {
     icon: 'las la-cloud-upload-alt',
-    title: 'API Scan',
-    desc: 'VirusTotal para URLs/archivos, SightEngine para imágenes NSFW.',
+    title: 'APIs externas',
+    desc: 'VirusTotal (3 claves rotativas, 500 req/día) analiza URLs y archivos. SightEngine (4 modelos: nudity, weapon, alcohol, offensive) escanea imágenes con descarga segura SSRF. Límites: 32MB archivos, 2MB imágenes.',
   },
   {
     icon: 'las la-bell',
-    title: 'Alerta + Log',
-    desc: 'Embed con resultado enviado al canal de logs con acciones (Ban/Kick/Ignore).',
+    title: 'Alerta y acción',
+    desc: 'Embed con nivel de amenaza, confianza y enlace a VT. Log en canal configurable con botones Ban/Kick/Ignore. Modo strict elimina el mensaje. Modo silent silencia respuestas públicas.',
   },
 ];
 ---
@@ -324,7 +324,7 @@ const steps = [
       </script>
     </div>
 
-    <div class="absolute bottom-8 left-1/2 -translate-x-1/2 animate-soft-bounce">
+    <div class="absolute bottom-16 left-1/2 -translate-x-1/2 animate-soft-bounce">
       <a href="#features" class="text-surface-600 transition-colors hover:text-surface-400">
         <i class="las la-chevron-down text-2xl" aria-hidden="true"></i>
       </a>
