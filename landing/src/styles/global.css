@@ -29,6 +29,7 @@
   --animate-typing: typing 3s steps(40) forwards;
   --animate-spin-slow: spin 20s linear infinite;
   --animate-threat-pulse: threat-pulse 3s ease-in-out infinite;
+  --animate-soft-bounce: soft-bounce 2s ease-in-out infinite;
 }
 
 @keyframes gradient-shift {
@@ -77,6 +78,13 @@
 @keyframes typing-dot {
   0%, 60%, 100% { opacity: 0.2; }
   30% { opacity: 1; }
+}
+
+@keyframes soft-bounce {
+  0%, 100% { transform: translateY(0); }
+  25% { transform: translateY(-6px); }
+  50% { transform: translateY(0); }
+  75% { transform: translateY(-3px); }
 }
 
 .animate-slide-up {
