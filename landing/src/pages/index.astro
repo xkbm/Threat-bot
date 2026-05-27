@@ -1,0 +1,332 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const features = [
+  {
+    icon: 'las la-shield-alt',
+    title: 'Análisis de URLs',
+    description: 'Escanea enlaces con VirusTotal. Expande acortadores y detecta malware, phishing y amenazas en tiempo real.',
+  },
+  {
+    icon: 'las la-eye',
+    title: 'Detección NSFW',
+    description: 'SightEngine multi-modelo: detecta desnudos, armas, alcohol y contenido ofensivo con alta precisión.',
+  },
+  {
+    icon: 'las la-ban',
+    title: 'Anti-Spam',
+    description: 'Límite de 30 URLs/hora por usuario, cooldown de 10s entre análisis. Protección proactiva contra abusos.',
+  },
+  {
+    icon: 'las la-sync-alt',
+    title: 'Multi-API Key',
+    description: 'Hasta 3 claves rotativas por servicio (VirusTotal + SightEngine). Sin interrupciones por límite de cuota.',
+  },
+  {
+    icon: 'las la-database',
+    title: 'Cache Inteligente',
+    description: 'RAM + SQLite con expiración automática. URLs 7 días, archivos 30 días. Sin análisis redundantes.',
+  },
+  {
+    icon: 'las la-check-double',
+    title: 'Whitelist Flexible',
+    description: 'Dominios protegidos no removibles. Control granular por servidor. Subdomain matching automático.',
+  },
+];
+
+const commands = [
+  { name: '/scan', desc: 'Analiza un archivo o URL', icon: 'las la-search' },
+  { name: '/silentmode', desc: 'Modo silencioso (sin alerts públicos)', icon: 'las la-volume-mute' },
+  { name: '/strictmode', desc: 'Elimina mensajes sospechosos', icon: 'las la-gavel' },
+  { name: '/setlogchannel', desc: 'Configura canal de logs', icon: 'las la-hashtag' },
+  { name: '/settings', desc: 'Ver configuración del servidor', icon: 'las la-cog' },
+  { name: '/whitelist', desc: 'Gestionar dominios permitidos', icon: 'las la-list' },
+  { name: '/stats', desc: 'Estadísticas del servidor', icon: 'las la-chart-bar' },
+  { name: '/help', desc: 'Lista completa de comandos', icon: 'las la-question-circle' },
+];
+
+const steps = [
+  {
+    icon: 'las la-envelope',
+    title: 'Mensaje recibido',
+    desc: 'El bot intercepta cada mensaje en los canales configurados.',
+  },
+  {
+    icon: 'las la-expand-arrows-alt',
+    title: 'Expandir y cachear',
+    desc: 'Acortadores expandidos, cache RAM consultado, SQLite verificado.',
+  },
+  {
+    icon: 'las la-cloud-upload-alt',
+    title: 'API Scan',
+    desc: 'VirusTotal para URLs/archivos, SightEngine para imágenes NSFW.',
+  },
+  {
+    icon: 'las la-bell',
+    title: 'Alerta + Log',
+    desc: 'Embed con resultado enviado al canal de logs con acciones (Ban/Kick/Ignore).',
+  },
+];
+---
+
+<BaseLayout>
+  <!-- HERO -->
+  <section class="hero-gradient relative flex min-h-screen items-center justify-center overflow-hidden px-6 pt-16" style="background-size: 400% 400%; animation: gradient-shift 8s ease infinite;">
+    <div class="pointer-events-none absolute inset-0">
+      <div class="absolute left-1/4 top-1/4 h-72 w-72 rounded-full bg-discord opacity-[0.08] blur-[120px] animate-float"></div>
+      <div class="absolute right-1/4 bottom-1/4 h-96 w-96 rounded-full bg-discord opacity-[0.05] blur-[150px] animate-float-delayed"></div>
+    </div>
+
+    <div class="relative z-10 mx-auto max-w-4xl text-center pb-24">
+      <h1 class="mb-6 text-6xl font-black leading-none tracking-tight text-white md:text-8xl">
+        Threat
+      </h1>
+
+      <p class="mx-auto mb-8 max-w-2xl text-lg text-surface-400 md:text-xl">
+        Seguridad inteligente para tu servidor de Discord.
+        Análisis de URLs, detección NSFW, anti-spam.
+      </p>
+
+      <div id="chat-mockup" class="mx-auto mb-10 max-w-md text-left">
+        <div class="rounded-2xl border border-surface-700 bg-surface-850 shadow-xl">
+          <div class="border-b border-surface-700 px-3 sm:px-5 py-3">
+            <div class="flex items-center gap-2 text-sm font-semibold text-surface-200">
+              <span class="text-surface-500">#</span> general
+            </div>
+          </div>
+
+          <div class="space-y-4 px-3 sm:px-5 pt-4 pb-0">
+            <div>
+              <span class="text-sm font-medium text-surface-200">Alex</span>
+              <span class="mx-1.5 text-surface-600">—</span>
+              <span class="text-sm text-surface-300">¿Alguien tiene el link del nuevo asset?</span>
+            </div>
+
+            <div>
+              <span class="text-sm font-medium text-surface-200">María</span>
+              <span class="mx-1.5 text-surface-600">—</span>
+              <span class="text-sm text-surface-300">creo que sí, te lo paso</span>
+            </div>
+
+            <div id="chat-sent" class="opacity-0">
+              <span class="text-sm font-medium text-discord-light">h4ck3r_1337</span>
+              <span class="mx-1.5 text-surface-600">—</span>
+              <span class="break-all text-sm text-surface-100">https://malware.com/steal-info</span>
+            </div>
+
+            <div id="chat-typing" class="opacity-0 transition-opacity duration-300">
+              <div class="flex items-center gap-1.5 text-sm text-surface-500">
+                <span class="flex h-1 w-1 rounded-full bg-surface-500 animate-[typing-dot_1.4s_infinite]"></span>
+                <span class="flex h-1 w-1 rounded-full bg-surface-500 animate-[typing-dot_1.4s_infinite_0.2s]"></span>
+                <span class="flex h-1 w-1 rounded-full bg-surface-500 animate-[typing-dot_1.4s_infinite_0.4s]"></span>
+                <span class="ml-1 text-xs">Threat está escribiendo</span>
+              </div>
+            </div>
+
+            <div id="chat-bot-response" class="opacity-0">
+              <div class="mb-1 flex items-center gap-2">
+                <span class="text-sm font-medium text-white">Threat</span>
+                <span class="rounded bg-discord px-1.5 py-[1px] text-[9px] font-semibold leading-normal text-white">BOT</span>
+              </div>
+
+              <div class="animate-threat-pulse rounded-lg border-l-4 bg-surface-800 p-3.5" style="border-left-color:#f59e0b">
+                <div class="mb-1 flex items-center gap-1.5">
+                  <span>⚠️</span>
+                  <span class="text-sm font-semibold text-orange-400">URL Maliciosa Detectada</span>
+                </div>
+                <p class="mb-3 text-xs text-surface-300">
+                  Se encontraron <strong class="text-surface-100">3</strong> detecciones
+                </p>
+                <div class="mb-2">
+                  <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-surface-500">URL</div>
+                  <code class="block truncate rounded bg-surface-700 px-2 py-1 font-mono text-xs text-surface-200">https://malware.com/steal-info</code>
+                </div>
+                <span class="inline-flex items-center gap-1 text-xs text-discord-light">
+                  🔗 Ver informe completo
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-5 border-t border-surface-700 px-3 sm:px-5 py-3">
+            <div class="flex items-center gap-2 rounded-lg border border-surface-600 bg-surface-800 px-3 py-2 sm:px-4 sm:py-2.5 text-sm text-surface-500">
+              <span id="chat-input-text" class="flex-1 text-surface-500">Escribe un mensaje...</span>
+              <span id="chat-input-cursor" class="hidden inline-block h-[1.1em] w-[2px] bg-discord animate-composing-cursor"></span>
+              <i class="las la-paperclip text-base"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <script>
+        document.addEventListener('DOMContentLoaded', () => {
+          const inputText = document.getElementById('chat-input-text');
+          const inputCursor = document.getElementById('chat-input-cursor');
+          const sentMsg = document.getElementById('chat-sent');
+          const typingInd = document.getElementById('chat-typing');
+          const botResponse = document.getElementById('chat-bot-response');
+
+          const url = 'https://malware.com/steal-info';
+
+          setTimeout(() => {
+            inputText.classList.remove('text-surface-500');
+            inputText.classList.add('text-surface-100');
+            inputText.textContent = '';
+            inputCursor.classList.remove('hidden');
+
+            let i = 0;
+            const interval = setInterval(() => {
+              inputText.textContent = url.slice(0, i + 1);
+              i++;
+              if (i >= url.length) {
+                clearInterval(interval);
+                inputText.textContent = url;
+                inputCursor.classList.add('hidden');
+                inputText.classList.remove('text-surface-100');
+                inputText.classList.add('text-surface-500');
+                inputText.textContent = 'Escribe un mensaje...';
+
+                setTimeout(() => {
+                  sentMsg.classList.remove('opacity-0');
+                  sentMsg.classList.add('animate-slide-up');
+
+                  setTimeout(() => {
+                    typingInd.classList.remove('opacity-0');
+
+                    setTimeout(() => {
+                      typingInd.classList.add('opacity-0');
+                      botResponse.classList.remove('opacity-0');
+                      botResponse.classList.add('animate-slide-up');
+                    }, 800);
+                  }, 500);
+                }, 500);
+              }
+            }, 55);
+          }, 1000);
+        });
+      </script>
+
+      <div class="flex flex-col items-center justify-center gap-4 sm:flex-row animate-fade-up-delayed">
+        <a href="https://discord.com/api/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands" target="_blank" rel="noopener noreferrer" class="group inline-flex items-center gap-2 rounded-xl bg-discord px-8 py-3.5 font-semibold text-white transition-all duration-300 hover:bg-discord-light hover:scale-105 hover:shadow-[0_0_40px_rgba(88,101,242,0.4)]">
+          <i class="las la-plus text-lg"></i>
+          Invitar al servidor
+        </a>
+      </div>
+    </div>
+
+    <div class="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
+      <a href="#features" class="text-surface-600 transition-colors hover:text-surface-400">
+        <i class="las la-chevron-down text-2xl"></i>
+      </a>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section id="features" class="relative border-t border-surface-800 bg-surface-900 px-6 py-16 sm:py-24">
+    <div class="mx-auto max-w-6xl">
+      <div class="mb-16 text-center">
+        <h2 class="mb-4 text-4xl font-bold tracking-tight md:text-5xl">
+          ¿Por qué <span class="gradient-text">Threat</span>?
+        </h2>
+        <p class="mx-auto max-w-2xl text-surface-400">
+          Protección integral contra amenazas con análisis multicapa, caché inteligente y rotación de APIs.
+        </p>
+      </div>
+
+      <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {
+          features.map((f) => (
+            <div class="card-hover group rounded-2xl border border-surface-700 bg-surface-800/50 p-6 transition-all duration-300">
+              <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-discord/10 text-2xl text-discord transition-all duration-300 group-hover:bg-discord group-hover:text-white">
+                <i class={f.icon}></i>
+              </div>
+              <h3 class="mb-2 text-lg font-semibold text-white">{f.title}</h3>
+              <p class="text-sm leading-relaxed text-surface-400">{f.description}</p>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section id="how-it-works" class="relative border-t border-surface-800 bg-surface-850 px-6 py-16 sm:py-24">
+    <div class="mx-auto max-w-6xl">
+      <div class="mb-16 text-center">
+        <h2 class="mb-4 text-4xl font-bold tracking-tight md:text-5xl">
+          ¿Cómo <span class="gradient-text">funciona</span>?
+        </h2>
+        <p class="mx-auto max-w-2xl text-surface-400">
+          Pipeline de análisis automático en cada mensaje.
+        </p>
+      </div>
+
+      <div class="relative grid gap-8 md:grid-cols-4">
+        <div class="absolute left-0 right-0 top-1/2 hidden h-0.5 bg-gradient-to-r from-discord/0 via-discord/40 to-discord/0 md:block"></div>
+        {
+          steps.map((step, i) => (
+            <div class="relative flex flex-col items-center text-center">
+              <div class="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-surface-600 bg-surface-800 text-2xl text-discord shadow-lg shadow-discord/5">
+                <i class={step.icon}></i>
+              </div>
+              <span class="mb-2 rounded-full bg-discord/10 px-3 py-0.5 text-xs font-semibold text-discord-light">Paso {i + 1}</span>
+              <h3 class="mb-2 text-lg font-semibold text-white">{step.title}</h3>
+              <p class="text-sm text-surface-400">{step.desc}</p>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <!-- COMMANDS -->
+  <section id="commands" class="relative border-t border-surface-800 bg-surface-900 px-6 py-16 sm:py-24">
+    <div class="mx-auto max-w-6xl">
+      <div class="mb-16 text-center">
+        <h2 class="mb-4 text-4xl font-bold tracking-tight md:text-5xl">
+          Comandos <span class="gradient-text">disponibles</span>
+        </h2>
+        <p class="mx-auto max-w-2xl text-surface-400">
+          Slash commands diseñados para una administración rápida e intuitiva.
+        </p>
+      </div>
+
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {
+          commands.map((cmd) => (
+            <div class="group rounded-xl border border-surface-700 bg-surface-800 p-4 transition-all duration-300 hover:border-discord/50 hover:shadow-lg hover:shadow-discord/5">
+              <div class="flex items-center gap-3">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-700 text-surface-300 transition-all duration-300 group-hover:bg-discord/20 group-hover:text-discord-light">
+                  <i class={cmd.icon}></i>
+                </div>
+                <div class="min-w-0">
+                  <code class="block truncate font-mono text-sm font-medium text-white">{cmd.name}</code>
+                  <span class="text-xs text-surface-500">{cmd.desc}</span>
+                </div>
+              </div>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="relative overflow-hidden border-t border-surface-800 bg-surface-900 px-6 py-16 sm:py-24">
+    <div class="pointer-events-none absolute inset-0">
+      <div class="absolute left-1/2 top-1/2 h-80 w-80 -translate-x-1/2 -translate-y-1/2 rounded-full bg-discord opacity-[0.06] blur-[120px]"></div>
+    </div>
+    <div class="relative z-10 mx-auto max-w-3xl text-center">
+      <h2 class="mb-6 text-4xl font-bold tracking-tight md:text-5xl">
+        Protege tu servidor <span class="gradient-text">ahora</span>
+      </h2>
+      <p class="mb-10 text-surface-400">
+        Amenazas en tiempo real. Análisis multicapa. Configuración simple.
+      </p>
+      <a href="https://discord.com/api/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands" target="_blank" rel="noopener noreferrer" class="animate-glow inline-flex items-center gap-2 rounded-xl bg-discord px-10 py-4 text-lg font-semibold text-white transition-all duration-300 hover:bg-discord-light hover:scale-105">
+        <i class="las la-plus"></i>
+        Añadir a Discord
+      </a>
+    </div>
+  </section>
+</BaseLayout>

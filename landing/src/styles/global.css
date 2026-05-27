@@ -1,0 +1,149 @@
+@import "tailwindcss";
+
+@theme {
+  --color-discord: #5865F2;
+  --color-discord-light: #7983f5;
+  --color-discord-dark: #4752c4;
+  --color-surface-50: #fafafa;
+  --color-surface-100: #f5f5f5;
+  --color-surface-200: #e5e5e5;
+  --color-surface-300: #d4d4d4;
+  --color-surface-400: #a3a3a3;
+  --color-surface-500: #737373;
+  --color-surface-600: #525252;
+  --color-surface-700: #2a2a2a;
+  --color-surface-800: #1a1a1a;
+  --color-surface-850: #111111;
+  --color-surface-900: #0a0a0a;
+
+  --font-family-sans: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+  --font-family-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  --animate-gradient: gradient-shift 8s ease infinite;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-float-delayed: float 6s ease-in-out 2s infinite;
+  --animate-glow: glow-pulse 2s ease-in-out infinite;
+  --animate-fade-up: fade-up 0.6s ease-out forwards;
+  --animate-fade-up-delayed: fade-up 0.6s ease-out 0.2s forwards;
+  --animate-blink: blink 1s step-end infinite;
+  --animate-typing: typing 3s steps(40) forwards;
+  --animate-spin-slow: spin 20s linear infinite;
+  --animate-threat-pulse: threat-pulse 3s ease-in-out infinite;
+}
+
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-12px); }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 20px color-mix(in srgb, var(--color-discord) 30%, transparent); }
+  50% { box-shadow: 0 0 50px color-mix(in srgb, var(--color-discord) 50%, transparent); }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes typing {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+@keyframes blink {
+  50% { border-color: transparent; }
+}
+
+@keyframes threat-pulse {
+  0%, 100% { border-color: #f59e0b; }
+  50% { border-color: #ef4444; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes composing-cursor {
+  50% { border-color: transparent; }
+}
+
+@keyframes typing-dot {
+  0%, 60%, 100% { opacity: 0.2; }
+  30% { opacity: 1; }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.5s ease-out forwards;
+}
+
+.animate-composing-cursor {
+  animation: composing-cursor 0.8s step-end infinite;
+}
+
+html {
+  scroll-behavior: smooth;
+  background-color: var(--color-surface-900);
+  color: var(--color-surface-100);
+}
+
+body {
+  min-height: 100vh;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-surface-900);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-surface-600);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-surface-500);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-discord) 40%, transparent);
+  color: white;
+}
+
+.glass {
+  background: rgba(17, 17, 17, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--color-surface-700);
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, #ffffff 0%, var(--color-discord-light) 50%, var(--color-discord) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero-gradient {
+  background: linear-gradient(135deg, var(--color-surface-900) 0%, var(--color-surface-850) 25%, color-mix(in srgb, var(--color-discord) 15%, var(--color-surface-900)) 50%, var(--color-surface-850) 75%, var(--color-surface-900) 100%);
+  background-size: 400% 400%;
+}
+
+.card-hover {
+  transition: all 0.3s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-4px);
+  border-color: var(--color-discord);
+  box-shadow: 0 8px 32px color-mix(in srgb, var(--color-discord) 20%, transparent);
+}
