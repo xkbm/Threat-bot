@@ -169,7 +169,7 @@ const steps = [
               </div>
 
               <div id="chat-sent" class="opacity-0">
-                <span class="usuario-mal text-sm font-medium text-discord-light">h4ck3r_1337</span>
+                <span class="usuario-mal text-sm font-medium">h4ck3r_1337</span>
                 <span class="mx-1.5 text-surface-600">—</span>
                 <span class="chat-url-text break-all text-sm text-surface-100">https://malware.com/steal-info</span>
               </div>
@@ -235,13 +235,13 @@ const steps = [
             'https://free-bitcoin.tk/claim',
           ];
           const conversaciones = [
-            { u1: '¿Alguien tiene el link del nuevo asset?', u2: 'creo que sí, te lo paso' },
-            { u1: 'Mira lo que encontré', u2: '¿qué es eso?' },
-            { u1: '¿Es seguro este link?', u2: 'ni idea, pásalo' },
-            { u1: 'Necesito ayuda con un archivo', u2: 'tíralo aquí' },
-            { u1: 'Oye, te paso un enlace', u2: 'dale, mándalo' },
-            { u1: 'Alguien sabe si esto es seguro?', u2: 'uuh, pásalo a ver' },
-            { u1: 'Mira esto que me llegó al DM', u2: 'wtf mándalo al general' },
+            { u1: 'Mira lo que encontré',            u2: '¿qué es eso?',           tipo: 'u1' },
+            { u1: 'Oye, te paso un enlace',          u2: 'dale, mándalo',          tipo: 'u1' },
+            { u1: 'Mira esto que me llegó al DM',    u2: 'wtf mándalo al general', tipo: 'u1' },
+            { u1: '¿Alguien tiene el link del nuevo asset?', u2: 'creo que sí, te lo paso', tipo: 'u2' },
+            { u1: 'Necesito ayuda con un archivo',           u2: 'tíralo aquí',              tipo: 'u2' },
+            { u1: '¿Alguien sabe si esto es seguro?', u2: 'no sé, pásalo a ver',  tipo: 'intruso' },
+            { u1: 'Alguien sabe si esto es seguro?',  u2: 'uhh ni idea',           tipo: 'intruso' },
           ];
 
           function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
@@ -254,7 +254,6 @@ const steps = [
           const conv = rand(conversaciones);
           const u1 = rand(usuarios);
           const u2 = randDifferent(usuarios, u1);
-          const um = rand(usuariosMal);
           const url = rand(urls);
           const det = Math.floor(Math.random() * 22) + 3;
 
@@ -262,7 +261,15 @@ const steps = [
           document.querySelector('.usuario-2').textContent = u2;
           document.querySelector('.msg-u1').textContent = conv.u1;
           document.querySelector('.msg-u2').textContent = conv.u2;
-          document.querySelector('.usuario-mal').textContent = um;
+
+          const malSpan = document.querySelector('.usuario-mal');
+          if (conv.tipo === 'intruso') {
+            malSpan.textContent = rand(usuariosMal);
+            malSpan.className = 'usuario-mal text-sm font-medium text-discord-light';
+          } else {
+            malSpan.textContent = conv.tipo === 'u1' ? u1 : u2;
+            malSpan.className = 'usuario-mal text-sm font-medium text-surface-200';
+          }
           document.querySelector('.chat-url-text').textContent = url;
           document.querySelector('.chat-url').textContent = url;
           document.querySelector('.chat-detecciones').textContent = det;
