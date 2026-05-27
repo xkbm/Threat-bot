@@ -125,82 +125,95 @@ const steps = [
       <div class="absolute right-1/4 bottom-1/4 h-96 w-96 rounded-full bg-discord opacity-[0.05] blur-[150px] animate-float-delayed"></div>
     </div>
 
-    <div class="relative z-10 mx-auto max-w-4xl text-center pb-16 sm:pb-24">
-      <h1 class="mb-6 text-5xl font-black leading-none tracking-tight text-white sm:text-6xl md:text-8xl">
-        Threat
-      </h1>
+    <div class="relative z-10 mx-auto max-w-6xl w-full pb-16 sm:pb-24 px-6">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+        <!-- Left column: title + description + CTA -->
+        <div class="text-left">
+          <h1 class="mb-6 text-5xl font-black leading-none tracking-tight text-white sm:text-6xl md:text-7xl lg:text-8xl">
+            Threat
+          </h1>
 
-      <p class="mx-auto mb-6 max-w-2xl text-base text-surface-400 sm:mb-8 sm:text-lg md:text-xl">
-        Seguridad inteligente para tu servidor de Discord.
-        Análisis de URLs, detección NSFW, anti-spam.
-      </p>
+          <p class="mb-8 max-w-xl text-base text-surface-400 sm:text-lg md:text-xl">
+            Seguridad inteligente para tu servidor de Discord.
+            Análisis de URLs, detección NSFW, anti-spam.
+          </p>
 
-      <div id="chat-mockup" class="mx-auto mb-10 max-w-md text-left">
-        <div class="rounded-2xl border border-surface-700 bg-surface-850 shadow-xl">
-          <div class="border-b border-surface-700 px-3 sm:px-5 py-3">
-            <div class="flex items-center gap-2 text-sm font-semibold text-surface-200">
-              <span class="text-surface-500">#</span> general
-            </div>
+          <div class="flex flex-col items-start gap-4 sm:flex-row animate-fade-up-delayed">
+            <a href="https://discord.com/api/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands" target="_blank" rel="noopener noreferrer" class="group inline-flex items-center gap-2 rounded-xl bg-discord px-8 py-3.5 font-semibold text-white transition-all duration-300 hover:bg-discord-light hover:scale-105 hover:shadow-[0_0_40px_rgba(88,101,242,0.4)]">
+              <i class="las la-plus text-lg" aria-hidden="true"></i>
+              Invitar al servidor
+            </a>
           </div>
+        </div>
 
-          <div class="space-y-4 px-3 sm:px-5 pt-4 pb-0">
-            <div>
-              <span class="text-sm font-medium text-surface-200">Alex</span>
-              <span class="mx-1.5 text-surface-600">—</span>
-              <span class="text-sm text-surface-300">¿Alguien tiene el link del nuevo asset?</span>
-            </div>
-
-            <div>
-              <span class="text-sm font-medium text-surface-200">María</span>
-              <span class="mx-1.5 text-surface-600">—</span>
-              <span class="text-sm text-surface-300">creo que sí, te lo paso</span>
-            </div>
-
-            <div id="chat-sent" class="opacity-0">
-              <span class="text-sm font-medium text-discord-light">h4ck3r_1337</span>
-              <span class="mx-1.5 text-surface-600">—</span>
-              <span class="break-all text-sm text-surface-100">https://malware.com/steal-info</span>
-            </div>
-
-            <div id="chat-typing" class="opacity-0 transition-opacity duration-300">
-              <div class="flex items-center gap-1.5 text-sm text-surface-500">
-                <span class="flex h-1 w-1 rounded-full bg-surface-500 animate-[typing-dot_1.4s_infinite]"></span>
-                <span class="flex h-1 w-1 rounded-full bg-surface-500 animate-[typing-dot_1.4s_infinite_0.2s]"></span>
-                <span class="flex h-1 w-1 rounded-full bg-surface-500 animate-[typing-dot_1.4s_infinite_0.4s]"></span>
-                <span class="ml-1 text-xs">Threat está escribiendo</span>
+        <!-- Right column: chat mockup -->
+        <div id="chat-mockup" class="w-full max-w-md mx-auto lg:mx-0 text-left">
+          <div class="rounded-2xl border border-surface-700 bg-surface-850 shadow-xl">
+            <div class="border-b border-surface-700 px-3 sm:px-5 py-3">
+              <div class="flex items-center gap-2 text-sm font-semibold text-surface-200">
+                <span class="text-surface-500">#</span> general
               </div>
             </div>
 
-            <div id="chat-bot-response" class="opacity-0">
-              <div class="mb-1 flex items-center gap-2">
-                <span class="text-sm font-medium text-white">Threat</span>
-                <span class="rounded bg-discord px-1.5 py-[1px] text-[9px] font-semibold leading-normal text-white">BOT</span>
+            <div class="space-y-4 px-3 sm:px-5 pt-4 pb-0">
+              <div>
+                <span class="usuario-1 text-sm font-medium text-surface-200">Alex</span>
+                <span class="mx-1.5 text-surface-600">—</span>
+                <span class="text-sm text-surface-300">¿Alguien tiene el link del nuevo asset?</span>
               </div>
 
-              <div class="animate-threat-pulse rounded-lg border-l-4 bg-surface-800 p-3.5" style="border-left-color:#f59e0b">
-                <div class="mb-1 flex items-center gap-1.5">
-                  <i class="las la-exclamation-triangle text-orange-400" aria-hidden="true"></i>
-                  <span class="text-sm font-semibold text-orange-400">URL Maliciosa Detectada</span>
+              <div>
+                <span class="usuario-2 text-sm font-medium text-surface-200">María</span>
+                <span class="mx-1.5 text-surface-600">—</span>
+                <span class="text-sm text-surface-300">creo que sí, te lo paso</span>
+              </div>
+
+              <div id="chat-sent" class="opacity-0">
+                <span class="usuario-mal text-sm font-medium text-discord-light">h4ck3r_1337</span>
+                <span class="mx-1.5 text-surface-600">—</span>
+                <span class="chat-url-text break-all text-sm text-surface-100">https://malware.com/steal-info</span>
+              </div>
+
+              <div id="chat-typing" class="opacity-0 transition-opacity duration-300">
+                <div class="flex items-center gap-1.5 text-sm text-surface-500">
+                  <span class="flex h-1 w-1 rounded-full bg-surface-500 animate-[typing-dot_1.4s_infinite]"></span>
+                  <span class="flex h-1 w-1 rounded-full bg-surface-500 animate-[typing-dot_1.4s_infinite_0.2s]"></span>
+                  <span class="flex h-1 w-1 rounded-full bg-surface-500 animate-[typing-dot_1.4s_infinite_0.4s]"></span>
+                  <span class="ml-1 text-xs">Threat está escribiendo</span>
                 </div>
-                <p class="mb-3 text-xs text-surface-300">
-                  Se encontraron <strong class="text-surface-100">3</strong> detecciones
-                </p>
-                <div class="mb-2">
-                  <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-surface-500">URL</div>
-                  <code class="block truncate rounded bg-surface-700 px-2 py-1 font-mono text-xs text-surface-200">https://malware.com/steal-info</code>
+              </div>
+
+              <div id="chat-bot-response" class="opacity-0">
+                <div class="mb-1 flex items-center gap-2">
+                  <span class="text-sm font-medium text-white">Threat</span>
+                  <span class="rounded bg-discord px-1.5 py-[1px] text-[9px] font-semibold leading-normal text-white">BOT</span>
                 </div>
-                <span class="inline-flex items-center gap-1 text-xs text-discord-light">
-                  <i class="las la-external-link-alt" aria-hidden="true"></i> Ver informe completo
-                </span>
+
+                <div class="animate-threat-pulse rounded-lg border-l-4 bg-surface-800 p-3.5" style="border-left-color:#f59e0b">
+                  <div class="mb-1 flex items-center gap-1.5">
+                    <i class="las la-exclamation-triangle text-orange-400" aria-hidden="true"></i>
+                    <span class="text-sm font-semibold text-orange-400">URL Maliciosa Detectada</span>
+                  </div>
+                  <p class="mb-3 text-xs text-surface-300">
+                    Se encontraron <strong class="chat-detecciones text-surface-100">3</strong> detecciones
+                  </p>
+                  <div class="mb-2">
+                    <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-surface-500">URL</div>
+                    <code class="chat-url block truncate rounded bg-surface-700 px-2 py-1 font-mono text-xs text-surface-200">https://malware.com/steal-info</code>
+                  </div>
+                  <span class="inline-flex items-center gap-1 text-xs text-discord-light">
+                    <i class="las la-external-link-alt" aria-hidden="true"></i> Ver informe completo
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div class="mt-5 border-t border-surface-700 px-3 sm:px-5 py-3">
-            <div class="flex items-center gap-2 rounded-lg border border-surface-600 bg-surface-800 px-3 py-2 sm:px-4 sm:py-2.5 text-sm text-surface-500">
-              <span id="chat-input-text" class="flex-1 text-surface-500">Escribe un mensaje...</span>
-              <span id="chat-input-cursor" class="hidden inline-block h-[1.1em] w-[2px] bg-discord animate-composing-cursor"></span>
-              <i class="las la-paperclip text-base" aria-hidden="true"></i>
+            <div class="mt-5 border-t border-surface-700 px-3 sm:px-5 py-3">
+              <div class="flex items-center gap-2 rounded-lg border border-surface-600 bg-surface-800 px-3 py-2 sm:px-4 sm:py-2.5 text-sm text-surface-500">
+                <span id="chat-input-text" class="flex-1 text-surface-500">Escribe un mensaje...</span>
+                <span id="chat-input-cursor" class="hidden inline-block h-[1.1em] w-[2px] bg-discord animate-composing-cursor"></span>
+                <i class="las la-paperclip text-base" aria-hidden="true"></i>
+              </div>
             </div>
           </div>
         </div>
@@ -208,13 +221,46 @@ const steps = [
 
       <script type="module">
         document.addEventListener('DOMContentLoaded', () => {
+          const usuarios = ['Alex', 'María', 'Carlos', 'Laura', 'Pedro', 'Sofía', 'Ana', 'Luis', 'Elena', 'Diego'];
+          const usuariosMal = ['h4ck3r_1337', 'xPhishMaster', 'malware_420', 'dark_stealer', 'virus_loader99', 'exploit_kiddie', 'phisher_01'];
+          const urls = [
+            'https://malware.com/steal-info',
+            'https://phishing-login.xyz/verify',
+            'https://drive-google.cf/archivo',
+            'https://steam-community.ru/free',
+            'https://dropbox-security.cc/login',
+            'https://free-nitro.download/claim',
+            'https://verify-discord.xyz/gift',
+            'https://secure-update.ga/package',
+            'https://free-bitcoin.tk/claim',
+          ];
+          const deteccionesArr = [2, 3, 4, 5, 7, 8, 11];
+
+          function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+          function randDifferent(arr, exclude) {
+            let v;
+            do { v = rand(arr); } while (v === exclude);
+            return v;
+          }
+
+          const u1 = rand(usuarios);
+          const u2 = randDifferent(usuarios, u1);
+          const um = rand(usuariosMal);
+          const url = rand(urls);
+          const det = rand(deteccionesArr);
+
+          document.querySelector('.usuario-1').textContent = u1;
+          document.querySelector('.usuario-2').textContent = u2;
+          document.querySelector('.usuario-mal').textContent = um;
+          document.querySelector('.chat-url-text').textContent = url;
+          document.querySelector('.chat-url').textContent = url;
+          document.querySelector('.chat-detecciones').textContent = det;
+
           const inputText = document.getElementById('chat-input-text');
           const inputCursor = document.getElementById('chat-input-cursor');
           const sentMsg = document.getElementById('chat-sent');
           const typingInd = document.getElementById('chat-typing');
           const botResponse = document.getElementById('chat-bot-response');
-
-          const url = 'https://malware.com/steal-info';
 
           setTimeout(() => {
             inputText.classList.remove('text-surface-500');
@@ -253,13 +299,6 @@ const steps = [
           }, 1000);
         });
       </script>
-
-      <div class="flex flex-col items-center justify-center gap-4 sm:flex-row animate-fade-up-delayed">
-        <a href="https://discord.com/api/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands" target="_blank" rel="noopener noreferrer" class="group inline-flex items-center gap-2 rounded-xl bg-discord px-8 py-3.5 font-semibold text-white transition-all duration-300 hover:bg-discord-light hover:scale-105 hover:shadow-[0_0_40px_rgba(88,101,242,0.4)]">
-          <i class="las la-plus text-lg" aria-hidden="true"></i>
-          Invitar al servidor
-        </a>
-      </div>
     </div>
 
     <div class="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
