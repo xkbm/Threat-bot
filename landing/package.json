@@ -15,6 +15,7 @@
     "@astrojs/sitemap": "^3.3.1",
     "@tailwindcss/postcss": "^4.3.0",
     "@tailwindcss/vite": "^4.3.0",
+    "@vercel/analytics": "^2.0.1",
     "astro": "^6.3.8",
     "tailwindcss": "^4.3.0"
   },
