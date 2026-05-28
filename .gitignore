@@ -26,4 +26,5 @@ $RECYCLE_BIN/
 npx-cache/
 .python-version
 .agents/
+.mcp/
 skills-lock.json

@@ -18,7 +18,7 @@ Requires `.env` with `DISCORD_TOKEN`, `OWNER_ID`, `VT_API_KEY`, `SIGHTENGINE_API
 Optional multi-key: `VT_API_KEY_2/3`, `SIGHTENGINE_API_USER_2/3` + `SIGHTENGINE_API_KEY_2/3`.
 
 ## MCP servers (`opencode.jsonc`, gitignored)
-- **GitHub** (`@modelcontextprotocol/server-github` via npx) — PRs/commits/issues. Token from env `GITHUB_PAT`.
+- **GitHub** (local binary `.mcp/github/github-mcp-server.exe`) — PRs/commits/issues. Token via env var `GITHUB_PERSONAL_ACCESS_TOKEN`.
 - **Jina AI** (`https://mcp.jina.ai/v1`) — `search_web`, `read_url`, `capture_screenshot_url`, `extract_pdf`, `search_images`. Free tier, 7k weekly calls.
 
 ## Git
