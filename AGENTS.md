@@ -87,6 +87,17 @@ Global stats stored at `bot.guilds_data["__global__"]`. API usage and antispam s
 ## Log embeds
 `enviar_log_guild()` sends threat alerts with `LogActionView` (Ban/Kick/Ignore buttons) to the configured log channel. Buttons check user permissions before acting.
 
+## Landing page (`landing/`)
+Astro v6.3.8 + Tailwind v4 (`@tailwindcss/vite`). Deployed on Vercel.
+- **Commands**: `cd landing && pnpm run dev` / `pnpm run build`
+- **Manager**: pnpm only
+- **URL**: `https://threat-bot-discord.vercel.app/`
+- **Pages**: `index.astro` (single-page), `privacidad.astro`, `terminos.astro`
+- **Discord invite**: `https://discord.com/api/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands`
+- **Bot integration**: `/about` and `/help` have a "Sitio web" button (`discord.ui.Button` with `EMOJI_LINK`) pointing to Vercel URL
+- **Git**: landing changes on `web` branch; fast-forward merge to `main`
+- **Build output**: `landing/dist/` (gitignored). `pnpm run build` also generates `sitemap-index.xml`
+
 ## ⚠️ Gotchas
 - **Bound-method illusion** (`bot.py:52-82`): assigning module funcs as bot attrs does NOT bind `self`. `await self.bot.expandir_url(valor)` passes `valor` as bot param. Fix: import directly and pass `self.bot` explicitly.
 - **Admin slash commands** use `_safe_followup()` wrapper (`cogs/configuracion.py:13-17`) that catches `discord.errors.NotFound` on expired interactions.
