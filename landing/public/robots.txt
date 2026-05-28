@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://threat-bot-discord.vercel.app/sitemap-index.xml
+Sitemap: https://threat-bot-iota.vercel.app/sitemap-index.xml

@@ -6,6 +6,6 @@ export default defineConfig({
   vite: {
     plugins: [tailwindcss()],
   },
-  site: 'https://threat-bot-discord.vercel.app',
+  site: 'https://threat-bot-iota.vercel.app',
   integrations: [sitemap()],
 });
