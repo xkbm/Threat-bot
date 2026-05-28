@@ -93,7 +93,7 @@ Astro v6.3.8 + Tailwind v4 (`@tailwindcss/vite`). Deployed on Vercel.
 - **Manager**: pnpm only
 - **URL**: `https://threat-bot-discord.vercel.app/`
 - **Pages**: `index.astro` (single-page), `privacidad.astro`, `terminos.astro`
-- **Discord invite**: `https://discord.com/api/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands`
+- **Discord invite**: `https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code`
 - **Bot integration**: `/about` and `/help` have a "Sitio web" button (`discord.ui.Button` with `EMOJI_LINK`) pointing to Vercel URL
 - **Git**: landing changes on `web` branch; fast-forward merge to `main`
 - **Build output**: `landing/dist/` (gitignored). `pnpm run build` also generates `sitemap-index.xml`
