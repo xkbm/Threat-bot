@@ -1,0 +1,32 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="¡Threat está en tu servidor! — Threat">
+  <section class="flex min-h-screen items-center justify-center px-6 pt-20 pb-24">
+    <div class="mx-auto max-w-2xl text-center">
+      <div class="mb-8 mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500/10">
+        <i class="las la-check-circle text-5xl text-emerald-400" aria-hidden="true"></i>
+      </div>
+
+      <h1 class="mb-6 text-4xl font-bold tracking-tight md:text-5xl">
+        ¡Threat está en tu <span class="gradient-text">servidor</span>!
+      </h1>
+
+      <p class="mb-10 text-lg text-surface-400">
+        El bot ya está activo. Usa <code class="font-mono text-discord-light">/help</code> para ver todos los comandos disponibles.
+      </p>
+
+      <div class="flex flex-col items-center justify-center gap-4 sm:flex-row">
+        <a href="/" class="inline-flex items-center gap-2 rounded-xl bg-discord px-8 py-3.5 font-semibold text-white transition-all duration-300 hover:bg-discord-light hover:scale-105">
+          <i class="las la-home text-lg" aria-hidden="true"></i>
+          Volver al inicio
+        </a>
+        <a href="/#commands" class="inline-flex items-center gap-2 rounded-xl border border-surface-600 px-8 py-3.5 font-semibold text-surface-200 transition-all duration-300 hover:border-discord/50 hover:text-white">
+          <i class="las la-terminal text-lg" aria-hidden="true"></i>
+          Ver comandos
+        </a>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
