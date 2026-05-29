@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css';
+import Icon from '../components/Icon.astro';
 
 export interface Props {
   title?: string;
@@ -47,103 +48,24 @@ const { title = 'Threat — Seguridad Inteligente para Discord', description = '
   <body class="bg-surface-900 text-surface-100 font-sans antialiased">
     <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
 
-    <script>
-      addEventListener('scroll', () => {
-        const header = document.querySelector('header');
-        if (header) {
-          header.classList.toggle('nav-compact', scrollY > 80);
-        }
-      }, { passive: true });
-    </script>
-
-    <header class="fixed top-0 inset-x-0 z-50 flex justify-center px-4 pt-0 md:pt-4">
-      <nav class="relative w-full max-w-6xl md:w-auto md:min-w-[640px] rounded-none md:rounded-full glass px-4 sm:px-6 py-3 flex items-center justify-between">
+    <header class="fixed top-0 inset-x-0 z-50 bg-surface-900/80 backdrop-blur-sm border-b border-white/5">
+      <nav class="mx-auto max-w-6xl px-6 py-4 flex items-center justify-between">
         <a href="/" class="text-lg font-bold tracking-tight text-white shrink-0">Threat</a>
 
-        <div class="hidden sm:flex items-center gap-6 text-sm text-surface-300">
-          <a href="/#features" class="nav-link transition-colors duration-200 hover:text-white">Características</a>
-          <a href="/#how-it-works" class="nav-link transition-colors duration-200 hover:text-white">Cómo funciona</a>
-          <a href="/#commands" class="nav-link transition-colors duration-200 hover:text-white">Comandos</a>
-          <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer" class="nav-cta">
-            Añadir
-          </a>
+        <div class="hidden sm:flex items-center gap-6 text-sm text-surface-400">
+          <a href="/#features" class="hover:text-white transition-colors">Características</a>
+          <a href="/#how-it-works" class="hover:text-white transition-colors">Cómo funciona</a>
+          <a href="/#commands" class="hover:text-white transition-colors">Comandos</a>
         </div>
 
-        <button id="menu-btn" class="sm:hidden flex items-center justify-center w-11 h-11 text-surface-300 hover:text-white transition-colors duration-200" aria-label="Menú" aria-expanded="false">
-          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-            <path class="hl1" d="M4 6h16" />
-            <path class="hl2" d="M4 12h16" />
-            <path class="hl3" d="M4 18h16" />
-          </svg>
-        </button>
+        <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer"
+           class="inline-flex items-center gap-2 rounded-full bg-discord px-5 py-2.5 text-sm font-semibold text-white hover:bg-discord-light transition-colors">
+          <Icon name="plus" size="0.875em" />
+          <span class="hidden sm:inline">Añadir a Discord</span>
+          <span class="sm:hidden">Añadir</span>
+        </a>
       </nav>
     </header>
-
-    <div id="mobile-menu" class="fixed top-0 left-0 right-0 z-40 sm:hidden translate-y-0 opacity-0 pointer-events-none transition-all duration-300 ease-out-expo">
-      <div class="pt-20 px-4 pb-4 flex flex-col gap-2 text-sm bg-surface-900/95 backdrop-blur-xl border-b border-surface-700/50">
-        <a href="/#features" class="menu-link menu-item block rounded-lg px-4 py-3.5 text-surface-300 transition-all duration-300 hover:bg-surface-800 hover:text-white">Características</a>
-        <a href="/#how-it-works" class="menu-link menu-item block rounded-lg px-4 py-3.5 text-surface-300 transition-all duration-300 hover:bg-surface-800 hover:text-white">Cómo funciona</a>
-        <a href="/#commands" class="menu-link menu-item block rounded-lg px-4 py-3.5 text-surface-300 transition-all duration-300 hover:bg-surface-800 hover:text-white">Comandos</a>
-        <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer" class="menu-link menu-item block text-center rounded-xl bg-discord px-4 py-3.5 font-semibold text-white transition-all duration-300 hover:bg-discord-light" style="transition-delay: 240ms">Añadir a Discord</a>
-      </div>
-    </div>
-
-    <script type="module">
-      document.addEventListener('DOMContentLoaded', () => {
-        const btn = document.getElementById('menu-btn');
-        const menu = document.getElementById('mobile-menu');
-        const paths = btn?.querySelectorAll('path');
-
-        if (!btn || !menu || !paths?.length) return;
-
-        function getFocusable() {
-          return [...menu.querySelectorAll('a, button, [tabindex]:not([tabindex="-1"])')];
-        }
-
-        btn.addEventListener('click', () => {
-          const isOpen = menu.classList.contains('opacity-100');
-          menu.classList.toggle('opacity-100', !isOpen);
-          menu.classList.toggle('opacity-0', isOpen);
-          menu.classList.toggle('pointer-events-none', isOpen);
-          menu.classList.toggle('pointer-events-auto', !isOpen);
-          btn.setAttribute('aria-expanded', String(!isOpen));
-
-          // hamburger morph
-          paths.forEach((p, i) => {
-            p.classList.toggle('menu-open', !isOpen);
-          });
-
-          if (!isOpen) {
-            getFocusable()[0]?.focus();
-          }
-        });
-
-        document.querySelectorAll('.menu-link').forEach((link) => {
-          link.addEventListener('click', () => {
-            menu.classList.add('opacity-0', 'pointer-events-none');
-            menu.classList.remove('opacity-100', 'pointer-events-auto');
-            btn.setAttribute('aria-expanded', 'false');
-            paths.forEach((p) => p.classList.remove('menu-open'));
-            btn.focus();
-          });
-        });
-
-        menu.addEventListener('keydown', (e) => {
-          if (e.key !== 'Tab') return;
-          const focusable = getFocusable();
-          if (focusable.length === 0) return;
-          const first = focusable[0];
-          const last = focusable[focusable.length - 1];
-          if (e.shiftKey && document.activeElement === first) {
-            e.preventDefault();
-            last.focus();
-          } else if (!e.shiftKey && document.activeElement === last) {
-            e.preventDefault();
-            first.focus();
-          }
-        });
-      });
-    </script>
 
     <main id="main-content">
       <slot />
