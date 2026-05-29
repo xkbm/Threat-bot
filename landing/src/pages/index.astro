@@ -251,12 +251,12 @@ const steps = [
                 borderColor: 'var(--color-threat)',
                 titleClass: 'text-threat-light',
                 conversaciones: [
-                  { u1: '\u00bfAlguien tiene el link del nuevo asset?', u2: 'creo que s\u00ed, te lo paso' },
-                  { u1: 'Mira lo que encontr\u00e9', u2: '\u00bfqu\u00e9 es eso?' },
-                  { u1: 'Oye, te paso un enlace', u2: 'dale, m\u00e1ndalo' },
-                  { u1: 'Mira esto que me lleg\u00f3 al DM', u2: 'p\u00e1salo al general' },
-                  { u1: '\u00bfEs seguro este enlace?', u2: 'no s\u00e9, p\u00e1salo a ver' },
-                  { u1: 'Necesito ayuda con un archivo', u2: 't\u00edralo aqu\u00ed' },
+                  { u1: '\u00bfAlguien tiene el link del nuevo asset?', u2: 'creo que s\u00ed, te lo paso', urlFrom: 'u2' },
+                  { u1: 'Mira lo que encontr\u00e9', u2: '\u00bfqu\u00e9 es eso?', urlFrom: 'u1' },
+                  { u1: 'Oye, te paso un enlace', u2: 'dale, m\u00e1ndalo', urlFrom: 'u1' },
+                  { u1: 'Mira esto que me lleg\u00f3 al DM', u2: 'p\u00e1salo al general', urlFrom: 'u1' },
+                  { u1: '\u00bfEs seguro este enlace?', u2: 'no s\u00e9, p\u00e1salo a ver', urlFrom: 'u1' },
+                  { u1: 'Necesito ayuda con un archivo', u2: 't\u00edralo aqu\u00ed', urlFrom: 'u1' },
                 ],
               },
               // --- SEGURO ---
@@ -272,10 +272,10 @@ const steps = [
                 borderColor: 'var(--color-secure)',
                 titleClass: 'text-secure-light',
                 conversaciones: [
-                  { u1: '\u00bfAlguien ha usado esto?', u2: 's\u00ed, es confiable' },
-                  { u1: 'Mira el repo nuevo', u2: '\u00bfqu\u00e9 hay?' },
-                  { u1: 'Pasen la doc de python', u2: 'aqu\u00ed la tienes' },
-                  { u1: '\u00bfEs seguro este enlace?', u2: 's\u00ed, tranquilo' },
+                  { u1: '\u00bfAlguien ha usado esto?', u2: 's\u00ed, es confiable', urlFrom: 'u2' },
+                  { u1: 'Mira el repo nuevo', u2: '\u00bfqu\u00e9 hay?', urlFrom: 'u1' },
+                  { u1: 'Pasen la doc de python', u2: 'aqu\u00ed la tienes', urlFrom: 'u2' },
+                  { u1: '\u00bfEs seguro este enlace?', u2: 's\u00ed, tranquilo', urlFrom: 'u1' },
                 ],
               },
               // --- WHITELIST (el bot solo reacciona, no env\u00eda embed) ---
@@ -290,9 +290,9 @@ const steps = [
                 borderColor: 'var(--color-secure)',
                 titleClass: 'text-secure-light',
                 conversaciones: [
-                  { u1: 'Miren este video', u2: '\u00bfde qu\u00e9 trata?' },
-                  { u1: 'Pasen la playlist nueva', u2: '\u00bfcu\u00e1l es?' },
-                  { u1: 'Alguien vio el stream ayer?', u2: 'estuvo bueno' },
+                  { u1: 'Miren este video', u2: '\u00bfde qu\u00e9 trata?', urlFrom: 'u1' },
+                  { u1: 'Pasen la playlist nueva', u2: '\u00bfcu\u00e1l es?', urlFrom: 'u2' },
+                  { u1: 'Alguien vio el stream ayer?', u2: 'estuvo bueno', urlFrom: 'u1' },
                 ],
               },
             ];
@@ -304,7 +304,14 @@ const steps = [
             const escenario = roll < 0.5 ? escenarios[0] : roll < 0.8 ? escenarios[1] : escenarios[2];
             const url = rand(escenario.urls);
             const conv = rand(escenario.conversaciones);
-            const userSender = rand(usuarios);
+
+            // Nombres \u00fanicos para u1 y u2
+            const u1Name = rand(usuarios);
+            let u2Name;
+            do { u2Name = rand(usuarios); } while (u2Name === u1Name);
+
+            // Qui\u00e9n env\u00eda la URL (determinado por la conversaci\u00f3n)
+            const urlSender = conv.urlFrom === 'u2' ? u2Name : u1Name;
 
             // Configurar el bot response din\u00e1micamente
             const responseCard = document.getElementById('chat-response-card');
@@ -327,7 +334,6 @@ const steps = [
               responseUrlSection.classList.remove('hidden');
               responseLink.classList.remove('hidden');
             } else {
-              // Whitelist: respuesta simple como el bot real
               const dominio = url.split('/')[2];
               responseDesc.textContent = `${dominio} \u00e9s segur`;
               responseUrlSection.classList.add('hidden');
@@ -336,16 +342,14 @@ const steps = [
 
             // Configurar conversaci\u00f3n
             const chatInitials = document.querySelectorAll('.chat-initial');
-            chatInitials[0].querySelector('.font-mono').textContent = conv.u1.includes('\u00bf') ? userSender : rand(usuarios);
+            chatInitials[0].querySelector('.font-mono').textContent = u1Name;
             chatInitials[0].querySelector('.text-surface-300').textContent = conv.u1;
-            const u2Name = rand(usuarios);
             chatInitials[1].querySelector('.font-mono').textContent = u2Name;
             chatInitials[1].querySelector('.text-surface-300').textContent = conv.u2;
 
             // Configurar el mensaje del usuario que env\u00eda la URL
             document.querySelectorAll('.chat-url-text, .chat-url').forEach((el) => el.textContent = url);
-            const sentUserEl = document.querySelector('#chat-sent .font-mono');
-            sentUserEl.textContent = userSender;
+            document.querySelector('#chat-sent .font-mono').textContent = urlSender;
 
             const inputText = document.getElementById('chat-input-text');
             const inputCursor = document.getElementById('chat-input-cursor');
