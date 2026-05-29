@@ -43,7 +43,7 @@ const paths = icons[name] || [];
 ---
 
 {paths.length > 0 && (
-  <svg class={className} xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" {...rest}>
+  <svg class={className} xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:inline-block;vertical-align:middle" {...rest}>
     {paths.map((d) => <path d={d} />)}
   </svg>
 )}
