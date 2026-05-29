@@ -203,7 +203,8 @@ const steps = [
                       <span class="font-mono text-xs font-medium text-white">Threat</span>
                       <span class="inline-flex items-center gap-0.5 rounded bg-discord px-1.5 py-[1px] text-[9px] font-semibold leading-normal text-white"><Icon name="check" class="text-white" size="9px" /> APP</span>
                     </div>
-                    <div id="chat-response-card" class="border-l-4 bg-surface-800 p-3.5" style="border-left-color: var(--color-threat);">
+                    <!-- Embed response (malicious/safe) -->
+                    <div id="chat-response-card" class="border-l-4 bg-surface-800 p-3.5" style="border-left-color: rgb(230, 126, 34);">
                       <div class="mb-1 flex items-center gap-1.5">
                         <img id="chat-response-emoji" src="/emoji-warn.png" alt="" class="w-4 h-4" />
                         <span id="chat-response-title" class="text-sm font-semibold text-threat-light">URL Maliciosa Detectada</span>
@@ -218,6 +219,11 @@ const steps = [
                       <span id="chat-response-link" class="inline-flex items-center gap-1 text-xs text-discord-light">
                         <Icon name="external-link-alt" /> Ver informe completo
                       </span>
+                    </div>
+                    <!-- Plain text response (whitelist) -->
+                    <div id="chat-response-text" class="hidden text-sm text-surface-300">
+                      <img src="/emoji-whitelist.png" alt="" class="inline w-4 h-4 mr-1" />
+                      <strong class="text-surface-100">Dominio(s) en whitelist.</strong> No se requiere an\u00e1lisis.
                     </div>
                   </div>
                 </div>
@@ -275,7 +281,7 @@ const steps = [
                 borderColor: 'var(--color-secure)',
                 titleClass: 'text-secure-light',
                 conversaciones: [
-                  { u1: '\u00bfAlguien ha usado esto?', u2: 's\u00ed, es confiable', urlFrom: 'u2' },
+                  { u1: '\u00bfAlguien ha usado esto?', u2: 's\u00ed, es confiable', urlFrom: 'u1' },
                   { u1: 'Mira el repo nuevo', u2: '\u00bfqu\u00e9 hay?', urlFrom: 'u1' },
                   { u1: 'Pasen la doc de python', u2: 'aqu\u00ed la tienes', urlFrom: 'u2' },
                   { u1: '\u00bfEs seguro este enlace?', u2: 's\u00ed, tranquilo', urlFrom: 'u1' },
@@ -295,8 +301,8 @@ const steps = [
                 titleClass: 'text-secure-light',
                 conversaciones: [
                   { u1: 'Miren este video', u2: '\u00bfde qu\u00e9 trata?', urlFrom: 'u1' },
-                  { u1: 'Pasen la playlist nueva', u2: '\u00bfcu\u00e1l es?', urlFrom: 'u2' },
-                  { u1: 'Alguien vio el stream ayer?', u2: 'estuvo bueno', urlFrom: 'u1' },
+                  { u1: 'Pasen la playlist nueva', u2: 'aqu\u00ed la tienes', urlFrom: 'u2' },
+                  { u1: '\u00bfAlguien tiene el link del stream?', u2: 's\u00ed, aqu\u00ed va', urlFrom: 'u2' },
                 ],
               },
             ];
@@ -319,30 +325,36 @@ const steps = [
 
             // Configurar el bot response din\u00e1micamente
             const responseCard = document.getElementById('chat-response-card');
+            const responseText = document.getElementById('chat-response-text');
             const responseEmoji = document.getElementById('chat-response-emoji');
             const responseTitle = document.getElementById('chat-response-title');
             const responseDesc = document.getElementById('chat-response-desc');
             const responseUrlSection = document.getElementById('chat-response-url-section');
             const responseLink = document.getElementById('chat-response-link');
 
-            responseCard.style.borderLeftColor = escenario.borderColor;
-            responseEmoji.src = escenario.emoji;
-            responseTitle.textContent = escenario.titulo;
-            responseTitle.setAttribute('class', `text-sm font-semibold ${escenario.titleClass}`);
-
-            if (escenario.tipo === 'malicioso') {
-              const det = Math.floor(Math.random() * 22) + 3;
-              responseDesc.innerHTML = `Se encontraron <strong class="text-surface-100">${det}</strong> detecciones`;
-              responseUrlSection.classList.remove('hidden');
-              responseLink.classList.remove('hidden');
-            } else if (escenario.tipo === 'seguro') {
-              responseDesc.textContent = 'No se detectaron amenazas';
-              responseUrlSection.classList.remove('hidden');
-              responseLink.classList.remove('hidden');
+            if (escenario.tipo === 'whitelist') {
+              // Whitelist: respuesta de texto plano (como el bot real)
+              responseCard.classList.add('hidden');
+              responseText.classList.remove('hidden');
             } else {
-              responseDesc.textContent = 'Dominio(s) en whitelist. No se requiere an\u00e1lisis.';
-              responseUrlSection.classList.add('hidden');
-              responseLink.classList.add('hidden');
+              // Malicioso/Seguro: respuesta embed
+              responseCard.classList.remove('hidden');
+              responseText.classList.add('hidden');
+              responseCard.style.borderLeftColor = escenario.borderColor;
+              responseEmoji.src = escenario.emoji;
+              responseTitle.textContent = escenario.titulo;
+              responseTitle.setAttribute('class', `text-sm font-semibold ${escenario.titleClass}`);
+
+              if (escenario.tipo === 'malicioso') {
+                const det = Math.floor(Math.random() * 22) + 3;
+                responseDesc.innerHTML = `Se encontraron <strong class="text-surface-100">${det}</strong> detecciones`;
+                responseUrlSection.classList.remove('hidden');
+                responseLink.classList.remove('hidden');
+              } else {
+                responseDesc.textContent = 'No se detectaron amenazas';
+                responseUrlSection.classList.remove('hidden');
+                responseLink.classList.remove('hidden');
+              }
             }
 
             // Configurar conversaci\u00f3n
