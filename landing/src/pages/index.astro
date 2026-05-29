@@ -204,11 +204,10 @@ const steps = [
                       <span class="inline-flex items-center gap-0.5 rounded bg-discord px-1.5 py-[1px] text-[9px] font-semibold leading-normal text-white"><Icon name="check" class="text-white" size="9px" /> APP</span>
                     </div>
                     <div id="chat-response-card" class="border-l-4 bg-surface-800 p-3.5" style="border-left-color: var(--color-threat);">
-                      <div class="mb-1 flex items-center gap-1.5">
-                        <Icon id="chat-response-icon" name="exclamation-triangle" class="text-threat-light" />
-                        <span id="chat-response-title" class="text-sm font-semibold text-threat-light">URL Maliciosa Detectada</span>
+                      <div class="mb-1">
+                        <span id="chat-response-title" class="text-sm font-semibold text-threat-light">⚠️ URL Maliciosa Detectada</span>
                       </div>
-                      <p id="chat-response-desc" class="mb-3 text-xs text-surface-300">
+                      <p id="chat-response-desc" class="mb-2 text-xs text-surface-300">
                         Se encontraron <strong class="text-surface-100">18</strong> detecciones
                       </p>
                       <div id="chat-response-url-section" class="mb-2">
@@ -234,11 +233,10 @@ const steps = [
         </div>
         <script type="module">
           document.addEventListener('DOMContentLoaded', () => {
-            const usuarios = ['Alex', 'María', 'Carlos', 'Laura', 'Pedro', 'Sofía', 'Ana', 'Luis', 'Elena', 'Diego'];
-            const usuariosMal = ['noise_38472', 'pxl_share', 'mark_online', 'vx_runner', 'rem_upload', 'crash_override', 'guest_001'];
+            const usuarios = ['Alex', 'María', 'Carlos', 'Laura', 'Pedro', 'Sofía', 'Ana', 'Luis', 'Elena', 'Diego', 'Martín', 'Valentina', 'Joaquín', 'Camila', 'Rodrigo'];
 
             const escenarios = [
-              // --- MALICIOSO ---
+              // --- MALICIOSO (cuentas comprometidas se ven normales) ---
               {
                 tipo: 'malicioso',
                 urls: [
@@ -249,53 +247,66 @@ const steps = [
                   'https://free-bitcoin.tk/claim',
                   'https://secure-update.ga/package',
                 ],
-                titulo: 'URL Maliciosa Detectada',
+                titulo: '\u26a0\ufe0f URL Maliciosa Detectada',
                 borderColor: 'var(--color-threat)',
                 titleClass: 'text-threat-light',
+                conversaciones: [
+                  { u1: '\u00bfAlguien tiene el link del nuevo asset?', u2: 'creo que s\u00ed, te lo paso' },
+                  { u1: 'Mira lo que encontr\u00e9', u2: '\u00bfqu\u00e9 es eso?' },
+                  { u1: 'Oye, te paso un enlace', u2: 'dale, m\u00e1ndalo' },
+                  { u1: 'Mira esto que me lleg\u00f3 al DM', u2: 'p\u00e1salo al general' },
+                  { u1: '\u00bfEs seguro este enlace?', u2: 'no s\u00e9, p\u00e1salo a ver' },
+                  { u1: 'Necesito ayuda con un archivo', u2: 't\u00edralo aqu\u00ed' },
+                ],
               },
               // --- SEGURO ---
               {
                 tipo: 'seguro',
                 urls: [
                   'https://github.com/discord.py/releases',
-                  'https://stackoverflow.com/questions/12345',
-                  'https://docs.python.org/3/tutorial',
-                  'https://tailwindcss.com/docs',
+                  'https://stackoverflow.com/questions/12345678/how-to-extend-url',
+                  'https://docs.python.org/3/tutorial/modules.html',
+                  'https://tailwindcss.com/docs/installation',
                 ],
-                titulo: 'URL Segura',
+                titulo: '\u2705 URL Segura',
                 borderColor: 'var(--color-secure)',
                 titleClass: 'text-secure-light',
+                conversaciones: [
+                  { u1: '\u00bfAlguien ha usado esto?', u2: 's\u00ed, es confiable' },
+                  { u1: 'Mira el repo nuevo', u2: '\u00bfqu\u00e9 hay?' },
+                  { u1: 'Pasen la doc de python', u2: 'aqu\u00ed la tienes' },
+                  { u1: '\u00bfEs seguro este enlace?', u2: 's\u00ed, tranquilo' },
+                ],
               },
-              // --- WHITELIST ---
+              // --- WHITELIST (el bot solo reacciona, no env\u00eda embed) ---
               {
                 tipo: 'whitelist',
                 urls: [
-                  'https://youtube.com/watch?v=dQw4w9WgXcQ',
+                  'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
                   'https://www.twitch.tv/directory',
                   'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M',
                 ],
-                titulo: 'Dominio en Whitelist',
-                borderColor: 'var(--color-discord)',
-                titleClass: 'text-discord-light',
+                titulo: '\u2705',
+                borderColor: 'var(--color-secure)',
+                titleClass: 'text-secure-light',
+                conversaciones: [
+                  { u1: 'Miren este video', u2: '\u00bfde qu\u00e9 trata?' },
+                  { u1: 'Pasen la playlist nueva', u2: '\u00bfcu\u00e1l es?' },
+                  { u1: 'Alguien vio el stream ayer?', u2: 'estuvo bueno' },
+                ],
               },
             ];
 
             function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-            function randDifferent(arr, exclude) {
-              let v;
-              do { v = rand(arr); } while (v === exclude);
-              return v;
-            }
 
             // Seleccionar escenario con pesos: 50% malicioso, 30% seguro, 20% whitelist
             const roll = Math.random();
             const escenario = roll < 0.5 ? escenarios[0] : roll < 0.8 ? escenarios[1] : escenarios[2];
             const url = rand(escenario.urls);
+            const conv = rand(escenario.conversaciones);
+            const userSender = rand(usuarios);
 
-            // Seleccionar usuario según tipo
-            const userSender = escenario.tipo === 'malicioso' ? rand(usuariosMal) : rand(usuarios);
-
-            // Configurar el bot response dinámicamente
+            // Configurar el bot response din\u00e1micamente
             const responseCard = document.getElementById('chat-response-card');
             const responseTitle = document.getElementById('chat-response-title');
             const responseDesc = document.getElementById('chat-response-desc');
@@ -314,27 +325,33 @@ const steps = [
             } else if (escenario.tipo === 'seguro') {
               responseDesc.textContent = 'No se detectaron amenazas';
               responseUrlSection.classList.remove('hidden');
-              responseLink.classList.add('hidden');
+              responseLink.classList.remove('hidden');
             } else {
-              responseDesc.textContent = `${url.split('/')[2]} está en la lista de dominios permitidos`;
+              // Whitelist: respuesta simple como el bot real
+              const dominio = url.split('/')[2];
+              responseDesc.textContent = `${dominio} \u00e9s segur`;
               responseUrlSection.classList.add('hidden');
               responseLink.classList.add('hidden');
             }
 
-            // Configurar el mensaje del usuario
+            // Configurar conversaci\u00f3n
+            const chatInitials = document.querySelectorAll('.chat-initial');
+            chatInitials[0].querySelector('.font-mono').textContent = conv.u1.includes('\u00bf') ? userSender : rand(usuarios);
+            chatInitials[0].querySelector('.text-surface-300').textContent = conv.u1;
+            const u2Name = rand(usuarios);
+            chatInitials[1].querySelector('.font-mono').textContent = u2Name;
+            chatInitials[1].querySelector('.text-surface-300').textContent = conv.u2;
+
+            // Configurar el mensaje del usuario que env\u00eda la URL
             document.querySelectorAll('.chat-url-text, .chat-url').forEach((el) => el.textContent = url);
             const sentUserEl = document.querySelector('#chat-sent .font-mono');
             sentUserEl.textContent = userSender;
-            sentUserEl.className = escenario.tipo === 'malicioso'
-              ? 'font-mono text-xs font-medium text-threat-light'
-              : 'font-mono text-xs font-medium text-surface-200';
 
             const inputText = document.getElementById('chat-input-text');
             const inputCursor = document.getElementById('chat-input-cursor');
             const sentMsg = document.getElementById('chat-sent');
             const typingInd = document.getElementById('chat-typing');
             const botResponse = document.getElementById('chat-bot-response');
-            const chatInitials = document.querySelectorAll('.chat-initial');
             setTimeout(() => {
               chatInitials.forEach((el, i) => {
                 setTimeout(() => {
