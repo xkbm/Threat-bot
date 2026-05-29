@@ -66,7 +66,7 @@ const { title = 'Threat — Seguridad Inteligente para Discord', description = '
         </button>
       </nav>
 
-      <div id="mobile-menu" class="sm:hidden max-h-0 opacity-0 overflow-hidden transition-all duration-300 ease-out-expo">
+      <div id="mobile-menu" class="sm:hidden max-h-0 opacity-0 overflow-hidden transition-all duration-300 ease-out-expo" style="padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px);">
         <div class="border-t border-surface-700 px-4 py-3 flex flex-col gap-3 text-sm text-surface-300 bg-surface-850/95 backdrop-blur-lg">
           <a href="/#features" class="menu-link block transition-colors hover:text-white py-1.5">Características</a>
           <a href="/#how-it-works" class="menu-link block transition-colors hover:text-white py-1.5">Cómo funciona</a>
@@ -83,26 +83,49 @@ const { title = 'Threat — Seguridad Inteligente para Discord', description = '
 
         if (!btn || !menu || !svgs?.length) return;
 
+        function getFocusable() {
+          return [...menu.querySelectorAll('a, button, [tabindex]:not([tabindex="-1"])')];
+        }
+
         btn.addEventListener('click', () => {
           const isClosed = menu.classList.contains('max-h-0');
           menu.classList.toggle('max-h-0');
           menu.classList.toggle('opacity-0');
           menu.classList.toggle('opacity-100');
-          menu.classList.toggle('max-h-48', isClosed);
+          menu.classList.toggle('max-h-64', isClosed);
           svgs.forEach((svg) => svg.classList.toggle('hidden'));
           btn.setAttribute('aria-expanded', String(!isClosed));
+          if (!isClosed) {
+            getFocusable()[0]?.focus();
+          }
         });
 
         document.querySelectorAll('.menu-link').forEach((link) => {
           link.addEventListener('click', () => {
             menu.classList.add('max-h-0', 'opacity-0');
-            menu.classList.remove('opacity-100', 'max-h-48');
+            menu.classList.remove('opacity-100', 'max-h-64');
             svgs.forEach((svg, i) => {
               if (i === 0) svg.classList.remove('hidden');
               else svg.classList.add('hidden');
             });
             btn.setAttribute('aria-expanded', 'false');
+            btn.focus();
           });
+        });
+
+        menu.addEventListener('keydown', (e) => {
+          if (e.key !== 'Tab') return;
+          const focusable = getFocusable();
+          if (focusable.length === 0) return;
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+          if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
         });
       });
     </script>
@@ -111,7 +134,7 @@ const { title = 'Threat — Seguridad Inteligente para Discord', description = '
       <slot />
     </main>
 
-    <footer class="border-t border-surface-700 bg-surface-900">
+    <footer class="border-t border-surface-700 bg-surface-900" style="padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px);">
       <div class="mx-auto max-w-6xl px-6 py-12">
         <div class="flex flex-col items-center gap-4">
           <div class="flex items-center gap-6">

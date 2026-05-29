@@ -90,6 +90,7 @@ Astro v6.3.8 + Tailwind v4 (`@tailwindcss/vite`). Deployed on Vercel.
 - **Bot integration**: `/about` and `/help` have a "Sitio web" button (`discord.ui.Button` with `EMOJI_LINK`) pointing to Vercel URL
 - **Git**: landing changes on `web` branch; fast-forward merge to `main`
 - **Build output**: `landing/dist/` (gitignored). `pnpm run build` also generates `sitemap-index.xml`
+- **Design Context**: ver `PRODUCT.md` (raíz). Register: **brand**. Personalidad: moderno/serio/preciso. Principios: claridad sobre decoración, restricción profesional, enseñar mostrando, credibilidad técnica. Dark-forced, WCAG AA, `prefers-reduced-motion`.
 
 ## ⚠️ Gotchas
 - **Bound-method illusion** (`bot.py:52-82`): assigning module funcs as bot attrs does NOT bind `self`. `await self.bot.expandir_url(valor)` passes `valor` as bot param. Fix: import directly and pass `self.bot` explicitly.

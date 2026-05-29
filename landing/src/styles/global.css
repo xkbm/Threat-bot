@@ -207,6 +207,7 @@ h1, h2, h3 {
 .hero-gradient {
   background: linear-gradient(135deg, var(--color-surface-900) 0%, var(--color-surface-850) 25%, color-mix(in srgb, var(--color-discord) 15%, var(--color-surface-900)) 50%, var(--color-surface-850) 75%, var(--color-surface-900) 100%);
   background-size: 400% 400%;
+  animation: gradient-shift 8s ease infinite;
 }
 
 .card-hover {
