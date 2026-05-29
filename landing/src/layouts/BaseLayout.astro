@@ -31,10 +31,6 @@ const { title = 'Threat — Seguridad Inteligente para Discord', description = '
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="canonical" href={`https://threat-bot-discord.vercel.app${canonical}`} />
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
-
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -50,65 +46,84 @@ const { title = 'Threat — Seguridad Inteligente para Discord', description = '
   </head>
   <body class="bg-surface-900 text-surface-100 font-sans antialiased">
     <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
-    <header class="fixed top-0 left-0 right-0 z-50 glass" style="padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px);">
-      <nav class="mx-auto flex max-w-6xl items-center justify-between px-4 sm:px-6 py-4">
-        <a href="/" class="text-lg font-bold tracking-tight text-white">Threat</a>
+
+    <script>
+      addEventListener('scroll', () => {
+        const header = document.querySelector('header');
+        if (header) {
+          header.classList.toggle('nav-compact', scrollY > 80);
+        }
+      }, { passive: true });
+    </script>
+
+    <header class="fixed top-0 inset-x-0 z-50 flex justify-center px-4 pt-0 md:pt-4">
+      <nav class="relative w-full max-w-6xl md:w-auto md:min-w-[640px] rounded-none md:rounded-full glass px-4 sm:px-6 py-3 flex items-center justify-between">
+        <a href="/" class="text-lg font-bold tracking-tight text-white shrink-0">Threat</a>
 
         <div class="hidden sm:flex items-center gap-6 text-sm text-surface-300">
-          <a href="/#features" class="nav-link transition-colors hover:text-white">Características</a>
-          <a href="/#how-it-works" class="nav-link transition-colors hover:text-white">Cómo funciona</a>
-          <a href="/#commands" class="nav-link transition-colors hover:text-white">Comandos</a>
+          <a href="/#features" class="nav-link transition-colors duration-200 hover:text-white">Características</a>
+          <a href="/#how-it-works" class="nav-link transition-colors duration-200 hover:text-white">Cómo funciona</a>
+          <a href="/#commands" class="nav-link transition-colors duration-200 hover:text-white">Comandos</a>
+          <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer" class="nav-cta">
+            Añadir
+          </a>
         </div>
 
-        <button id="menu-btn" class="sm:hidden flex items-center justify-center w-8 h-8 text-surface-300 hover:text-white transition-colors" aria-label="Menú" aria-expanded="false">
-          <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
-          <svg class="w-5 h-5 hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+        <button id="menu-btn" class="sm:hidden flex items-center justify-center w-11 h-11 text-surface-300 hover:text-white transition-colors duration-200" aria-label="Menú" aria-expanded="false">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path class="hl1" d="M4 6h16" />
+            <path class="hl2" d="M4 12h16" />
+            <path class="hl3" d="M4 18h16" />
+          </svg>
         </button>
       </nav>
-
-      <div id="mobile-menu" class="sm:hidden max-h-0 opacity-0 overflow-hidden transition-all duration-300 ease-out-expo" style="padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px);">
-        <div class="border-t border-surface-700 px-4 py-3 flex flex-col gap-3 text-sm text-surface-300 bg-surface-850/95 backdrop-blur-lg">
-          <a href="/#features" class="menu-link block transition-colors hover:text-white py-1.5">Características</a>
-          <a href="/#how-it-works" class="menu-link block transition-colors hover:text-white py-1.5">Cómo funciona</a>
-          <a href="/#commands" class="menu-link block transition-colors hover:text-white py-1.5">Comandos</a>
-        </div>
-      </div>
     </header>
+
+    <div id="mobile-menu" class="fixed top-0 left-0 right-0 z-40 sm:hidden translate-y-0 opacity-0 pointer-events-none transition-all duration-300 ease-out-expo">
+      <div class="pt-20 px-4 pb-4 flex flex-col gap-2 text-sm bg-surface-900/95 backdrop-blur-xl border-b border-surface-700/50">
+        <a href="/#features" class="menu-link menu-item block rounded-lg px-4 py-3.5 text-surface-300 transition-all duration-300 hover:bg-surface-800 hover:text-white">Características</a>
+        <a href="/#how-it-works" class="menu-link menu-item block rounded-lg px-4 py-3.5 text-surface-300 transition-all duration-300 hover:bg-surface-800 hover:text-white">Cómo funciona</a>
+        <a href="/#commands" class="menu-link menu-item block rounded-lg px-4 py-3.5 text-surface-300 transition-all duration-300 hover:bg-surface-800 hover:text-white">Comandos</a>
+        <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer" class="menu-link menu-item block text-center rounded-xl bg-discord px-4 py-3.5 font-semibold text-white transition-all duration-300 hover:bg-discord-light" style="transition-delay: 240ms">Añadir a Discord</a>
+      </div>
+    </div>
 
     <script type="module">
       document.addEventListener('DOMContentLoaded', () => {
         const btn = document.getElementById('menu-btn');
         const menu = document.getElementById('mobile-menu');
-        const svgs = btn?.querySelectorAll('svg');
+        const paths = btn?.querySelectorAll('path');
 
-        if (!btn || !menu || !svgs?.length) return;
+        if (!btn || !menu || !paths?.length) return;
 
         function getFocusable() {
           return [...menu.querySelectorAll('a, button, [tabindex]:not([tabindex="-1"])')];
         }
 
         btn.addEventListener('click', () => {
-          const isClosed = menu.classList.contains('max-h-0');
-          menu.classList.toggle('max-h-0');
-          menu.classList.toggle('opacity-0');
-          menu.classList.toggle('opacity-100');
-          menu.classList.toggle('max-h-64', isClosed);
-          svgs.forEach((svg) => svg.classList.toggle('hidden'));
-          btn.setAttribute('aria-expanded', String(!isClosed));
-          if (!isClosed) {
+          const isOpen = menu.classList.contains('opacity-100');
+          menu.classList.toggle('opacity-100', !isOpen);
+          menu.classList.toggle('opacity-0', isOpen);
+          menu.classList.toggle('pointer-events-none', isOpen);
+          menu.classList.toggle('pointer-events-auto', !isOpen);
+          btn.setAttribute('aria-expanded', String(!isOpen));
+
+          // hamburger morph
+          paths.forEach((p, i) => {
+            p.classList.toggle('menu-open', !isOpen);
+          });
+
+          if (!isOpen) {
             getFocusable()[0]?.focus();
           }
         });
 
         document.querySelectorAll('.menu-link').forEach((link) => {
           link.addEventListener('click', () => {
-            menu.classList.add('max-h-0', 'opacity-0');
-            menu.classList.remove('opacity-100', 'max-h-64');
-            svgs.forEach((svg, i) => {
-              if (i === 0) svg.classList.remove('hidden');
-              else svg.classList.add('hidden');
-            });
+            menu.classList.add('opacity-0', 'pointer-events-none');
+            menu.classList.remove('opacity-100', 'pointer-events-auto');
             btn.setAttribute('aria-expanded', 'false');
+            paths.forEach((p) => p.classList.remove('menu-open'));
             btn.focus();
           });
         });
@@ -134,14 +149,21 @@ const { title = 'Threat — Seguridad Inteligente para Discord', description = '
       <slot />
     </main>
 
-    <footer class="border-t border-surface-700 bg-surface-900" style="padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px);">
+    <footer class="border-t border-surface-800 bg-surface-900" style="padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px);">
       <div class="mx-auto max-w-6xl px-6 py-12">
-        <div class="flex flex-col items-center gap-4">
-          <div class="flex items-center gap-6">
-            <a href="/privacidad" class="text-xs text-surface-600 transition-colors hover:text-surface-400">Privacidad</a>
-            <a href="/terminos" class="text-xs text-surface-600 transition-colors hover:text-surface-400">Términos</a>
+        <div class="flex flex-col items-center gap-6">
+          <div class="flex flex-col items-center gap-2">
+            <span class="text-sm font-bold text-white">Threat</span>
+            <p class="text-xs text-surface-500 max-w-xs text-center">
+              Protección contra amenazas para tu servidor de Discord.
+            </p>
           </div>
-          <p class="text-xs text-surface-600">Threat &copy; {new Date().getFullYear()} — Seguridad inteligente para Discord</p>
+          <div class="flex items-center gap-6 text-xs">
+            <a href="/privacidad" class="text-surface-600 transition-colors duration-200 hover:text-surface-400">Privacidad</a>
+            <a href="/terminos" class="text-surface-600 transition-colors duration-200 hover:text-surface-400">Términos</a>
+            <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer" class="text-discord-light transition-colors duration-200 hover:text-discord">Invitar</a>
+          </div>
+          <p class="text-xs text-surface-600">Threat &copy; {new Date().getFullYear()}</p>
         </div>
       </div>
     </footer>

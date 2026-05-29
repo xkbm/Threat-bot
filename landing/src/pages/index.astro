@@ -6,70 +6,68 @@ const features = [
   {
     icon: 'shield-alt',
     title: 'Análisis de URLs',
-    description: 'Escanea enlaces con VirusTotal. Expande acortadores y detecta malware, phishing y amenazas en tiempo real.',
+    description: 'Cada enlace se expande y verifica contra VirusTotal.',
+    featured: true,
   },
   {
     icon: 'eye',
     title: 'Detección NSFW',
-    description: 'SightEngine multi-modelo: detecta desnudos, armas, alcohol y contenido ofensivo con alta precisión.',
+    description: 'SightEngine: desnudos, armas, alcohol y contenido ofensivo. Descarga segura sin exponer tu IP.',
   },
   {
     icon: 'ban',
     title: 'Anti-Spam',
-    description: 'Límite de 30 URLs/hora por usuario, cooldown de 10s entre análisis. Protección proactiva contra abusos.',
+    description: '30 URLs/hora por usuario, cooldown de 10s entre análisis.',
   },
-  {
-    icon: 'sync-alt',
-    title: 'Balanceo Automático',
-    description: 'Distribución inteligente de solicitudes entre múltiples servicios. Sin interrupciones por límite de cuota.',
-  },
+
   {
     icon: 'database',
-    title: 'Cache Inteligente',
-    description: 'RAM + SQLite con expiración automática. URLs 7 días, archivos 30 días. Sin análisis redundantes.',
+    title: 'Cache',
+    description: 'RAM + SQLite con expiración automática. URLs 7 días, archivos 30 días.',
+    closing: true,
   },
   {
     icon: 'check-double',
-    title: 'Whitelist Flexible',
-    description: 'Dominios protegidos no removibles. Control granular por servidor. Subdomain matching automático.',
+    title: 'Whitelist',
+    description: 'Dominios protegidos no removibles. Coincide dominio y subdominios automáticamente.',
+    closing: true,
   },
 ];
 
 const commands = [
   { name: '/scan', desc: 'Analiza un archivo o URL', icon: 'search' },
   { name: '/silentmode', desc: 'Modo silencioso (sin alerts públicos)', icon: 'volume-mute' },
-  { name: '/strictmode', desc: 'Elimina mensajes sospechosos', icon: 'gavel' },
+  { name: '/strictmode', desc: 'Elimina mensajes con amenazas', icon: 'gavel' },
   { name: '/setlogchannel', desc: 'Configura canal de logs', icon: 'hashtag' },
   { name: '/settings', desc: 'Ver configuración del servidor', icon: 'cog' },
   { name: '/whitelist', desc: 'Gestionar dominios permitidos', icon: 'list' },
-  { name: '/stats', desc: 'Estadísticas del servidor', icon: 'chart-bar' },
+  { name: '/stats', desc: 'Estadísticas globales', icon: 'chart-bar' },
   { name: '/help', desc: 'Lista completa de comandos', icon: 'question-circle' },
 ];
 
 const steps = [
   {
     icon: 'envelope',
-    title: 'Mensaje activado',
-    desc: 'Cada mensaje nuevo o editado se analiza al instante. Detecta URLs, imágenes y archivos adjuntos. Máximo 5 archivos por mensaje.',
+    title: 'Llega un mensaje',
+    desc: 'Cada mensaje nuevo o editado se analiza al instante. URLs, imágenes y archivos adjuntos. Máximo 5 archivos por mensaje.',
   },
   {
     icon: 'expand-arrows-alt',
-    title: 'Pre-análisis',
-    desc: 'Whitelist omite dominios conocidos. Anti-spam: 30 URLs/hora con 10s de cooldown. Acortadores expandidos (hasta 5 saltos). Cache RAM + SQLite. Doble extensión y MIME mismatch detectados.',
+    title: 'Análisis',
+    desc: 'Whitelist omite dominios conocidos. Anti-spam verifica límites. Acortadores expandidos hasta 5 saltos. Cache RAM + SQLite evita reanálisis.',
   },
   {
     icon: 'cloud-upload-alt',
     title: 'APIs externas',
-    desc: 'VirusTotal analiza URLs y archivos. SightEngine (4 modelos: nudity, weapon, alcohol, offensive) escanea imágenes con descarga segura SSRF.',
+    desc: 'VirusTotal analiza URLs y archivos. SightEngine escanea imágenes con 4 modelos: desnudos, armas, alcohol y ofensivo.',
   },
   {
     icon: 'bell',
     title: 'Alerta y acción',
-    desc: 'Recibes una alerta clara con el resultado del análisis y puedes actuar directamente (Ban/Kick/Ignore).',
+    desc: 'Recibes el resultado y puedes actuar directamente: Ban, Kick o Ignorar.',
   },
 ];
 ---
-
 <BaseLayout>
   <script type="application/ld+json">
   {
@@ -81,7 +79,7 @@ const steps = [
         "name": "¿Qué tipo de amenazas detecta Threat?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Threat analiza URLs maliciosas (malware, phishing) mediante VirusTotal, detecta contenido NSFW (desnudos, armas, alcohol, ofensivo) con SightEngine, y previene spam con límites inteligentes por usuario."
+          "text": "Threat analiza URLs maliciosas (malware, phishing) mediante VirusTotal, detecta contenido NSFW (desnudos, armas, alcohol, ofensivo) con SightEngine, y previene spam con límites por usuario."
         }
       },
       {
@@ -105,7 +103,7 @@ const steps = [
         "name": "¿Cuánto cuesta usar Threat?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Threat es completamente gratuito. El mantenimiento se financia mediante optimización de caché y consumo eficiente de APIs gratuitas."
+          "text": "Threat es completamente gratuito. Sin costos, sin planes pagos."
         }
       },
       {
@@ -119,328 +117,350 @@ const steps = [
     ]
   }
   </script>
+
   <!-- HERO -->
-  <section class="hero-gradient relative flex min-h-screen items-center justify-center px-6 pt-20 sm:pt-24">
-    <div class="pointer-events-none absolute inset-0 overflow-hidden">
-      <div class="absolute left-1/4 top-1/4 h-72 w-72 rounded-full bg-discord opacity-[0.08] blur-[120px] animate-float"></div>
-      <div class="absolute right-1/4 bottom-1/4 h-96 w-96 rounded-full bg-discord opacity-[0.05] blur-[150px] animate-float-delayed"></div>
-    </div>
-
-    <div class="relative z-10 mx-auto max-w-6xl w-full pb-16 sm:pb-24">
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16 items-start lg:items-center">
-        <!-- Left column: title + description + CTA -->
-        <div class="text-left">
-          <h1 class="mb-6 text-5xl font-black leading-none tracking-tight text-white sm:text-6xl md:text-7xl lg:text-8xl">
-            Threat
-          </h1>
-
-          <p class="mb-8 max-w-xl text-base text-surface-400 sm:text-lg md:text-xl">
-            Seguridad inteligente para tu servidor de Discord.
-            Análisis de URLs, detección NSFW, anti-spam.
-          </p>
-
-          <div class="flex flex-col items-start gap-4 sm:flex-row animate-fade-up-delayed">
-            <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer" class="group inline-flex items-center gap-2 rounded-xl bg-discord px-8 py-3.5 font-semibold text-white transition-all duration-300 hover:bg-discord-light hover:scale-105 active:scale-[0.97] active:duration-150 hover:shadow-[0_0_40px_rgba(88,101,242,0.4)]">
-              <Icon name="plus" size="1.125em" />
-              Invitar al servidor
-            </a>
+  <section class="section-scanline relative overflow-hidden flex flex-col min-h-[100dvh] px-6 pt-20">
+    <div class="pointer-events-none absolute inset-0 z-0" style="background: radial-gradient(ellipse 800px 600px at 50% -100px, rgba(88,101,242,0.12), transparent);" aria-hidden="true"></div>
+    <div class="flex-1 flex items-center justify-center mx-auto max-w-6xl w-full relative z-10">
+      <div class="relative z-10 w-full">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-20 items-start">
+          <!-- Left column -->
+          <div class="text-left">
+            <h1 class="mb-5 text-5xl font-black leading-[0.9] tracking-tight text-white sm:text-6xl md:text-7xl lg:text-8xl">
+              Threat
+            </h1>
+            <p class="mb-8 max-w-lg text-base text-surface-400 sm:text-lg md:text-xl leading-relaxed">
+              Detección de amenazas en tiempo real.
+              URLs maliciosas, NSFW y phishing.
+            </p>
+            <div class="flex flex-col items-start gap-4 sm:flex-row animate-fade-up-delayed">
+              <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer" class="group inline-flex items-center gap-3 rounded-full bg-discord px-7 py-3.5 font-semibold text-white transition-transform duration-160 ease-out-expo hover:bg-discord-light active:scale-[0.97]">
+                <Icon name="plus" />
+                Añadir a Discord
+                <span class="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center transition-transform duration-200 group-hover:translate-x-0.5">
+                  <Icon name="arrow-right" size="0.75em" />
+                </span>
+              </a>
+            </div>
           </div>
-        </div>
-
-        <!-- Right column: chat mockup -->
-        <div id="chat-mockup" class="w-full max-w-md mx-auto lg:mx-0 text-left">
-          <div class="rounded-2xl border border-surface-700 bg-surface-850 shadow-xl">
-            <div class="border-b border-surface-700 px-3 sm:px-5 py-3">
-              <div class="flex items-center gap-2 text-sm font-semibold text-surface-200">
-                <span class="text-surface-500">#</span> general
-              </div>
-            </div>
-
-            <div class="space-y-4 px-3 sm:px-5 pt-4 pb-0">
-              <div>
-                <span class="usuario-1 text-sm font-medium text-surface-200">Alex</span>
-                <span class="mx-1.5 text-surface-600">—</span>
-                <span class="msg-u1 text-sm text-surface-300">¿Alguien tiene el link del nuevo asset?</span>
-              </div>
-
-              <div>
-                <span class="usuario-2 text-sm font-medium text-surface-200">María</span>
-                <span class="mx-1.5 text-surface-600">—</span>
-                <span class="msg-u2 text-sm text-surface-300">creo que sí, te lo paso</span>
-              </div>
-
-              <div id="chat-sent" class="opacity-0">
-                <span class="usuario-mal text-sm font-medium">h4ck3r_1337</span>
-                <span class="mx-1.5 text-surface-600">—</span>
-                <span class="chat-url-text break-all text-sm text-surface-100">https://malware.com/steal-info</span>
-              </div>
-
-              <div id="chat-typing" class="opacity-0 transition-opacity duration-300">
-                <div class="flex items-center gap-1.5 text-sm text-surface-500">
-                  <span class="flex h-1 w-1 rounded-full bg-surface-500 animate-[typing-dot_1.4s_infinite]"></span>
-                  <span class="flex h-1 w-1 rounded-full bg-surface-500 animate-[typing-dot_1.4s_infinite_0.2s]"></span>
-                  <span class="flex h-1 w-1 rounded-full bg-surface-500 animate-[typing-dot_1.4s_infinite_0.4s]"></span>
-                  <span class="ml-1 text-xs">Threat está escribiendo</span>
-                </div>
-              </div>
-
-              <div id="chat-bot-response" class="opacity-0">
-                <div class="mb-1 flex items-center gap-2">
-                  <span class="text-sm font-medium text-white">Threat</span>
-                  <span class="inline-flex items-center gap-0.5 rounded bg-discord px-1.5 py-[1px] text-[9px] font-semibold leading-normal text-white"><Icon name="check" class="text-white" size="9px" /> APP</span>
-                </div>
-
-                <div class="animate-threat-pulse rounded-lg border-l-4 bg-surface-800 p-3.5" style="border-left-color:#f59e0b">
-                  <div class="mb-1 flex items-center gap-1.5">
-                    <Icon name="exclamation-triangle" class="text-orange-400" />
-                    <span class="text-sm font-semibold text-orange-400">URL Maliciosa Detectada</span>
+          <!-- Chat mockup -->
+          <div id="chat-mockup" class="w-full max-w-md mx-auto lg:mx-0 text-left">
+            <div class="card-outer">
+              <div class="card-inner-alt">
+                <div class="border-b border-surface-700/50 px-3 sm:px-5 py-3 flex items-center gap-2">
+                  <div class="flex items-center gap-1.5">
+                    <span class="h-2 w-2 rounded-full bg-threat"></span>
+                    <span class="h-2 w-2 rounded-full bg-surface-600"></span>
+                    <span class="h-2 w-2 rounded-full bg-surface-600"></span>
                   </div>
-                  <p class="mb-3 text-xs text-surface-300">
-                    Se encontraron <strong class="chat-detecciones text-surface-100">3</strong> detecciones
-                  </p>
-                  <div class="mb-2">
-                    <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-surface-500">URL</div>
-                    <code class="chat-url block truncate rounded bg-surface-700 px-2 py-1 font-mono text-xs text-surface-200">https://malware.com/steal-info</code>
-                  </div>
-                  <span class="inline-flex items-center gap-1 text-xs text-discord-light">
-                    <Icon name="external-link-alt" /> Ver informe completo
-                  </span>
+                  <span class="ml-auto font-mono text-[10px] uppercase tracking-wider text-surface-500"># general</span>
                 </div>
-              </div>
-            </div>
-
-            <div class="mt-5 border-t border-surface-700 px-3 sm:px-5 py-3">
-              <div class="flex items-center gap-2 rounded-lg border border-surface-600 bg-surface-800 px-3 py-2 sm:px-4 sm:py-2.5 text-sm text-surface-500">
-                <span id="chat-input-text" class="flex-1 text-surface-500">Escribe un mensaje...</span>
-                <span id="chat-input-cursor" class="hidden inline-block h-[1.1em] w-[2px] bg-discord animate-composing-cursor"></span>
-                <Icon name="paperclip" />
+                <div class="space-y-4 px-3 sm:px-5 pt-4 pb-0">
+                  <div>
+                    <span class="font-mono text-xs font-medium text-surface-200">Alex</span>
+                    <span class="mx-1.5 text-surface-600">—</span>
+                    <span class="text-sm text-surface-300">¿Alguien tiene el link del nuevo asset?</span>
+                  </div>
+                  <div>
+                    <span class="font-mono text-xs font-medium text-surface-200">María</span>
+                    <span class="mx-1.5 text-surface-600">—</span>
+                    <span class="text-sm text-surface-300">creo que sí, te lo paso</span>
+                  </div>
+                  <div id="chat-sent" class="opacity-0">
+                    <span class="font-mono text-xs font-medium text-threat-light">h4ck3r_1337</span>
+                    <span class="mx-1.5 text-surface-600">—</span>
+                    <span class="chat-url-text break-all text-sm text-surface-100"></span>
+                  </div>
+                  <div id="chat-typing" class="opacity-0 transition-opacity duration-300">
+                    <div class="flex items-center gap-1.5 text-sm text-surface-500">
+                      <span class="flex h-1 w-1 rounded-full bg-surface-500 animate-[typing-dot_1.4s_infinite]"></span>
+                      <span class="flex h-1 w-1 rounded-full bg-surface-500 animate-[typing-dot_1.4s_infinite_0.2s]"></span>
+                      <span class="flex h-1 w-1 rounded-full bg-surface-500 animate-[typing-dot_1.4s_infinite_0.4s]"></span>
+                      <span class="ml-1 text-xs">Threat está escribiendo</span>
+                    </div>
+                  </div>
+                  <div id="chat-bot-response" class="opacity-0">
+                    <div class="mb-1 flex items-center gap-2">
+                      <span class="font-mono text-xs font-medium text-white">Threat</span>
+                      <span class="inline-flex items-center gap-0.5 rounded bg-discord px-1.5 py-[1px] text-[9px] font-semibold leading-normal text-white"><Icon name="check" class="text-white" size="9px" /> APP</span>
+                    </div>
+                    <div class="border-l-4 bg-surface-800 p-3.5" style="border-left-color: var(--color-threat);">
+                      <div class="mb-1 flex items-center gap-1.5">
+                        <Icon name="exclamation-triangle" class="text-threat-light" />
+                        <span class="text-sm font-semibold text-threat-light">URL Maliciosa Detectada</span>
+                      </div>
+                      <p class="mb-3 text-xs text-surface-300">
+                        Se encontraron <strong class="chat-detecciones text-surface-100">3</strong> detecciones
+                      </p>
+                      <div class="mb-2">
+                        <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-surface-500">URL</div>
+                        <code class="chat-url block truncate rounded bg-surface-700 px-2 py-1 font-mono text-xs text-surface-200"></code>
+                      </div>
+                      <span class="inline-flex items-center gap-1 text-xs text-discord-light">
+                        <Icon name="external-link-alt" /> Ver informe completo
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div class="mt-5 border-t border-surface-700/50 px-3 sm:px-5 py-3">
+                  <div class="flex items-center gap-2 rounded-lg border border-surface-600 bg-surface-800 px-3 py-2 sm:px-4 sm:py-2.5 text-sm text-surface-500">
+                    <span id="chat-input-text" class="flex-1 text-surface-500">Escribe un mensaje...</span>
+                    <span id="chat-input-cursor" class="hidden inline-block h-[1.1em] w-[2px] bg-discord animate-composing-cursor"></span>
+                    <Icon name="paperclip" />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
-
-      <script type="module">
-        document.addEventListener('DOMContentLoaded', () => {
-          const usuarios = ['Alex', 'María', 'Carlos', 'Laura', 'Pedro', 'Sofía', 'Ana', 'Luis', 'Elena', 'Diego'];
-          const usuariosMal = ['h4ck3r_1337', 'xPhishMaster', 'malware_420', 'dark_stealer', 'virus_loader99', 'exploit_kiddie', 'phisher_01'];
-          const urls = [
-            'https://malware.com/steal-info',
-            'https://phishing-login.xyz/verify',
-            'https://drive-google.cf/archivo',
-            'https://steam-community.ru/free',
-            'https://dropbox-security.cc/login',
-            'https://free-nitro.download/claim',
-            'https://verify-discord.xyz/gift',
-            'https://secure-update.ga/package',
-            'https://free-bitcoin.tk/claim',
-          ];
-          const conversaciones = [
-            { u1: 'Mira lo que encontré',                u2: '¿qué es eso?',        tipo: 'u1' },
-            { u1: 'Oye, te paso un enlace',              u2: 'dale, mándalo',       tipo: 'u1' },
-            { u1: 'Mira esto que me llegó al DM',        u2: 'pásalo al general',   tipo: 'u1' },
-            { u1: '¿Alguien sabe si esto es seguro?',    u2: 'no sé, pásalo a ver', tipo: 'u1' },
-            { u1: 'Necesito ayuda con un archivo',       u2: 'tíralo aquí',         tipo: 'u1' },
-            { u1: 'Mira, nitro gratis',                  u2: '¿Donde?',             tipo: 'u1' },
-            { u1: 'Gana Robux fácil',                    u2: 'cómo?',               tipo: 'u1' },
-            { u1: 'Boost gratuito para tu server',       u2: 'me interesa',         tipo: 'u1' },
-            { u1: '¿Alguien tiene el link del nuevo asset?', u2: 'creo que sí, te lo paso', tipo: 'u2' },
-            { u1: 'Pasen el último diseño',                  u2: 'yo lo tengo',             tipo: 'u2' },
-            { u1: 'Alguien vio el partido ayer?',            u2: 'estuvo bueno',            tipo: 'intruso' },
-            { u1: 'Qué calor hoy',                           u2: 'no sabes',                tipo: 'intruso' },
-          ];
-
-          function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-          function randDifferent(arr, exclude) {
-            let v;
-            do { v = rand(arr); } while (v === exclude);
-            return v;
-          }
-
-          const conv = rand(conversaciones);
-          const u1 = rand(usuarios);
-          const u2 = randDifferent(usuarios, u1);
-          const url = rand(urls);
-          const det = Math.floor(Math.random() * 22) + 3;
-
-          document.querySelector('.usuario-1').textContent = u1;
-          document.querySelector('.usuario-2').textContent = u2;
-          document.querySelector('.msg-u1').textContent = conv.u1;
-          document.querySelector('.msg-u2').textContent = conv.u2;
-
-          const malSpan = document.querySelector('.usuario-mal');
-          if (conv.tipo === 'intruso') {
-            malSpan.textContent = rand(usuariosMal);
-            malSpan.className = 'usuario-mal text-sm font-medium text-red-400';
-          } else {
-            malSpan.textContent = conv.tipo === 'u1' ? u1 : u2;
-            malSpan.className = 'usuario-mal text-sm font-medium text-surface-200';
-          }
-          document.querySelector('.chat-url-text').textContent = url;
-          document.querySelector('.chat-url').textContent = url;
-          document.querySelector('.chat-detecciones').textContent = det;
-
-          const inputText = document.getElementById('chat-input-text');
-          const inputCursor = document.getElementById('chat-input-cursor');
-          const sentMsg = document.getElementById('chat-sent');
-          const typingInd = document.getElementById('chat-typing');
-          const botResponse = document.getElementById('chat-bot-response');
-
-          setTimeout(() => {
-            inputText.classList.remove('text-surface-500');
-            inputText.classList.add('text-surface-100');
-            inputText.textContent = '';
-            inputCursor.classList.remove('hidden');
-
-            let i = 0;
-            const interval = setInterval(() => {
-              inputText.textContent = url.slice(0, i + 1);
-              i++;
-              if (i >= url.length) {
-                clearInterval(interval);
-                inputText.textContent = url;
-                inputCursor.classList.add('hidden');
-                inputText.classList.remove('text-surface-100');
-                inputText.classList.add('text-surface-500');
-                inputText.textContent = 'Escribe un mensaje...';
-
-                setTimeout(() => {
-                  sentMsg.classList.remove('opacity-0');
-                  sentMsg.classList.add('animate-slide-up');
-
+        <script type="module">
+          document.addEventListener('DOMContentLoaded', () => {
+            const usuarios = ['Alex', 'María', 'Carlos', 'Laura', 'Pedro', 'Sofía', 'Ana', 'Luis', 'Elena', 'Diego'];
+            const usuariosMal = ['noise_38472', 'pxl_share', 'mark_online', 'vx_runner', 'rem_upload', 'crash_override', 'guest_001'];
+            const urls = [
+              'https://malware.com/steal-info',
+              'https://phishing-login.xyz/verify',
+              'https://drive-google.cf/archivo',
+              'https://steam-community.ru/free',
+              'https://dropbox-security.cc/login',
+              'https://free-nitro.download/claim',
+              'https://verify-discord.xyz/gift',
+              'https://secure-update.ga/package',
+              'https://free-bitcoin.tk/claim',
+            ];
+            const conversaciones = [
+              { u1: 'Mira lo que encontré',                u2: '¿qué es eso?',        tipo: 'u1' },
+              { u1: 'Oye, te paso un enlace',              u2: 'dale, mándalo',       tipo: 'u1' },
+              { u1: 'Mira esto que me llegó al DM',        u2: 'pásalo al general',   tipo: 'u1' },
+              { u1: '¿Alguien sabe si esto es seguro?',    u2: 'no sé, pásalo a ver', tipo: 'u1' },
+              { u1: 'Necesito ayuda con un archivo',       u2: 'tíralo aquí',         tipo: 'u1' },
+              { u1: 'Mira, nitro gratis',                  u2: '¿Donde?',             tipo: 'u1' },
+              { u1: 'Gana Robux fácil',                    u2: 'cómo?',               tipo: 'u1' },
+              { u1: 'Boost gratuito para tu server',       u2: 'me interesa',         tipo: 'u1' },
+              { u1: '¿Alguien tiene el link del nuevo asset?', u2: 'creo que sí, te lo paso', tipo: 'u2' },
+              { u1: 'Pasen el último diseño',                  u2: 'yo lo tengo',             tipo: 'u2' },
+              { u1: 'Alguien vio el partido ayer?',            u2: 'estuvo bueno',            tipo: 'intruso' },
+              { u1: 'Qué calor hoy',                           u2: 'no sabes',                tipo: 'intruso' },
+            ];
+            function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+            function randDifferent(arr, exclude) {
+              let v;
+              do { v = rand(arr); } while (v === exclude);
+              return v;
+            }
+            const conv = rand(conversaciones);
+            const u1 = rand(usuarios);
+            const u2 = randDifferent(usuarios, u1);
+            const url = rand(urls);
+            const det = Math.floor(Math.random() * 22) + 3;
+            document.querySelectorAll('.chat-url-text, .chat-url').forEach((el) => el.textContent = url);
+            document.querySelector('.chat-detecciones').textContent = det;
+            const inputText = document.getElementById('chat-input-text');
+            const inputCursor = document.getElementById('chat-input-cursor');
+            const sentMsg = document.getElementById('chat-sent');
+            const typingInd = document.getElementById('chat-typing');
+            const botResponse = document.getElementById('chat-bot-response');
+            setTimeout(() => {
+              inputText.classList.remove('text-surface-500');
+              inputText.classList.add('text-surface-100');
+              inputText.textContent = '';
+              inputCursor.classList.remove('hidden');
+              let i = 0;
+              const interval = setInterval(() => {
+                inputText.textContent = url.slice(0, i + 1);
+                i++;
+                if (i >= url.length) {
+                  clearInterval(interval);
+                  inputText.textContent = url;
+                  inputCursor.classList.add('hidden');
+                  inputText.classList.remove('text-surface-100');
+                  inputText.classList.add('text-surface-500');
+                  inputText.textContent = 'Escribe un mensaje...';
                   setTimeout(() => {
-                    typingInd.classList.remove('opacity-0');
-
+                    sentMsg.classList.remove('opacity-0');
+                    sentMsg.classList.add('animate-slide-up');
                     setTimeout(() => {
-                      typingInd.classList.add('opacity-0');
-                      botResponse.classList.remove('opacity-0');
-                      botResponse.classList.add('animate-slide-up');
-                    }, 800);
+                      typingInd.classList.remove('opacity-0');
+                      setTimeout(() => {
+                        typingInd.classList.add('opacity-0');
+                        botResponse.classList.remove('opacity-0');
+                        botResponse.classList.add('animate-slide-up');
+                      }, 800);
+                    }, 500);
                   }, 500);
-                }, 500);
-              }
-            }, 55);
-          }, 1000);
-        });
-      </script>
+                }
+              }, 55);
+            }, 1000);
+          });
+        </script>
+      </div>
     </div>
-
-    <div class="absolute bottom-16 left-1/2 -translate-x-1/2 animate-soft-bounce">
-      <a href="#features" class="text-surface-600 transition-colors hover:text-surface-400">
-        <Icon name="chevron-down" size="1.5em" />
+    <div class="flex justify-center animate-soft-bounce">
+      <a href="#features" class="flex flex-col items-center gap-1 text-surface-600 transition-colors duration-200 hover:text-surface-400">
+        <Icon name="chevron-down" size="1.25em" />
       </a>
     </div>
   </section>
 
   <!-- FEATURES -->
-  <section id="features" class="scroll-reveal relative border-t border-surface-800 bg-surface-900 px-6 py-16 sm:py-24">
+  <section id="features" class="scroll-reveal relative border-t border-surface-800 bg-surface-900 px-6 py-24 sm:py-32" data-reveal="up">
     <div class="mx-auto max-w-6xl">
       <div class="mb-16 text-center">
         <h2 class="mb-4 text-4xl font-bold tracking-tight md:text-5xl">
-          ¿Por qué <span class="gradient-text">Threat</span>?
+          ¿Por qué <span class="text-discord">Threat</span>?
         </h2>
         <p class="mx-auto max-w-2xl text-surface-400">
-          Protección integral contra amenazas con análisis multicapa, caché inteligente y alta disponibilidad.
+          Cada URL, imagen y archivo se analiza contra VirusTotal y SightEngine.
         </p>
       </div>
 
-      <div class="scroll-reveal-grid grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {
-          features.map((f) => (
-            <div class="card-hover group rounded-2xl border border-surface-700 bg-surface-800/50 p-6 transition-all duration-300">
-              <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-discord/10 text-2xl text-discord transition-all duration-300 group-hover:bg-discord group-hover:text-white">
-                <Icon name={f.icon} />
+      <div class="flex flex-col gap-6">
+        <!-- Featured card (full-width) -->
+        {features.filter(f => f.featured).map((f) => (
+          <div class="card-outer group">
+            <div class="card-inner-alt p-6 sm:p-8">
+              <div class="flex flex-col sm:flex-row items-start gap-6">
+                <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-discord/10 text-3xl text-discord transition-all duration-300 group-hover:bg-threat group-hover:text-white">
+                  <Icon name={f.icon} />
+                </div>
+                <div class="flex-1 min-w-0">
+                  <h3 class="mb-2 text-xl font-semibold text-white">{f.title}</h3>
+                  <p class="text-sm leading-relaxed text-surface-400 max-w-2xl">{f.description}</p>
+                </div>
+
               </div>
-              <h3 class="mb-2 text-lg font-semibold text-white">{f.title}</h3>
-              <p class="text-sm leading-relaxed text-surface-400">{f.description}</p>
             </div>
-          ))
-        }
+          </div>
+        ))}
+
+        <!-- 2x2 grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {features.filter(f => !f.featured && !f.closing).map((f, i) => (
+            <div class="card-outer group stagger-fade" style={`transition-delay: ${i * 80}ms`}>
+              <div class="card-inner p-6">
+                <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-discord/10 text-2xl text-discord transition-all duration-300 group-hover:bg-threat group-hover:text-white">
+                  <Icon name={f.icon} />
+                </div>
+                <h3 class="mb-2 text-lg font-semibold text-white">{f.title}</h3>
+                <p class="text-sm leading-relaxed text-surface-400">{f.description}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <!-- Closing card (full-width) -->
+        {features.filter(f => f.closing).map((f) => (
+          <div class="card-outer group">
+            <div class="card-inner-alt p-6 sm:p-8">
+              <div class="flex flex-col sm:flex-row items-start gap-6">
+                <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-discord/10 text-3xl text-discord transition-all duration-300 group-hover:bg-threat group-hover:text-white">
+                  <Icon name={f.icon} />
+                </div>
+                <div class="flex-1 min-w-0">
+                  <h3 class="mb-2 text-xl font-semibold text-white">{f.title}</h3>
+                  <p class="text-sm leading-relaxed text-surface-400 max-w-2xl">{f.description}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   </section>
 
   <!-- HOW IT WORKS -->
-  <section id="how-it-works" class="scroll-reveal relative border-t border-surface-800 bg-surface-850 px-6 py-16 sm:py-24">
+  <section id="how-it-works" class="scroll-reveal section-scanline relative border-t border-surface-800 bg-surface-850 px-6 py-24 sm:py-32" data-reveal="none">
     <div class="mx-auto max-w-6xl">
       <div class="mb-16 text-center">
         <h2 class="mb-4 text-4xl font-bold tracking-tight md:text-5xl">
-          ¿Cómo <span class="gradient-text">funciona</span>?
+          Cómo <span class="text-discord">funciona</span>
         </h2>
         <p class="mx-auto max-w-2xl text-surface-400">
-          Pipeline de análisis automático en cada mensaje.
+          Cuatro etapas desde que llega un mensaje hasta que recibes la alerta.
         </p>
       </div>
+      <div class="relative mx-auto max-w-3xl">
+        <!-- Vertical connector line (hidden on mobile, visible sm+) -->
+        <div class="hidden sm:block absolute left-8 lg:left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-discord/40 via-surface-700 to-surface-700 lg:-translate-x-px"></div>
 
-      <div class="relative grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-        <div class="absolute left-0 right-0 top-[32px] z-0 hidden h-0.5 bg-gradient-to-r from-discord/0 via-discord/40 to-discord/0 pointer-events-none lg:block"></div>
-        {
-          steps.map((step, i) => (
-            <div class="relative flex flex-col items-center text-center">
-              <div class="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-surface-600 bg-surface-800 text-2xl text-discord shadow-lg shadow-discord/5">
-                <Icon name={step.icon} />
-              </div>
-              <span class="mb-2 rounded-full bg-discord/10 px-3 py-0.5 text-xs font-semibold text-discord-light">Paso {i + 1}</span>
-              <h3 class="mb-2 text-lg font-semibold text-white">{step.title}</h3>
-              <p class="text-sm text-surface-400">{step.desc}</p>
+        {steps.map((step, i) => (
+          <div class={`relative flex flex-col sm:flex-row items-start sm:items-center gap-6 pb-16 last:pb-0 ${i % 2 === 0 ? '' : 'lg:flex-row-reverse'}`}>
+            <!-- Node dot -->
+            <div class="relative z-10 flex items-center gap-4 sm:flex-col sm:w-16 lg:w-1/2 shrink-0">
+              <span class="relative grid h-10 w-10 sm:h-12 sm:w-12 place-items-center rounded-full bg-surface-850 ring-2 ring-surface-700 font-mono text-xs sm:text-sm font-bold text-discord">
+                {String(i + 1).padStart(2, '0')}
+              </span>
             </div>
-          ))
-        }
+
+            <!-- Content card -->
+            <div class="flex-1 min-w-0 card-outer group">
+              <div class="card-inner p-5 sm:p-6">
+                <div class="flex items-start gap-4">
+                  <div class="hidden sm:flex mt-0.5 h-10 w-10 shrink-0 items-center justify-center rounded-full bg-discord/10 text-xl text-discord transition-all duration-300 group-hover:bg-threat group-hover:text-white">
+                    <Icon name={step.icon} />
+                  </div>
+                  <div class="min-w-0">
+                    <h3 class="mb-1.5 text-lg font-semibold text-white">{step.title}</h3>
+                    <p class="text-sm leading-relaxed text-surface-400">{step.desc}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   </section>
 
   <!-- COMMANDS -->
-  <section id="commands" class="scroll-reveal relative border-t border-surface-800 bg-surface-900 px-6 py-16 sm:py-24">
+  <section id="commands" class="scroll-reveal relative border-t border-surface-800 bg-surface-900 px-6 py-24 sm:py-32" data-reveal="up">
     <div class="mx-auto max-w-6xl">
       <div class="mb-16 text-center">
         <h2 class="mb-4 text-4xl font-bold tracking-tight md:text-5xl">
-          Comandos <span class="gradient-text">disponibles</span>
+          Comandos <span class="text-discord">disponibles</span>
         </h2>
         <p class="mx-auto max-w-2xl text-surface-400">
-          Slash commands diseñados para una administración rápida e intuitiva.
+          Ocho comandos para gestionar la seguridad de tu servidor.
         </p>
       </div>
-
-      <div class="scroll-reveal-grid grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {
-          commands.map((cmd) => (
-            <div class="group rounded-xl border border-surface-700 bg-surface-800 p-4 transition-all duration-300 hover:border-discord/50 hover:shadow-lg hover:shadow-discord/5">
-              <div class="flex items-center gap-3">
-                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-700 text-surface-300 transition-all duration-300 group-hover:bg-discord/20 group-hover:text-discord-light">
-                  <Icon name={cmd.icon} />
+      <div class="card-outer">
+        <div class="card-inner-alt divide-y divide-surface-700/50 overflow-hidden">
+          {commands.map((cmd, i) => (
+            <div class="group flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-3.5 sm:py-4 transition-colors duration-200 hover:bg-surface-800/50">
+              <div class="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-full bg-surface-700 text-surface-400 transition-all duration-300 group-hover:bg-threat/20 group-hover:text-threat-light">
+                <Icon name={cmd.icon} size="0.875em" />
+              </div>
+              <div class="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-3">
+                <div class="flex items-center gap-1.5">
+                  <code class="font-mono text-sm font-medium text-white truncate">{cmd.name}</code>
+                  <span class="hidden sm:inline font-mono text-[8px] uppercase tracking-wider text-surface-500 border border-surface-600 rounded px-1 py-[1px]">SLASH</span>
                 </div>
-                <div class="min-w-0">
-                  <code class="block break-all font-mono text-sm font-medium text-white">{cmd.name}</code>
-                  <span class="text-xs text-surface-500">{cmd.desc}</span>
-                </div>
+                <span class="text-xs text-surface-500 truncate">{cmd.desc}</span>
               </div>
             </div>
-          ))
-        }
+          ))}
+        </div>
       </div>
     </div>
   </section>
 
   <!-- FAQ -->
-  <section id="faq" class="scroll-reveal relative border-t border-surface-800 bg-surface-850 px-6 py-16 sm:py-24">
+  <section id="faq" class="scroll-reveal section-scanline relative border-t border-surface-800 bg-surface-850 px-6 py-24 sm:py-32" data-reveal="none">
     <div class="mx-auto max-w-3xl">
       <div class="mb-12 text-center">
         <h2 class="mb-4 text-4xl font-bold tracking-tight md:text-5xl">
-          Preguntas <span class="gradient-text">frecuentes</span>
+          Preguntas <span class="text-discord">frecuentes</span>
         </h2>
       </div>
-
       <details class="faq-details">
         <summary>
           ¿Qué tipo de amenazas detecta Threat?
           <Icon name="plus" size="0.875em" />
         </summary>
         <div class="faq-answer">
-          Threat analiza URLs maliciosas (malware, phishing) mediante VirusTotal, detecta contenido NSFW (desnudos, armas, alcohol, ofensivo) con SightEngine, y previene spam con límites inteligentes por usuario.
+          Threat analiza URLs maliciosas (malware, phishing) mediante VirusTotal, detecta contenido NSFW (desnudos, armas, alcohol, ofensivo) con SightEngine, y previene spam con límites por usuario.
         </div>
       </details>
-
       <details class="faq-details">
         <summary>
           ¿Cómo configuro el bot en mi servidor?
@@ -450,7 +470,6 @@ const steps = [
           Invita al bot con el enlace de arriba, usa <code class="font-mono text-discord-light">/setlogchannel</code> para configurar el canal de logs, y opcionalmente <code class="font-mono text-discord-light">/silentmode</code> o <code class="font-mono text-discord-light">/strictmode</code> según tus necesidades.
         </div>
       </details>
-
       <details class="faq-details">
         <summary>
           ¿Threat guarda mis datos personales?
@@ -460,17 +479,15 @@ const steps = [
           Solo almacenamos datos necesarios para el funcionamiento: configuración del servidor y caché temporal de análisis. No almacenamos mensajes completos, información personal ni contenido de conversaciones. Consulta nuestra <a href="/privacidad" class="text-discord-light hover:underline">Política de Privacidad</a> para más detalles.
         </div>
       </details>
-
       <details class="faq-details">
         <summary>
           ¿Cuánto cuesta usar Threat?
           <Icon name="plus" size="0.875em" />
         </summary>
         <div class="faq-answer">
-          Threat es completamente gratuito. El mantenimiento se financia mediante optimización de caché y consumo eficiente de APIs gratuitas.
+          Threat es completamente gratuito. Sin costos, sin planes pagos.
         </div>
       </details>
-
       <details class="faq-details">
         <summary>
           ¿Qué hago si el bot marca un falso positivo?
@@ -484,20 +501,20 @@ const steps = [
   </section>
 
   <!-- CTA -->
-  <section class="scroll-reveal relative overflow-hidden border-t border-surface-800 bg-surface-900 px-6 py-16 sm:py-24">
-    <div class="pointer-events-none absolute inset-0">
-      <div class="absolute left-1/2 top-1/2 h-80 w-80 -translate-x-1/2 -translate-y-1/2 rounded-full bg-discord opacity-[0.06] blur-[120px]"></div>
-    </div>
+  <section class="scroll-reveal section-scanline relative overflow-hidden border-t border-surface-800 bg-surface-900 px-6 py-28 sm:py-36" data-reveal="up">
     <div class="relative z-10 mx-auto max-w-3xl text-center">
       <h2 class="mb-6 text-4xl font-bold tracking-tight md:text-5xl">
-        Protege tu servidor <span class="gradient-text">ahora</span>
+        Protege tu <span class="text-discord">servidor</span>
       </h2>
-      <p class="mb-10 text-surface-400">
-        Amenazas en tiempo real. Análisis multicapa. Configuración simple.
+      <p class="mb-10 mx-auto max-w-md text-surface-400 text-sm mt-6">
+        Sin costos, sin límites ocultos.
       </p>
-      <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer" class="animate-glow inline-flex items-center gap-2 rounded-xl bg-discord px-10 py-4 text-lg font-semibold text-white transition-all duration-300 hover:bg-discord-light hover:scale-105 active:scale-[0.97] active:duration-150">
+      <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer" class="group inline-flex items-center gap-3 rounded-full bg-discord px-10 py-4 text-lg font-semibold text-white transition-transform duration-160 ease-out-expo hover:bg-discord-light active:scale-[0.97]">
         <Icon name="plus" />
         Añadir a Discord
+        <span class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center transition-transform duration-200 group-hover:translate-x-0.5">
+          <Icon name="arrow-right" />
+        </span>
       </a>
     </div>
   </section>
@@ -516,7 +533,6 @@ const steps = [
       },
       { threshold: 0.1 }
     );
-
     document.querySelectorAll('.scroll-reveal').forEach((el) => {
       observer.observe(el);
     });
