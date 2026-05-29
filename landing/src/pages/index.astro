@@ -203,19 +203,19 @@ const steps = [
                       <span class="font-mono text-xs font-medium text-white">Threat</span>
                       <span class="inline-flex items-center gap-0.5 rounded bg-discord px-1.5 py-[1px] text-[9px] font-semibold leading-normal text-white"><Icon name="check" class="text-white" size="9px" /> APP</span>
                     </div>
-                    <div class="border-l-4 bg-surface-800 p-3.5" style="border-left-color: var(--color-threat);">
+                    <div id="chat-response-card" class="border-l-4 bg-surface-800 p-3.5" style="border-left-color: var(--color-threat);">
                       <div class="mb-1 flex items-center gap-1.5">
-                        <Icon name="exclamation-triangle" class="text-threat-light" />
-                        <span class="text-sm font-semibold text-threat-light">URL Maliciosa Detectada</span>
+                        <Icon id="chat-response-icon" name="exclamation-triangle" class="text-threat-light" />
+                        <span id="chat-response-title" class="text-sm font-semibold text-threat-light">URL Maliciosa Detectada</span>
                       </div>
-                      <p class="mb-3 text-xs text-surface-300">
-                        Se encontraron <strong class="chat-detecciones text-surface-100">3</strong> detecciones
+                      <p id="chat-response-desc" class="mb-3 text-xs text-surface-300">
+                        Se encontraron <strong class="text-surface-100">18</strong> detecciones
                       </p>
-                      <div class="mb-2">
+                      <div id="chat-response-url-section" class="mb-2">
                         <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-surface-500">URL</div>
                         <code class="chat-url block truncate rounded bg-surface-700 px-2 py-1 font-mono text-xs text-surface-200"></code>
                       </div>
-                      <span class="inline-flex items-center gap-1 text-xs text-discord-light">
+                      <span id="chat-response-link" class="inline-flex items-center gap-1 text-xs text-discord-light">
                         <Icon name="external-link-alt" /> Ver informe completo
                       </span>
                     </div>
@@ -236,44 +236,108 @@ const steps = [
           document.addEventListener('DOMContentLoaded', () => {
             const usuarios = ['Alex', 'María', 'Carlos', 'Laura', 'Pedro', 'Sofía', 'Ana', 'Luis', 'Elena', 'Diego'];
             const usuariosMal = ['noise_38472', 'pxl_share', 'mark_online', 'vx_runner', 'rem_upload', 'crash_override', 'guest_001'];
-            const urls = [
-              'https://malware.com/steal-info',
-              'https://phishing-login.xyz/verify',
-              'https://drive-google.cf/archivo',
-              'https://steam-community.ru/free',
-              'https://dropbox-security.cc/login',
-              'https://free-nitro.download/claim',
-              'https://verify-discord.xyz/gift',
-              'https://secure-update.ga/package',
-              'https://free-bitcoin.tk/claim',
+
+            const escenarios = [
+              // --- MALICIOSO ---
+              {
+                tipo: 'malicioso',
+                urls: [
+                  'https://free-nitro.download/claim',
+                  'https://phishing-login.xyz/verify',
+                  'https://steam-community.ru/free',
+                  'https://verify-discord.xyz/gift',
+                  'https://free-bitcoin.tk/claim',
+                  'https://secure-update.ga/package',
+                ],
+                titulo: 'URL Maliciosa Detectada',
+                borderColor: 'var(--color-threat)',
+                iconClass: 'text-threat-light',
+                iconName: 'exclamation-triangle',
+                titleClass: 'text-threat-light',
+              },
+              // --- SEGURO ---
+              {
+                tipo: 'seguro',
+                urls: [
+                  'https://github.com/discord.py/releases',
+                  'https://stackoverflow.com/questions/12345',
+                  'https://docs.python.org/3/tutorial',
+                  'https://tailwindcss.com/docs',
+                ],
+                titulo: 'URL Segura',
+                borderColor: 'var(--color-secure)',
+                iconClass: 'text-secure-light',
+                iconName: 'check-circle',
+                titleClass: 'text-secure-light',
+              },
+              // --- WHITELIST ---
+              {
+                tipo: 'whitelist',
+                urls: [
+                  'https://youtube.com/watch?v=dQw4w9WgXcQ',
+                  'https://www.twitch.tv/directory',
+                  'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M',
+                ],
+                titulo: 'Dominio en Whitelist',
+                borderColor: 'var(--color-discord)',
+                iconClass: 'text-discord-light',
+                iconName: 'shield',
+                titleClass: 'text-discord-light',
+              },
             ];
-            const conversaciones = [
-              { u1: 'Mira lo que encontré',                u2: '¿qué es eso?',        tipo: 'u1' },
-              { u1: 'Oye, te paso un enlace',              u2: 'dale, mándalo',       tipo: 'u1' },
-              { u1: 'Mira esto que me llegó al DM',        u2: 'pásalo al general',   tipo: 'u1' },
-              { u1: '¿Alguien sabe si esto es seguro?',    u2: 'no sé, pásalo a ver', tipo: 'u1' },
-              { u1: 'Necesito ayuda con un archivo',       u2: 'tíralo aquí',         tipo: 'u1' },
-              { u1: 'Mira, nitro gratis',                  u2: '¿Donde?',             tipo: 'u1' },
-              { u1: 'Gana Robux fácil',                    u2: 'cómo?',               tipo: 'u1' },
-              { u1: 'Boost gratuito para tu server',       u2: 'me interesa',         tipo: 'u1' },
-              { u1: '¿Alguien tiene el link del nuevo asset?', u2: 'creo que sí, te lo paso', tipo: 'u2' },
-              { u1: 'Pasen el último diseño',                  u2: 'yo lo tengo',             tipo: 'u2' },
-              { u1: 'Alguien vio el partido ayer?',            u2: 'estuvo bueno',            tipo: 'intruso' },
-              { u1: 'Qué calor hoy',                           u2: 'no sabes',                tipo: 'intruso' },
-            ];
+
             function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
             function randDifferent(arr, exclude) {
               let v;
               do { v = rand(arr); } while (v === exclude);
               return v;
             }
-            const conv = rand(conversaciones);
-            const u1 = rand(usuarios);
-            const u2 = randDifferent(usuarios, u1);
-            const url = rand(urls);
-            const det = Math.floor(Math.random() * 22) + 3;
+
+            // Seleccionar escenario con pesos: 50% malicioso, 30% seguro, 20% whitelist
+            const roll = Math.random();
+            const escenario = roll < 0.5 ? escenarios[0] : roll < 0.8 ? escenarios[1] : escenarios[2];
+            const url = rand(escenario.urls);
+
+            // Seleccionar usuario según tipo
+            const userSender = escenario.tipo === 'malicioso' ? rand(usuariosMal) : rand(usuarios);
+
+            // Configurar el bot response dinámicamente
+            const responseCard = document.getElementById('chat-response-card');
+            const responseIcon = document.getElementById('chat-response-icon');
+            const responseTitle = document.getElementById('chat-response-title');
+            const responseDesc = document.getElementById('chat-response-desc');
+            const responseUrlSection = document.getElementById('chat-response-url-section');
+            const responseLink = document.getElementById('chat-response-link');
+
+            responseCard.style.borderLeftColor = escenario.borderColor;
+            responseIcon.setAttribute('name', escenario.iconName);
+            responseIcon.className = escenario.iconClass;
+            responseTitle.textContent = escenario.titulo;
+            responseTitle.className = `text-sm font-semibold ${escenario.titleClass}`;
+
+            if (escenario.tipo === 'malicioso') {
+              const det = Math.floor(Math.random() * 22) + 3;
+              responseDesc.innerHTML = `Se encontraron <strong class="text-surface-100">${det}</strong> detecciones`;
+              responseUrlSection.classList.remove('hidden');
+              responseLink.classList.remove('hidden');
+            } else if (escenario.tipo === 'seguro') {
+              responseDesc.textContent = 'No se detectaron amenazas';
+              responseUrlSection.classList.remove('hidden');
+              responseLink.classList.add('hidden');
+            } else {
+              responseDesc.textContent = `${url.split('/')[2]} está en la lista de dominios permitidos`;
+              responseUrlSection.classList.add('hidden');
+              responseLink.classList.add('hidden');
+            }
+
+            // Configurar el mensaje del usuario
             document.querySelectorAll('.chat-url-text, .chat-url').forEach((el) => el.textContent = url);
-            document.querySelector('.chat-detecciones').textContent = det;
+            const sentUserEl = document.querySelector('#chat-sent .font-mono');
+            sentUserEl.textContent = userSender;
+            sentUserEl.className = escenario.tipo === 'malicioso'
+              ? 'font-mono text-xs font-medium text-threat-light'
+              : 'font-mono text-xs font-medium text-surface-200';
+
             const inputText = document.getElementById('chat-input-text');
             const inputCursor = document.getElementById('chat-input-cursor');
             const sentMsg = document.getElementById('chat-sent');
