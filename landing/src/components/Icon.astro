@@ -1,4 +1,7 @@
 ---
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 export interface Props {
   name: string;
   size?: string;
@@ -8,42 +11,77 @@ export interface Props {
 
 const { name, size = "1em", class: className = "", ...rest } = Astro.props;
 
-const icons: Record<string, string[]> = {
-  "shield-alt": ["M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"],
-  "eye": ["M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z", "M12 9a3 3 0 100 6 3 3 0 000-6z"],
-  "ban": ["M12 2a10 10 0 100 20 10 10 0 000-20z", "M4.93 4.93l14.14 14.14"],
-  "sync-alt": ["M23 4v6h-6", "M1 20v-6h6", "M3.51 9a9 9 0 0114.85-3.36L23 10", "M1 14l4.64 4.36A9 9 0 0020.49 15"],
-  "database": ["M12 2C8.13 2 5 4.69 5 8s3.13 6 7 6 7-2.69 7-6-3.13-6-7-6z", "M5 12v4c0 3.31 3.13 6 7 6s7-2.69 7-6v-4"],
-  "check-double": ["M6 12l4 4 8-8", "M8 12l2 2 4-4"],
-  "search": ["M10 2a8 8 0 100 16 8 8 0 000-16z", "M21 21l-6-6"],
-  "volume-mute": ["M11 5L6 9H2v6h4l5 4V5z", "M23 9l-6 6", "M17 9l6 6"],
-  "gavel": ["M14 2l-8 8 4 4 8-8-4-4z", "M4 20h16", "M8 16l-4 4"],
-  "hashtag": ["M4 9h16", "M4 15h16", "M10 3L8 21", "M16 3l-2 21"],
-  "cog": ["M12 2l3.09 1.26.5 3.28 2.73 1.87 3.18-.86 2 2.5-1.26 3.09-1.3 1.87 1.3 1.87 1.26 3.09-2 2.5-3.18-.86-2.73 1.87-.5 3.28L12 22l-3.09-1.26-.5-3.28-2.73-1.87-3.18.86-2-2.5 1.26-3.09 1.3-1.87-1.3-1.87-1.26-3.09 2-2.5 3.18.86 2.73-1.87.5-3.28L12 2z", "M12 8a4 4 0 100 8 4 4 0 000-8z"],
-  "list": ["M4 6h16", "M4 12h16", "M4 18h16"],
-  "chart-bar": ["M4 20V8h4v12H4z", "M10 20V4h4v16h-4z", "M16 20v-8h4v8h-4z"],
-  "question-circle": ["M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z", "M9.5 11.5A2.5 2.5 0 0114.5 11.5c0 1.5-2 2.5-2 3.5", "M12 17v.01"],
-  "envelope": ["M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2z", "M4 4l8 5 8-5"],
-  "expand-arrows-alt": ["M15 3h6v6", "M9 21H3v-6", "M21 3l-6 6", "M3 21l6-6"],
-  "cloud-upload-alt": ["M17 8a5 5 0 00-10 .17A4.5 4.5 0 106 17h11a4.5 4.5 0 000-9z", "M12 6v10", "M8 10l4-4 4 4"],
-  "bell": ["M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9z", "M13.73 21a2 2 0 01-3.46 0"],
-  "plus": ["M12 5v14", "M5 12h14"],
-  "check": ["M5 13l4 4L19 7"],
-  "exclamation-triangle": ["M12 2L2 19h20L12 2z", "M12 10v4", "M12 16v.01"],
-  "external-link-alt": ["M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6", "M15 3h6v6", "M10 14L21 3"],
-  "paperclip": ["M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z", "M14 2v6h6"],
-  "chevron-down": ["M6 9l6 6 6-6"],
-  "bars": ["M4 6h16", "M4 12h16", "M4 18h16"],
-  "times": ["M18 6L6 18", "M6 6l12 12"],
-  "arrow-left": ["M19 12H5", "M12 5l-7 7 7 7"],
-  "check-circle": ["M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z", "M9 12l2 2 4-4"],
+const ICON_CACHE: Record<string, string> = {};
+
+function getIconContent(iconName: string): string {
+  if (ICON_CACHE[iconName] !== undefined) return ICON_CACHE[iconName];
+  try {
+    const filePath = join(
+      process.cwd(),
+      "node_modules",
+      "lucide-static",
+      "icons",
+      `${iconName}.svg`,
+    );
+    const svg = readFileSync(filePath, "utf-8");
+    const match = svg.match(/<svg[^>]*>([\s\S]*?)<\/svg>/);
+    ICON_CACHE[iconName] = match ? match[1].trim() : "";
+  } catch {
+    ICON_CACHE[iconName] = "";
+  }
+  return ICON_CACHE[iconName];
+}
+
+const iconMap: Record<string, string> = {
+  "shield-alt": "shield",
+  eye: "eye",
+  ban: "ban",
+  "sync-alt": "refresh-cw",
+  database: "database",
+  "check-double": "check-check",
+  search: "search",
+  "volume-mute": "volume-x",
+  gavel: "gavel",
+  hashtag: "hash",
+  cog: "settings",
+  list: "list",
+  "chart-bar": "chart-column",
+  "question-circle": "circle-question-mark",
+  envelope: "mail",
+  "expand-arrows-alt": "maximize",
+  "cloud-upload-alt": "cloud-upload",
+  bell: "bell",
+  plus: "plus",
+  check: "check",
+  "exclamation-triangle": "triangle-alert",
+  "external-link-alt": "external-link",
+  paperclip: "paperclip",
+  "chevron-down": "chevron-down",
+  bars: "menu",
+  times: "x",
+  "arrow-left": "arrow-left",
+  "check-circle": "circle-check-big",
 };
 
-const paths = icons[name] || [];
+const lucideName = iconMap[name] || name;
+const content = getIconContent(lucideName);
 ---
 
-{paths.length > 0 && (
-  <svg class={className} xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:inline-block;vertical-align:middle" {...rest}>
-    {paths.map((d) => <path d={d} />)}
-  </svg>
+{content && (
+  <svg
+    class={className}
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+    style="display:inline-block;vertical-align:middle"
+    set:html={content}
+    {...rest}
+  />
 )}

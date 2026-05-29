@@ -20,6 +20,9 @@ importers:
       astro:
         specifier: ^6.3.8
         version: 6.3.8(@types/node@24.12.4)(jiti@2.7.0)(lightningcss@1.32.0)(rollup@4.60.4)(yaml@2.9.0)
+      lucide-static:
+        specifier: ^1.17.0
+        version: 1.17.0
       tailwindcss:
         specifier: ^4.3.0
         version: 4.3.0
@@ -1066,6 +1069,9 @@ packages:
   lru-cache@11.5.0:
     resolution: {integrity: sha512-5YgH9UJd7wVb9hIouI2adWpgqrrICkt070Dnj8EUY1+B4B2P9eRLPAkAAo6NICA7CEhOIeBHl46u9zSNpNu7zA==}
     engines: {node: 20 || >=22}
+
+  lucide-static@1.17.0:
+    resolution: {integrity: sha512-VORJmPqi4DZ5lf4/n2qqcIz1nTKGFReS83DJINcK5nXY7z+4P3G6CW/7SXpzlGllEI0vHKFH24eSM+aMFaK5zw==}
 
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
@@ -2624,6 +2630,8 @@ snapshots:
   longest-streak@3.1.0: {}
 
   lru-cache@11.5.0: {}
+
+  lucide-static@1.17.0: {}
 
   magic-string@0.30.21:
     dependencies:
