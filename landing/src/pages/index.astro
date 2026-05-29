@@ -118,6 +118,23 @@ const steps = [
   }
   </script>
 
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Threat",
+    "applicationCategory": "SecurityApplication",
+    "operatingSystem": "Discord",
+    "description": "Bot de seguridad para Discord con análisis de URLs, detección NSFW, anti-spam y más.",
+    "url": "https://threat-bot-discord.vercel.app",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    }
+  }
+  </script>
+
   <!-- HERO -->
   <section class="section-scanline relative overflow-hidden flex flex-col min-h-[100dvh] px-6 pt-20">
     <div class="pointer-events-none absolute inset-0 z-0" style="background: radial-gradient(ellipse 800px 600px at 50% -100px, rgba(88,101,242,0.12), transparent);" aria-hidden="true"></div>
@@ -128,10 +145,12 @@ const steps = [
           <div class="text-left">
             <h1 class="mb-5 text-5xl font-black leading-[0.9] tracking-tight text-white sm:text-6xl md:text-7xl lg:text-8xl">
               Threat
+              <span class="block mt-3 text-2xl font-semibold leading-snug tracking-tight text-surface-300 sm:text-3xl">
+                Seguridad para tu servidor de Discord
+              </span>
             </h1>
             <p class="mb-8 max-w-lg text-base text-surface-400 sm:text-lg md:text-xl leading-relaxed">
-              Detección de amenazas en tiempo real.
-              URLs maliciosas, NSFW y phishing.
+              URLs maliciosas, NSFW y phishing. Todo analizado en tiempo real.
             </p>
             <div class="flex flex-col items-start gap-4 sm:flex-row animate-fade-up-delayed">
               <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer" class="group inline-flex items-center gap-3 rounded-full bg-discord px-7 py-3.5 font-semibold text-white transition-transform duration-160 ease-out-expo hover:bg-discord-light active:scale-[0.97]">
