@@ -204,8 +204,9 @@ const steps = [
                       <span class="inline-flex items-center gap-0.5 rounded bg-discord px-1.5 py-[1px] text-[9px] font-semibold leading-normal text-white"><Icon name="check" class="text-white" size="9px" /> APP</span>
                     </div>
                     <div id="chat-response-card" class="border-l-4 bg-surface-800 p-3.5" style="border-left-color: var(--color-threat);">
-                      <div class="mb-1">
-                        <span id="chat-response-title" class="text-sm font-semibold text-threat-light">⚠️ URL Maliciosa Detectada</span>
+                      <div class="mb-1 flex items-center gap-1.5">
+                        <img id="chat-response-emoji" src="/emoji-warn.png" alt="" class="w-4 h-4" />
+                        <span id="chat-response-title" class="text-sm font-semibold text-threat-light">URL Maliciosa Detectada</span>
                       </div>
                       <p id="chat-response-desc" class="mb-2 text-xs text-surface-300">
                         Se encontraron <strong class="text-surface-100">18</strong> detecciones
@@ -247,7 +248,8 @@ const steps = [
                   'https://free-bitcoin.tk/claim',
                   'https://secure-update.ga/package',
                 ],
-                titulo: '\u26a0\ufe0f URL Maliciosa Detectada',
+                titulo: 'URL Maliciosa Detectada',
+                emoji: '/emoji-warn.png',
                 borderColor: 'var(--color-threat)',
                 titleClass: 'text-threat-light',
                 conversaciones: [
@@ -268,7 +270,8 @@ const steps = [
                   'https://docs.python.org/3/tutorial/modules.html',
                   'https://tailwindcss.com/docs/installation',
                 ],
-                titulo: '\u2705 URL Segura',
+                titulo: 'URL Segura',
+                emoji: '/emoji-check.png',
                 borderColor: 'var(--color-secure)',
                 titleClass: 'text-secure-light',
                 conversaciones: [
@@ -286,7 +289,8 @@ const steps = [
                   'https://www.twitch.tv/directory',
                   'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M',
                 ],
-                titulo: '\u2705',
+                titulo: '',
+                emoji: '/emoji-check.png',
                 borderColor: 'var(--color-secure)',
                 titleClass: 'text-secure-light',
                 conversaciones: [
@@ -315,12 +319,14 @@ const steps = [
 
             // Configurar el bot response din\u00e1micamente
             const responseCard = document.getElementById('chat-response-card');
+            const responseEmoji = document.getElementById('chat-response-emoji');
             const responseTitle = document.getElementById('chat-response-title');
             const responseDesc = document.getElementById('chat-response-desc');
             const responseUrlSection = document.getElementById('chat-response-url-section');
             const responseLink = document.getElementById('chat-response-link');
 
             responseCard.style.borderLeftColor = escenario.borderColor;
+            responseEmoji.src = escenario.emoji;
             responseTitle.textContent = escenario.titulo;
             responseTitle.setAttribute('class', `text-sm font-semibold ${escenario.titleClass}`);
 
