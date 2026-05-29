@@ -19,12 +19,15 @@
   --font-family-sans: 'Space Grotesk', system-ui, -apple-system, sans-serif;
   --font-family-mono: 'JetBrains Mono', 'Fira Code', monospace;
 
-  --animate-gradient: gradient-shift 8s ease infinite;
+  --ease-out-expo: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out-expo: cubic-bezier(0.77, 0, 0.175, 1);
+
+  --animate-gradient: gradient-shift 8s linear infinite;
   --animate-float: float 6s ease-in-out infinite;
   --animate-float-delayed: float 6s ease-in-out 2s infinite;
-  --animate-glow: glow-pulse 2s ease-in-out infinite;
-  --animate-fade-up: fade-up 0.6s ease-out forwards;
-  --animate-fade-up-delayed: fade-up 0.6s ease-out 0.2s forwards;
+  --animate-glow: glow-pulse 2s var(--ease-out-expo) infinite;
+  --animate-fade-up: fade-up 0.6s var(--ease-out-expo) forwards;
+  --animate-fade-up-delayed: fade-up 0.6s var(--ease-out-expo) 0.2s forwards;
   --animate-blink: blink 1s step-end infinite;
   --animate-typing: typing 3s steps(40) forwards;
   --animate-spin-slow: spin 20s linear infinite;
@@ -119,6 +122,12 @@ button, a, summary, [role="button"] {
   -webkit-tap-highlight-color: rgba(88, 101, 242, 0.3);
 }
 
+@media (hover: hover) and (pointer: fine) {
+  .nav-link:hover {
+    color: white;
+  }
+}
+
 section[id] {
   scroll-margin-top: 5rem;
 }
@@ -201,25 +210,51 @@ h1, h2, h3 {
 }
 
 .card-hover {
-  transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  transition: transform 0.25s var(--ease-out-expo, cubic-bezier(0.23, 1, 0.32, 1)), border-color 0.25s var(--ease-out-expo, cubic-bezier(0.23, 1, 0.32, 1)), box-shadow 0.25s var(--ease-out-expo, cubic-bezier(0.23, 1, 0.32, 1));
 }
 
-.card-hover:hover {
-  transform: translateY(-4px);
-  border-color: var(--color-discord);
-  box-shadow: 0 8px 32px color-mix(in srgb, var(--color-discord) 20%, transparent);
+@media (hover: hover) and (pointer: fine) {
+  .card-hover:hover {
+    transform: translateY(-4px);
+    border-color: var(--color-discord);
+    box-shadow: 0 8px 32px color-mix(in srgb, var(--color-discord) 20%, transparent);
+  }
 }
 
 .scroll-reveal {
   opacity: 0;
   transform: translateY(24px);
-  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+  transition: opacity 0.6s var(--ease-out-expo, cubic-bezier(0.23, 1, 0.32, 1)), transform 0.6s var(--ease-out-expo, cubic-bezier(0.23, 1, 0.32, 1));
 }
 
 .scroll-reveal.is-visible {
   opacity: 1;
   transform: translateY(0);
 }
+
+.scroll-reveal-grid {
+  perspective: 800px;
+}
+
+.scroll-reveal-grid > * {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.4s var(--ease-out-expo, cubic-bezier(0.23, 1, 0.32, 1)), transform 0.4s var(--ease-out-expo, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.scroll-reveal.is-visible .scroll-reveal-grid > * {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.scroll-reveal-grid > *:nth-child(1) { transition-delay: 200ms; }
+.scroll-reveal-grid > *:nth-child(2) { transition-delay: 260ms; }
+.scroll-reveal-grid > *:nth-child(3) { transition-delay: 320ms; }
+.scroll-reveal-grid > *:nth-child(4) { transition-delay: 380ms; }
+.scroll-reveal-grid > *:nth-child(5) { transition-delay: 440ms; }
+.scroll-reveal-grid > *:nth-child(6) { transition-delay: 500ms; }
+.scroll-reveal-grid > *:nth-child(7) { transition-delay: 560ms; }
+.scroll-reveal-grid > *:nth-child(8) { transition-delay: 620ms; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -246,11 +281,7 @@ h1, h2, h3 {
   padding: 1.25rem 0;
   font-weight: 600;
   color: var(--color-surface-100);
-  transition: color 0.2s;
-}
-
-.faq-details summary:hover {
-  color: white;
+  transition: color 0.2s var(--ease-out-expo, cubic-bezier(0.23, 1, 0.32, 1));
 }
 
 .faq-details summary::-webkit-details-marker {
@@ -258,7 +289,7 @@ h1, h2, h3 {
 }
 
 .faq-details summary svg {
-  transition: transform 0.3s;
+  transition: transform 0.25s var(--ease-out-expo, cubic-bezier(0.23, 1, 0.32, 1));
   color: var(--color-surface-500);
 }
 
