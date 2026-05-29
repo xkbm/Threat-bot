@@ -137,7 +137,7 @@ const steps = [
 
   <!-- HERO -->
   <section class="section-scanline relative overflow-hidden flex flex-col min-h-[100dvh] px-6 pt-20">
-    <div class="pointer-events-none absolute inset-0 z-0" style="background: radial-gradient(ellipse 800px 600px at 50% -100px, rgba(88,101,242,0.12), transparent);" aria-hidden="true"></div>
+    <div class="pointer-events-none absolute inset-0 z-0" style="background: radial-gradient(ellipse 800px 600px at 50% -100px, rgba(88,101,242,0.06), transparent);" aria-hidden="true"></div>
     <div class="flex-1 flex items-center justify-center mx-auto max-w-6xl w-full relative z-10">
       <div class="relative z-10 w-full">
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-20 items-start">
@@ -314,23 +314,20 @@ const steps = [
         </script>
       </div>
     </div>
-    <div class="flex justify-center animate-soft-bounce">
-      <a href="#features" class="flex flex-col items-center gap-1 text-surface-600 transition-colors duration-200 hover:text-surface-400">
+    <div class="flex justify-center">
+      <a href="#features" class="text-surface-600 transition-colors duration-200 hover:text-surface-400">
         <Icon name="chevron-down" size="1.25em" />
       </a>
     </div>
   </section>
 
   <!-- FEATURES -->
-  <section id="features" class="scroll-reveal relative border-t border-surface-800 bg-surface-900 px-6 py-24 sm:py-32" data-reveal="up">
+  <section id="features" class="scroll-reveal relative border-t border-surface-800 bg-surface-900 px-6 py-20 sm:py-28" data-reveal="up">
     <div class="mx-auto max-w-6xl">
       <div class="mb-16 text-center">
-        <h2 class="mb-4 text-4xl font-bold tracking-tight md:text-5xl">
-          ¿Por qué <span class="text-discord">Threat</span>?
+        <h2 class="mb-4 text-4xl font-bold tracking-tight text-white md:text-5xl">
+          Características
         </h2>
-        <p class="mx-auto max-w-2xl text-surface-400">
-          Cada URL, imagen y archivo se analiza contra VirusTotal y SightEngine.
-        </p>
       </div>
 
       <div class="flex flex-col gap-6">
@@ -391,8 +388,8 @@ const steps = [
   <section id="how-it-works" class="scroll-reveal section-scanline relative border-t border-surface-800 bg-surface-850 px-6 py-24 sm:py-32" data-reveal="none">
     <div class="mx-auto max-w-6xl">
       <div class="mb-16 text-center">
-        <h2 class="mb-4 text-4xl font-bold tracking-tight md:text-5xl">
-          Cómo <span class="text-discord">funciona</span>
+        <h2 class="mb-4 text-4xl font-bold tracking-tight text-white md:text-5xl">
+          Así funciona Threat
         </h2>
         <p class="mx-auto max-w-2xl text-surface-400">
           Cuatro etapas desde que llega un mensaje hasta que recibes la alerta.
@@ -432,11 +429,11 @@ const steps = [
   </section>
 
   <!-- COMMANDS -->
-  <section id="commands" class="scroll-reveal relative border-t border-surface-800 bg-surface-900 px-6 py-24 sm:py-32" data-reveal="up">
+  <section id="commands" class="scroll-reveal relative border-t border-surface-800 bg-surface-900 px-6 py-20 sm:py-28" data-reveal="up">
     <div class="mx-auto max-w-6xl">
       <div class="mb-16 text-center">
-        <h2 class="mb-4 text-4xl font-bold tracking-tight md:text-5xl">
-          Comandos <span class="text-discord">disponibles</span>
+        <h2 class="mb-4 text-4xl font-bold tracking-tight text-white md:text-5xl">
+          Comandos
         </h2>
         <p class="mx-auto max-w-2xl text-surface-400">
           Ocho comandos para gestionar la seguridad de tu servidor.
@@ -464,11 +461,11 @@ const steps = [
   </section>
 
   <!-- FAQ -->
-  <section id="faq" class="scroll-reveal section-scanline relative border-t border-surface-800 bg-surface-850 px-6 py-24 sm:py-32" data-reveal="none">
+  <section id="faq" class="scroll-reveal section-scanline relative border-t border-surface-800 bg-surface-850 px-6 py-16 sm:py-24" data-reveal="none">
     <div class="mx-auto max-w-3xl">
-      <div class="mb-12 text-center">
-        <h2 class="mb-4 text-4xl font-bold tracking-tight md:text-5xl">
-          Preguntas <span class="text-discord">frecuentes</span>
+      <div class="mb-12">
+        <h2 class="mb-4 text-4xl font-bold tracking-tight text-white md:text-5xl">
+          FAQ
         </h2>
       </div>
       <details class="faq-details">
@@ -520,14 +517,11 @@ const steps = [
   </section>
 
   <!-- CTA -->
-  <section class="scroll-reveal section-scanline relative overflow-hidden border-t border-surface-800 bg-surface-900 px-6 py-28 sm:py-36" data-reveal="up">
+  <section class="scroll-reveal section-scanline relative overflow-hidden border-t border-surface-800 bg-surface-900 px-6 py-24 sm:py-32" data-reveal="up">
     <div class="relative z-10 mx-auto max-w-3xl text-center">
-      <h2 class="mb-6 text-4xl font-bold tracking-tight md:text-5xl">
-        Protege tu <span class="text-discord">servidor</span>
+      <h2 class="mb-6 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+        ¿Listo para proteger tu servidor?
       </h2>
-      <p class="mb-10 mx-auto max-w-md text-surface-400 text-sm mt-6">
-        Sin costos, sin límites ocultos.
-      </p>
       <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer" class="group inline-flex items-center gap-3 rounded-full bg-discord px-10 py-4 text-lg font-semibold text-white transition-transform duration-160 ease-out-expo hover:bg-discord-light active:scale-[0.97]">
         <Icon name="plus" />
         Añadir a Discord
