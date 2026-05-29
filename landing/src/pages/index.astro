@@ -251,8 +251,6 @@ const steps = [
                 ],
                 titulo: 'URL Maliciosa Detectada',
                 borderColor: 'var(--color-threat)',
-                iconClass: 'text-threat-light',
-                iconName: 'exclamation-triangle',
                 titleClass: 'text-threat-light',
               },
               // --- SEGURO ---
@@ -266,8 +264,6 @@ const steps = [
                 ],
                 titulo: 'URL Segura',
                 borderColor: 'var(--color-secure)',
-                iconClass: 'text-secure-light',
-                iconName: 'check-circle',
                 titleClass: 'text-secure-light',
               },
               // --- WHITELIST ---
@@ -280,8 +276,6 @@ const steps = [
                 ],
                 titulo: 'Dominio en Whitelist',
                 borderColor: 'var(--color-discord)',
-                iconClass: 'text-discord-light',
-                iconName: 'shield',
                 titleClass: 'text-discord-light',
               },
             ];
@@ -303,17 +297,14 @@ const steps = [
 
             // Configurar el bot response dinámicamente
             const responseCard = document.getElementById('chat-response-card');
-            const responseIcon = document.getElementById('chat-response-icon');
             const responseTitle = document.getElementById('chat-response-title');
             const responseDesc = document.getElementById('chat-response-desc');
             const responseUrlSection = document.getElementById('chat-response-url-section');
             const responseLink = document.getElementById('chat-response-link');
 
             responseCard.style.borderLeftColor = escenario.borderColor;
-            responseIcon.setAttribute('name', escenario.iconName);
-            responseIcon.className = escenario.iconClass;
             responseTitle.textContent = escenario.titulo;
-            responseTitle.className = `text-sm font-semibold ${escenario.titleClass}`;
+            responseTitle.setAttribute('class', `text-sm font-semibold ${escenario.titleClass}`);
 
             if (escenario.tipo === 'malicioso') {
               const det = Math.floor(Math.random() * 22) + 3;
