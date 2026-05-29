@@ -153,7 +153,7 @@ const steps = [
               URLs maliciosas, NSFW y phishing. Todo analizado en tiempo real.
             </p>
             <div class="flex flex-col items-start gap-4 sm:flex-row animate-fade-up-delayed">
-              <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer" class="group inline-flex items-center gap-3 rounded-full bg-discord px-7 py-3.5 font-semibold text-white transition-transform duration-160 ease-out-expo hover:bg-discord-light active:scale-[0.97]">
+              <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer" class="group cta-primary inline-flex items-center gap-3 rounded-full bg-discord px-7 py-3.5 font-semibold text-white">
                 <Icon name="plus" />
                 Añadir a Discord
                 <span class="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center transition-transform duration-200 group-hover:translate-x-0.5">
@@ -175,12 +175,12 @@ const steps = [
                   <span class="ml-auto font-mono text-[10px] uppercase tracking-wider text-surface-500"># general</span>
                 </div>
                 <div class="space-y-4 px-3 sm:px-5 pt-4 pb-0">
-                  <div>
+                  <div class="chat-initial opacity-0">
                     <span class="font-mono text-xs font-medium text-surface-200">Alex</span>
                     <span class="mx-1.5 text-surface-600">—</span>
                     <span class="text-sm text-surface-300">¿Alguien tiene el link del nuevo asset?</span>
                   </div>
-                  <div>
+                  <div class="chat-initial opacity-0">
                     <span class="font-mono text-xs font-medium text-surface-200">María</span>
                     <span class="mx-1.5 text-surface-600">—</span>
                     <span class="text-sm text-surface-300">creo que sí, te lo paso</span>
@@ -279,37 +279,46 @@ const steps = [
             const sentMsg = document.getElementById('chat-sent');
             const typingInd = document.getElementById('chat-typing');
             const botResponse = document.getElementById('chat-bot-response');
+            const chatInitials = document.querySelectorAll('.chat-initial');
             setTimeout(() => {
-              inputText.classList.remove('text-surface-500');
-              inputText.classList.add('text-surface-100');
-              inputText.textContent = '';
-              inputCursor.classList.remove('hidden');
-              let i = 0;
-              const interval = setInterval(() => {
-                inputText.textContent = url.slice(0, i + 1);
-                i++;
-                if (i >= url.length) {
-                  clearInterval(interval);
-                  inputText.textContent = url;
-                  inputCursor.classList.add('hidden');
-                  inputText.classList.remove('text-surface-100');
-                  inputText.classList.add('text-surface-500');
-                  inputText.textContent = 'Escribe un mensaje...';
-                  setTimeout(() => {
-                    sentMsg.classList.remove('opacity-0');
-                    sentMsg.classList.add('animate-slide-up');
+              chatInitials.forEach((el, i) => {
+                setTimeout(() => {
+                  el.classList.remove('opacity-0');
+                  el.classList.add('animate-slide-up');
+                }, i * 200);
+              });
+              setTimeout(() => {
+                inputText.classList.remove('text-surface-500');
+                inputText.classList.add('text-surface-100');
+                inputText.textContent = '';
+                inputCursor.classList.remove('hidden');
+                let i = 0;
+                const interval = setInterval(() => {
+                  inputText.textContent = url.slice(0, i + 1);
+                  i++;
+                  if (i >= url.length) {
+                    clearInterval(interval);
+                    inputText.textContent = url;
+                    inputCursor.classList.add('hidden');
+                    inputText.classList.remove('text-surface-100');
+                    inputText.classList.add('text-surface-500');
+                    inputText.textContent = 'Escribe un mensaje...';
                     setTimeout(() => {
-                      typingInd.classList.remove('opacity-0');
+                      sentMsg.classList.remove('opacity-0');
+                      sentMsg.classList.add('animate-slide-up');
                       setTimeout(() => {
-                        typingInd.classList.add('opacity-0');
-                        botResponse.classList.remove('opacity-0');
-                        botResponse.classList.add('animate-slide-up');
-                      }, 800);
+                        typingInd.classList.remove('opacity-0');
+                        setTimeout(() => {
+                          typingInd.classList.add('opacity-0');
+                          botResponse.classList.remove('opacity-0');
+                          botResponse.classList.add('animate-slide-up');
+                        }, 800);
+                      }, 500);
                     }, 500);
-                  }, 500);
-                }
-              }, 55);
-            }, 1000);
+                  }
+                }, 55);
+              }, 600);
+            }, 500);
           });
         </script>
       </div>
@@ -322,7 +331,7 @@ const steps = [
   </section>
 
   <!-- FEATURES -->
-  <section id="features" class="scroll-reveal relative border-t border-surface-800 bg-surface-900 px-6 py-20 sm:py-28" data-reveal="up">
+  <section id="features" class="scroll-reveal relative border-t border-surface-800 bg-surface-900 px-6 py-20 sm:py-28" data-reveal="scale">
     <div class="mx-auto max-w-6xl">
       <div class="mb-16 text-center">
         <h2 class="mb-4 text-4xl font-bold tracking-tight text-white md:text-5xl">
@@ -429,7 +438,7 @@ const steps = [
   </section>
 
   <!-- COMMANDS -->
-  <section id="commands" class="scroll-reveal relative border-t border-surface-800 bg-surface-900 px-6 py-20 sm:py-28" data-reveal="up">
+  <section id="commands" class="scroll-reveal relative border-t border-surface-800 bg-surface-900 px-6 py-20 sm:py-28" data-reveal="subtle">
     <div class="mx-auto max-w-6xl">
       <div class="mb-16 text-center">
         <h2 class="mb-4 text-4xl font-bold tracking-tight text-white md:text-5xl">
@@ -517,12 +526,12 @@ const steps = [
   </section>
 
   <!-- CTA -->
-  <section class="scroll-reveal section-scanline relative overflow-hidden border-t border-surface-800 bg-surface-900 px-6 py-24 sm:py-32" data-reveal="up">
+  <section class="scroll-reveal section-scanline relative overflow-hidden border-t border-surface-800 bg-surface-900 px-6 py-24 sm:py-32" data-reveal="fade">
     <div class="relative z-10 mx-auto max-w-3xl text-center">
       <h2 class="mb-6 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
         ¿Listo para proteger tu servidor?
       </h2>
-      <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer" class="group inline-flex items-center gap-3 rounded-full bg-discord px-10 py-4 text-lg font-semibold text-white transition-transform duration-160 ease-out-expo hover:bg-discord-light active:scale-[0.97]">
+      <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer" class="group cta-primary inline-flex items-center gap-3 rounded-full bg-discord px-10 py-4 text-lg font-semibold text-white">
         <Icon name="plus" />
         Añadir a Discord
         <span class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center transition-transform duration-200 group-hover:translate-x-0.5">

@@ -151,19 +151,31 @@ const { title = 'Threat — Seguridad Inteligente para Discord', description = '
 
     <footer class="border-t border-surface-800 bg-surface-900" style="padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px);">
       <div class="mx-auto max-w-6xl px-6 py-12">
-        <div class="flex flex-col items-center gap-6">
-          <div class="flex flex-col items-center gap-2">
+        <div class="grid grid-cols-1 gap-8 sm:grid-cols-3 sm:gap-6">
+          <!-- Brand -->
+          <div class="flex flex-col gap-2">
             <span class="text-sm font-bold text-white">Threat</span>
-            <p class="text-xs text-surface-500 max-w-xs text-center">
+            <p class="text-xs text-surface-500 max-w-xs">
               Protección contra amenazas para tu servidor de Discord.
             </p>
           </div>
-          <div class="flex items-center gap-6 text-xs">
-            <a href="/privacidad" class="text-surface-600 transition-colors duration-200 hover:text-surface-400">Privacidad</a>
-            <a href="/terminos" class="text-surface-600 transition-colors duration-200 hover:text-surface-400">Términos</a>
-            <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer" class="text-discord-light transition-colors duration-200 hover:text-discord">Invitar</a>
+          <!-- Producto -->
+          <div class="flex flex-col gap-2">
+            <span class="text-xs font-semibold uppercase tracking-wider text-surface-400">Producto</span>
+            <a href="/#features" class="text-xs text-surface-500 transition-colors duration-200 hover:text-surface-300">Características</a>
+            <a href="/#how-it-works" class="text-xs text-surface-500 transition-colors duration-200 hover:text-surface-300">Cómo funciona</a>
+            <a href="/#commands" class="text-xs text-surface-500 transition-colors duration-200 hover:text-surface-300">Comandos</a>
           </div>
+          <!-- Legal -->
+          <div class="flex flex-col gap-2">
+            <span class="text-xs font-semibold uppercase tracking-wider text-surface-400">Legal</span>
+            <a href="/privacidad" class="text-xs text-surface-500 transition-colors duration-200 hover:text-surface-300">Privacidad</a>
+            <a href="/terminos" class="text-xs text-surface-500 transition-colors duration-200 hover:text-surface-300">Términos</a>
+          </div>
+        </div>
+        <div class="mt-8 flex flex-col items-center gap-4 border-t border-surface-800 pt-6 sm:flex-row sm:justify-between">
           <p class="text-xs text-surface-600">Threat &copy; {new Date().getFullYear()}</p>
+          <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer" class="text-xs text-discord-light transition-colors duration-200 hover:text-discord">Añadir a Discord</a>
         </div>
       </div>
     </footer>
