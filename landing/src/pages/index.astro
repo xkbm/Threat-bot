@@ -250,7 +250,7 @@ const steps = [
                 ],
                 titulo: 'URL Maliciosa Detectada',
                 emoji: '/emoji-warn.png',
-                borderColor: 'var(--color-threat)',
+                borderColor: 'rgb(230, 126, 34)',
                 titleClass: 'text-threat-light',
                 conversaciones: [
                   { u1: '\u00bfAlguien tiene el link del nuevo asset?', u2: 'creo que s\u00ed, te lo paso', urlFrom: 'u2' },
@@ -290,7 +290,7 @@ const steps = [
                   'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M',
                 ],
                 titulo: '',
-                emoji: '/emoji-check.png',
+                emoji: '/emoji-whitelist.png',
                 borderColor: 'var(--color-secure)',
                 titleClass: 'text-secure-light',
                 conversaciones: [
@@ -340,8 +340,7 @@ const steps = [
               responseUrlSection.classList.remove('hidden');
               responseLink.classList.remove('hidden');
             } else {
-              const dominio = url.split('/')[2];
-              responseDesc.textContent = `${dominio} \u00e9s segur`;
+              responseDesc.textContent = 'Dominio(s) en whitelist. No se requiere an\u00e1lisis.';
               responseUrlSection.classList.add('hidden');
               responseLink.classList.add('hidden');
             }
