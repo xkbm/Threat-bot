@@ -1,0 +1,56 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
+---
+
+<BaseLayout
+  title="Página no encontrada — Threat"
+  description="La página que buscas no existe. Vuelve al inicio o invita a Threat a tu servidor de Discord."
+  canonical="/404"
+>
+  <meta name="robots" content="noindex, follow" />
+  <section class="hero-gradient relative flex min-h-screen items-center justify-center px-6 pt-20 sm:pt-24">
+    <div class="pointer-events-none absolute inset-0 overflow-hidden">
+      <div class="absolute left-1/4 top-1/4 h-72 w-72 rounded-full bg-discord opacity-[0.08] blur-[120px] animate-float"></div>
+      <div class="absolute right-1/4 bottom-1/4 h-96 w-96 rounded-full bg-discord opacity-[0.05] blur-[150px] animate-float-delayed"></div>
+    </div>
+
+    <div class="relative z-10 mx-auto max-w-2xl w-full pb-16 sm:pb-24">
+      <div class="flex flex-col items-center text-center">
+        <div class="mb-6 flex h-24 w-24 animate-fade-up items-center justify-center rounded-2xl bg-discord/10 text-6xl text-discord">
+          <Icon name="search" />
+        </div>
+
+        <h1 class="mb-4 text-7xl font-black leading-none tracking-tight sm:text-8xl md:text-9xl">
+          <span class="gradient-text">404</span>
+        </h1>
+
+        <p class="mb-2 text-xl font-semibold text-white">
+          Página no encontrada
+        </p>
+
+        <p class="mb-12 max-w-md text-surface-400">
+          El enlace puede ser incorrecto o la página fue movida.
+          Revisa la URL o vuelve al inicio.
+        </p>
+
+        <div class="flex flex-col items-center gap-4 sm:flex-row animate-fade-up-delayed">
+          <a href="/" class="group inline-flex items-center gap-2 rounded-xl bg-discord px-8 py-3.5 font-semibold text-white transition-all duration-300 hover:bg-discord-light hover:scale-105 hover:shadow-[0_0_40px_rgba(88,101,242,0.4)]">
+            <Icon name="arrow-left" size="1.125em" />
+            Volver al inicio
+          </a>
+          <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer" class="group inline-flex items-center gap-2 rounded-xl border border-surface-600 px-8 py-3.5 font-semibold text-surface-300 transition-all duration-300 hover:border-surface-400 hover:text-white">
+            <Icon name="plus" size="1.125em" />
+            Invitar a Threat
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .hero-gradient {
+    min-height: 100vh;
+  }
+</style>

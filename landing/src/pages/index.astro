@@ -1,68 +1,69 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
 
 const features = [
   {
-    icon: 'las la-shield-alt',
+    icon: 'shield-alt',
     title: 'Análisis de URLs',
     description: 'Escanea enlaces con VirusTotal. Expande acortadores y detecta malware, phishing y amenazas en tiempo real.',
   },
   {
-    icon: 'las la-eye',
+    icon: 'eye',
     title: 'Detección NSFW',
     description: 'SightEngine multi-modelo: detecta desnudos, armas, alcohol y contenido ofensivo con alta precisión.',
   },
   {
-    icon: 'las la-ban',
+    icon: 'ban',
     title: 'Anti-Spam',
     description: 'Límite de 30 URLs/hora por usuario, cooldown de 10s entre análisis. Protección proactiva contra abusos.',
   },
   {
-    icon: 'las la-sync-alt',
+    icon: 'sync-alt',
     title: 'Balanceo Automático',
     description: 'Distribución inteligente de solicitudes entre múltiples servicios. Sin interrupciones por límite de cuota.',
   },
   {
-    icon: 'las la-database',
+    icon: 'database',
     title: 'Cache Inteligente',
     description: 'RAM + SQLite con expiración automática. URLs 7 días, archivos 30 días. Sin análisis redundantes.',
   },
   {
-    icon: 'las la-check-double',
+    icon: 'check-double',
     title: 'Whitelist Flexible',
     description: 'Dominios protegidos no removibles. Control granular por servidor. Subdomain matching automático.',
   },
 ];
 
 const commands = [
-  { name: '/scan', desc: 'Analiza un archivo o URL', icon: 'las la-search' },
-  { name: '/silentmode', desc: 'Modo silencioso (sin alerts públicos)', icon: 'las la-volume-mute' },
-  { name: '/strictmode', desc: 'Elimina mensajes sospechosos', icon: 'las la-gavel' },
-  { name: '/setlogchannel', desc: 'Configura canal de logs', icon: 'las la-hashtag' },
-  { name: '/settings', desc: 'Ver configuración del servidor', icon: 'las la-cog' },
-  { name: '/whitelist', desc: 'Gestionar dominios permitidos', icon: 'las la-list' },
-  { name: '/stats', desc: 'Estadísticas del servidor', icon: 'las la-chart-bar' },
-  { name: '/help', desc: 'Lista completa de comandos', icon: 'las la-question-circle' },
+  { name: '/scan', desc: 'Analiza un archivo o URL', icon: 'search' },
+  { name: '/silentmode', desc: 'Modo silencioso (sin alerts públicos)', icon: 'volume-mute' },
+  { name: '/strictmode', desc: 'Elimina mensajes sospechosos', icon: 'gavel' },
+  { name: '/setlogchannel', desc: 'Configura canal de logs', icon: 'hashtag' },
+  { name: '/settings', desc: 'Ver configuración del servidor', icon: 'cog' },
+  { name: '/whitelist', desc: 'Gestionar dominios permitidos', icon: 'list' },
+  { name: '/stats', desc: 'Estadísticas del servidor', icon: 'chart-bar' },
+  { name: '/help', desc: 'Lista completa de comandos', icon: 'question-circle' },
 ];
 
 const steps = [
   {
-    icon: 'las la-envelope',
+    icon: 'envelope',
     title: 'Mensaje activado',
     desc: 'Cada mensaje nuevo o editado se analiza al instante. Detecta URLs, imágenes y archivos adjuntos. Máximo 5 archivos por mensaje.',
   },
   {
-    icon: 'las la-expand-arrows-alt',
+    icon: 'expand-arrows-alt',
     title: 'Pre-análisis',
     desc: 'Whitelist omite dominios conocidos. Anti-spam: 30 URLs/hora con 10s de cooldown. Acortadores expandidos (hasta 5 saltos). Cache RAM + SQLite. Doble extensión y MIME mismatch detectados.',
   },
   {
-    icon: 'las la-cloud-upload-alt',
+    icon: 'cloud-upload-alt',
     title: 'APIs externas',
     desc: 'VirusTotal (3 claves rotativas) analiza URLs y archivos. SightEngine (4 modelos: nudity, weapon, alcohol, offensive) escanea imágenes con descarga segura SSRF.',
   },
   {
-    icon: 'las la-bell',
+    icon: 'bell',
     title: 'Alerta y acción',
     desc: 'Recibes una alerta clara con el resultado del análisis y puedes actuar directamente (Ban/Kick/Ignore).',
   },
@@ -70,7 +71,7 @@ const steps = [
 ---
 
 <BaseLayout>
-  <script type="application/ld+json" slot="faq">
+  <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "FAQPage",
@@ -140,7 +141,7 @@ const steps = [
 
           <div class="flex flex-col items-start gap-4 sm:flex-row animate-fade-up-delayed">
             <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer" class="group inline-flex items-center gap-2 rounded-xl bg-discord px-8 py-3.5 font-semibold text-white transition-all duration-300 hover:bg-discord-light hover:scale-105 hover:shadow-[0_0_40px_rgba(88,101,242,0.4)]">
-              <i class="las la-plus text-lg" aria-hidden="true"></i>
+              <Icon name="plus" size="1.125em" />
               Invitar al servidor
             </a>
           </div>
@@ -186,12 +187,12 @@ const steps = [
               <div id="chat-bot-response" class="opacity-0">
                 <div class="mb-1 flex items-center gap-2">
                   <span class="text-sm font-medium text-white">Threat</span>
-                  <span class="inline-flex items-center gap-0.5 rounded bg-discord px-1.5 py-[1px] text-[9px] font-semibold leading-normal text-white"><i class="las la-check text-white text-[9px]" aria-hidden="true"></i> APP</span>
+                  <span class="inline-flex items-center gap-0.5 rounded bg-discord px-1.5 py-[1px] text-[9px] font-semibold leading-normal text-white"><Icon name="check" class="text-white" size="9px" /> APP</span>
                 </div>
 
                 <div class="animate-threat-pulse rounded-lg border-l-4 bg-surface-800 p-3.5" style="border-left-color:#f59e0b">
                   <div class="mb-1 flex items-center gap-1.5">
-                    <i class="las la-exclamation-triangle text-orange-400" aria-hidden="true"></i>
+                    <Icon name="exclamation-triangle" class="text-orange-400" />
                     <span class="text-sm font-semibold text-orange-400">URL Maliciosa Detectada</span>
                   </div>
                   <p class="mb-3 text-xs text-surface-300">
@@ -202,7 +203,7 @@ const steps = [
                     <code class="chat-url block truncate rounded bg-surface-700 px-2 py-1 font-mono text-xs text-surface-200">https://malware.com/steal-info</code>
                   </div>
                   <span class="inline-flex items-center gap-1 text-xs text-discord-light">
-                    <i class="las la-external-link-alt" aria-hidden="true"></i> Ver informe completo
+                    <Icon name="external-link-alt" /> Ver informe completo
                   </span>
                 </div>
               </div>
@@ -212,7 +213,7 @@ const steps = [
               <div class="flex items-center gap-2 rounded-lg border border-surface-600 bg-surface-800 px-3 py-2 sm:px-4 sm:py-2.5 text-sm text-surface-500">
                 <span id="chat-input-text" class="flex-1 text-surface-500">Escribe un mensaje...</span>
                 <span id="chat-input-cursor" class="hidden inline-block h-[1.1em] w-[2px] bg-discord animate-composing-cursor"></span>
-                <i class="las la-paperclip text-base" aria-hidden="true"></i>
+                <Icon name="paperclip" />
               </div>
             </div>
           </div>
@@ -326,7 +327,7 @@ const steps = [
 
     <div class="absolute bottom-16 left-1/2 -translate-x-1/2 animate-soft-bounce">
       <a href="#features" class="text-surface-600 transition-colors hover:text-surface-400">
-        <i class="las la-chevron-down text-2xl" aria-hidden="true"></i>
+        <Icon name="chevron-down" size="1.5em" />
       </a>
     </div>
   </section>
@@ -348,7 +349,7 @@ const steps = [
           features.map((f) => (
             <div class="card-hover group rounded-2xl border border-surface-700 bg-surface-800/50 p-6 transition-all duration-300">
               <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-discord/10 text-2xl text-discord transition-all duration-300 group-hover:bg-discord group-hover:text-white">
-                <i class={f.icon} aria-hidden="true"></i>
+                <Icon name={f.icon} />
               </div>
               <h3 class="mb-2 text-lg font-semibold text-white">{f.title}</h3>
               <p class="text-sm leading-relaxed text-surface-400">{f.description}</p>
@@ -377,7 +378,7 @@ const steps = [
           steps.map((step, i) => (
             <div class="relative flex flex-col items-center text-center">
               <div class="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-surface-600 bg-surface-800 text-2xl text-discord shadow-lg shadow-discord/5">
-                <i class={step.icon} aria-hidden="true"></i>
+                <Icon name={step.icon} />
               </div>
               <span class="mb-2 rounded-full bg-discord/10 px-3 py-0.5 text-xs font-semibold text-discord-light">Paso {i + 1}</span>
               <h3 class="mb-2 text-lg font-semibold text-white">{step.title}</h3>
@@ -407,7 +408,7 @@ const steps = [
             <div class="group rounded-xl border border-surface-700 bg-surface-800 p-4 transition-all duration-300 hover:border-discord/50 hover:shadow-lg hover:shadow-discord/5">
               <div class="flex items-center gap-3">
                 <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-700 text-surface-300 transition-all duration-300 group-hover:bg-discord/20 group-hover:text-discord-light">
-                  <i class={cmd.icon} aria-hidden="true"></i>
+                  <Icon name={cmd.icon} />
                 </div>
                 <div class="min-w-0">
                   <code class="block truncate font-mono text-sm font-medium text-white">{cmd.name}</code>
@@ -433,7 +434,7 @@ const steps = [
       <details class="faq-details">
         <summary>
           ¿Qué tipo de amenazas detecta Threat?
-          <i class="las la-plus" aria-hidden="true"></i>
+          <Icon name="plus" size="0.875em" />
         </summary>
         <div class="faq-answer">
           Threat analiza URLs maliciosas (malware, phishing) mediante VirusTotal, detecta contenido NSFW (desnudos, armas, alcohol, ofensivo) con SightEngine, y previene spam con límites inteligentes por usuario.
@@ -443,7 +444,7 @@ const steps = [
       <details class="faq-details">
         <summary>
           ¿Cómo configuro el bot en mi servidor?
-          <i class="las la-plus" aria-hidden="true"></i>
+          <Icon name="plus" size="0.875em" />
         </summary>
         <div class="faq-answer">
           Invita al bot con el enlace de arriba, usa <code class="font-mono text-discord-light">/setlogchannel</code> para configurar el canal de logs, y opcionalmente <code class="font-mono text-discord-light">/silentmode</code> o <code class="font-mono text-discord-light">/strictmode</code> según tus necesidades.
@@ -453,7 +454,7 @@ const steps = [
       <details class="faq-details">
         <summary>
           ¿Threat guarda mis datos personales?
-          <i class="las la-plus" aria-hidden="true"></i>
+          <Icon name="plus" size="0.875em" />
         </summary>
         <div class="faq-answer">
           Solo almacenamos datos necesarios para el funcionamiento: configuración del servidor y caché temporal de análisis. No almacenamos mensajes completos, información personal ni contenido de conversaciones. Consulta nuestra <a href="/privacidad" class="text-discord-light hover:underline">Política de Privacidad</a> para más detalles.
@@ -463,7 +464,7 @@ const steps = [
       <details class="faq-details">
         <summary>
           ¿Cuánto cuesta usar Threat?
-          <i class="las la-plus" aria-hidden="true"></i>
+          <Icon name="plus" size="0.875em" />
         </summary>
         <div class="faq-answer">
           Threat es completamente gratuito. El mantenimiento se financia mediante optimización de caché y consumo eficiente de APIs gratuitas.
@@ -473,7 +474,7 @@ const steps = [
       <details class="faq-details">
         <summary>
           ¿Qué hago si el bot marca un falso positivo?
-          <i class="las la-plus" aria-hidden="true"></i>
+          <Icon name="plus" size="0.875em" />
         </summary>
         <div class="faq-answer">
           Puedes agregar el dominio a la whitelist con <code class="font-mono text-discord-light">/whitelist add</code>. Si consideras que es un error recurrente, contacta a <strong class="text-surface-100">imsh4d0w_</strong> para revisar el caso.
@@ -495,7 +496,7 @@ const steps = [
         Amenazas en tiempo real. Análisis multicapa. Configuración simple.
       </p>
       <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer" class="animate-glow inline-flex items-center gap-2 rounded-xl bg-discord px-10 py-4 text-lg font-semibold text-white transition-all duration-300 hover:bg-discord-light hover:scale-105">
-        <i class="las la-plus" aria-hidden="true"></i>
+        <Icon name="plus" />
         Añadir a Discord
       </a>
     </div>

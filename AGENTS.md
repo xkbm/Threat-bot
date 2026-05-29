@@ -19,6 +19,7 @@ Optional multi-key: `VT_API_KEY_2/3`, `SIGHTENGINE_API_USER_2/3` + `SIGHTENGINE_
 
 ## MCP servers (`opencode.jsonc`, gitignored)
 - **GitHub** (local binary `.mcp/github/github-mcp-server.exe`) — PRs/commits/issues. Token via env var `GITHUB_PERSONAL_ACCESS_TOKEN`.
+  *Nota: `@modelcontextprotocol/server-github` (NPM, archivado) bug #727 — no accede a repos privados. Remote Copilot MCP endpoint requiere fine-grained PAT + suscripción Copilot.*
 - **Jina AI** (`https://mcp.jina.ai/v1`) — `search_web`, `read_url`, `capture_screenshot_url`, `extract_pdf`, `search_images`. Free tier, 7k weekly calls.
 
 ## Git
@@ -32,26 +33,19 @@ Optional multi-key: `VT_API_KEY_2/3`, `SIGHTENGINE_API_USER_2/3` + `SIGHTENGINE_
 El bot corre en un servidor Pterodactyl. Para verificar cambios localmente solo ejecutar `python -m compileall .` — si compila sin errores, está correcto. No instalar requirements ni ejecutar `bot.py` en local.
 
 ## Architecture
-- **Entrypoint** `bot.py:116` `setup_hook` loads `cogs/*.py`; `on_ready` inits DB + syncs slash commands. `bot._ready_done` guard prevents double init.
-- **Concurrency guards**: `core/state.py:ANALYSIS_SEMAPHORE = asyncio.Semaphore(20)` limits concurrent API calls. `bot.py:bot._analysis_sem = Semaphore(100)` caps total in-flight analysis tasks. `bot.py:bot._download_sem = Semaphore(5)` limits concurrent attachment downloads.
-- **State** `core/state.py` — `state.bot = bot` set at `bot.py:29`. Import `from core import state` then `state.bot` anywhere.
-- **Shutdown** `bot.py:207-211` monkey-patches `bot.close` → calls `shutdown()` (cancel tasks, flush data, stop DB pool, close session) then original close.
-- **Guild cleanup** `bot.py:187-193` — `on_guild_remove` handler removes guild from `bot.guilds_data` and flushes to disk immediately.
-- **Background tasks**: `_rotar_estado()` rotates bot presence every 30s; `_limpiar_cron()` clears expired SQLite cache every hour.
-- **Persistence**: `core/analisis.db` (SQLite, cached scans) + `core/data.json` (JSON, guild configs). Both resolved as absolute paths from `core/config.py`. `guardar_datos()` debounces 3s; pass `inmediato=True` for instant writes. DB uses `DatabasePool` (4 connections, WAL mode, async read-round-robin + write-lock) via `core/database.py:POOL`.
-- **`load_dotenv()`** called in both `bot.py:23` and `core/config.py:5` — harmless (no override) but relevant for env load order.
-- **Error results (not cached)**: `_finalizar_error` (`api/virustotal.py:460`) solo llama `update_stats` — errors nunca se cachean para no bloquear reanálisis.
-- **Timeouts**: bot session `total=60` (`bot.py:125`), VT `total=180` (`api/virustotal.py:20`), SE `total=30` (`api/sightengine.py:12`).
-- **Size limits**: `MAX_FILE_SIZE = 32MB` for VT file uploads, `MAX_IMAGE_SIZE = 2MB` for SightEngine image scans (`core/config.py:26-27`).
-- **Cogs**: `/scan` (30s cooldown per user+guild, `cogs/analisis.py:18`), `/silentmode`, `/strictmode`, `/setlogchannel`, `/settings`, `/disablelogchannel`, `/whitelist`, `/usercheck` (`cogs/rep.py`), `/stats`, `/about`, `/uptime`, `/ping`, `/help`, `/eval` (owner), `/reboot` (owner).
+- **Entrypoint** `bot.py:119` `setup_hook` → loads `cogs/*.py`; `on_ready` inits DB + slash sync. `bot._ready_done` guard.
+- **Concurrency**: `core/state.py:ANALYSIS_SEMAPHORE = Semaphore(20)` (API calls), `bot._analysis_sem = Semaphore(100)` (in-flight tasks), `bot._download_sem = Semaphore(5)` (attachment downloads).
+- **State shortcut**: `core/state.py` — `state.bot = bot` at `bot.py:31`. Import `from core import state` then `state.bot` anywhere.
+- **Lifecycle**: `bot.close` monkey-patched (`bot.py:217-221`) → cancel tasks → flush data → stop DB pool → close session → original close. `on_guild_remove` (`bot.py:197-203`) removes guild from `guilds_data` + instant flush. Background: `_rotar_estado()` every 30s, `_limpiar_cron()` hourly SQLite cleanup.
+- **Persistence**: SQLite (`analisis.db`, 4-conn WAL pool via `DatabasePool`) for cached scans; JSON (`data.json`) for guild configs. `guardar_datos()` debounces 3s; pass `inmediato=True` for instant writes.
+- **Config details**: `load_dotenv()` in both `bot.py:25` + `core/config.py:5` (innocuo). Timeouts: bot=60s, VT=180s, SE=30s. Size limits: 32MB (VT upload), 2MB (SE image). Errors never cached (`_finalizar_error` solo `update_stats`).
 
 ## Auto-analysis pipeline
 `on_message` / `on_message_edit` → `ui/message_handler.py:232` `procesar_analisis(bot, message)`.
-- **URLs** (non-image, not whitelisted): expand shorteners first → RAM cache → SQLite cache → VT API.
-- **Image URLs** (single, non-whitelisted, detected by `url_es_imagen` path extension check): SSRF-safe download via `descargar_url_segura()` (`core/utils.py:150`) — DNS resolve → private-IP check → download → SightEngine NSFW.
-- **Attachments**: images → SightEngine (`es_imagen()` checks extension + content-type), other files → VirusTotal. Batch cap: 5 per message. Attachment processing (`_procesar_adjuntos`) runs alongside URL analysis (called from all URL return points).
-- **Double extension**: `tiene_doble_extension()` (`core/utils.py:180`) warns on e.g. `file.jpg.vbs`.
-- **MIME mismatch**: warns when `.jpg` has non-`image/jpeg` content-type or `.png` non-`image/png`.
+- **URLs** (non-image, not whitelisted): expand → RAM cache → SQLite cache → VT API.
+- **Image URLs** (single, non-whitelisted): SSRF-safe download (`descargar_url_segura`) → SightEngine NSFW.
+- **Attachments**: images → SightEngine, others → VT. Batch cap: 5. Runs alongside URL analysis.
+- **File heuristics**: `tiene_doble_extension` warns on `file.jpg.vbs`; MIME mismatch warns on `.jpg` with non-`image/jpeg` content-type.
 
 ## Caching
 - **RAM**: `OrderedDict` max 100000 entries, 1h TTL. Returns `(tipo, embed, mal)` or `(None, None, 0)`.
@@ -64,7 +58,6 @@ El bot corre en un servidor Pterodactyl. Para verificar cambios localmente solo 
 - `analizar_*` return `(tipo: str, embed: discord.Embed, mal: int)`. `tipo`: `"malicioso"`, `"seguro"`, `"error"`.
 - Up to 3 keys, rotated via `obtener_siguiente_key()` (async, with lock). Skips keys with ≥4 req in last 60s; returns `None` if all exhausted.
 - 500 req/day per key. `obtener_siguiente_key()` also tracks daily usage.
-- VT GUI link: `base64.urlsafe_b64encode(url.encode()).decode().rstrip("=")` → `https://www.virustotal.com/gui/url/{url_id}`.
 
 ## SightEngine NSFW (`api/sightengine.py`)
 - `analizar_imagen_multimodelo(hash, bytes)` → `(is_nsfw, max_confidence, models, from_cache)`.

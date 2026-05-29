@@ -1,24 +1,25 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
 
 const steps = [
   {
-    icon: 'las la-hashtag',
+    icon: 'hashtag',
     title: 'Canal de logs',
     desc: 'Usa /setlogchannel para elegir dónde recibir alertas de seguridad.',
   },
   {
-    icon: 'las la-gavel',
+    icon: 'gavel',
     title: 'Modo estricto',
     desc: 'Activa /strictmode para eliminar automáticamente mensajes sospechosos.',
   },
   {
-    icon: 'las la-cog',
+    icon: 'cog',
     title: 'Configuración',
     desc: 'Revisa y ajusta todo con /settings desde tu servidor.',
   },
   {
-    icon: 'las la-question-circle',
+    icon: 'question-circle',
     title: 'Ayuda',
     desc: 'Consulta /help para ver la lista completa de comandos disponibles.',
   },
@@ -28,6 +29,7 @@ const steps = [
 <BaseLayout
   title="¡Gracias por invitar a Threat! — Seguridad inteligente para Discord"
   description="Threat ya está en tu servidor. Configura el bot en minutos con /setlogchannel, /strictmode y más."
+  canonical="/thanks"
 >
   <section class="hero-gradient relative flex min-h-screen items-center justify-center px-6 pt-20 sm:pt-24">
     <div class="pointer-events-none absolute inset-0 overflow-hidden">
@@ -38,7 +40,7 @@ const steps = [
     <div class="relative z-10 mx-auto max-w-3xl w-full pb-16 sm:pb-24">
       <div class="flex flex-col items-center text-center">
         <div class="mb-8 flex h-20 w-20 animate-fade-up items-center justify-center rounded-2xl bg-discord/20 text-5xl text-discord">
-          <i class="las la-check-circle" aria-hidden="true"></i>
+          <Icon name="check-circle" />
         </div>
 
         <h1 class="mb-4 max-w-2xl text-5xl font-black leading-none tracking-tight sm:text-6xl md:text-7xl">
@@ -58,7 +60,7 @@ const steps = [
             steps.map((s) => (
               <div class="card-hover group rounded-2xl border border-surface-700 bg-surface-800/50 p-5 text-left transition-all duration-300">
                 <div class="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-discord/10 text-xl text-discord transition-all duration-300 group-hover:bg-discord group-hover:text-white">
-                  <i class={s.icon} aria-hidden="true"></i>
+                  <Icon name={s.icon} />
                 </div>
                 <h3 class="mb-1 text-sm font-semibold text-white">{s.title}</h3>
                 <p class="text-xs leading-relaxed text-surface-400">{s.desc}</p>
@@ -69,11 +71,11 @@ const steps = [
 
         <div class="flex flex-col items-center gap-4 sm:flex-row animate-fade-up-delayed">
           <a href="/" class="group inline-flex items-center gap-2 rounded-xl bg-discord px-8 py-3.5 font-semibold text-white transition-all duration-300 hover:bg-discord-light hover:scale-105 hover:shadow-[0_0_40px_rgba(88,101,242,0.4)]">
-            <i class="las la-arrow-left text-lg" aria-hidden="true"></i>
+            <Icon name="arrow-left" size="1.125em" />
             Volver al inicio
           </a>
           <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer" class="group inline-flex items-center gap-2 rounded-xl border border-surface-600 px-8 py-3.5 font-semibold text-surface-300 transition-all duration-300 hover:border-surface-400 hover:text-white">
-            <i class="las la-plus text-lg" aria-hidden="true"></i>
+            <Icon name="plus" size="1.125em" />
             Invitar a otro servidor
           </a>
         </div>
