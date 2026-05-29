@@ -82,4 +82,10 @@ const steps = [
       </div>
     </div>
   </section>
+
+  <script type="module">
+    if (location.search.includes('code=')) {
+      history.replaceState(null, '', '/thanks');
+    }
+  </script>
 </BaseLayout>
