@@ -1,4 +1,5 @@
 import re
+import time
 import asyncio
 import socket
 import ipaddress
@@ -168,8 +169,12 @@ async def descargar_url_segura(bot: commands.Bot, url: str, max_size: Optional[i
                 return None, f"HTTP {resp.status}"
             if max_size:
                 cl = resp.headers.get('Content-Length')
-                if cl and int(cl) > max_size:
-                    return None, "too_large"
+                if cl:
+                    try:
+                        if int(cl) > max_size:
+                            return None, "too_large"
+                    except ValueError:
+                        pass  # Content-Length malformado, ignorar
                 data = await resp.read()
                 if len(data) > max_size:
                     return None, "too_large"

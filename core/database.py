@@ -195,7 +195,11 @@ async def guardar_datos(inmediato: bool = False, include_runtime: bool = False) 
         _guardar_datos_task = asyncio.create_task(_debounced())
 
 async def cargar_datos() -> None:
-    _read_json = lambda: json.loads(open(DATA_FILE, "r", encoding="utf-8").read()) if os.path.exists(DATA_FILE) else {}
+    def _read_json():
+        if not os.path.exists(DATA_FILE):
+            return {}
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
+            return json.loads(f.read())
     try:
         data = await asyncio.to_thread(_read_json)
         api_usage = data.get("__api_usage__", {})
@@ -238,4 +242,3 @@ async def cargar_datos() -> None:
         state.bot.antispam_scan = antispam_scan
     except Exception as e:
         log.error(f"Error al cargar datos: {e}")
-        state.bot.guilds_data = {}

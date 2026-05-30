@@ -41,7 +41,7 @@ El bot corre en un servidor Pterodactyl. Para verificar cambios localmente solo 
 - **Config details**: `load_dotenv()` in both `bot.py:25` + `core/config.py:5` (innocuo). Timeouts: bot=60s, VT=180s, SE=30s. Size limits: 32MB (VT upload), 2MB (SE image). Errors never cached (`_finalizar_error` solo `update_stats`).
 
 ## Auto-analysis pipeline
-`on_message` / `on_message_edit` → `ui/message_handler.py:232` `procesar_analisis(bot, message)`.
+`on_message` / `on_message_edit` → `ui/message_handler.py:234` `procesar_analisis(bot, message)`.
 - **URLs** (non-image, not whitelisted): expand → RAM cache → SQLite cache → VT API.
 - **Image URLs** (single, non-whitelisted): SSRF-safe download (`descargar_url_segura`) → SightEngine NSFW.
 - **Attachments**: images → SightEngine, others → VT. Batch cap: 5. Runs alongside URL analysis.
@@ -50,7 +50,7 @@ El bot corre en un servidor Pterodactyl. Para verificar cambios localmente solo 
 ## Caching
 - **RAM**: `OrderedDict` max 100000 entries, 1h TTL. Returns `(tipo, embed, mal)` or `(None, None, 0)`.
 - **SQLite**: `analisis.db` table `analisis(clave, tipo, resultado, embed_json, timestamp, expira)`. Expiry: URL/IP 7d, hash/file/NSFW 30d.
-- **DNS cache**: `core/utils.py:14` — `OrderedDict`, 300s TTL, max 5000 entries with LRU eviction. Avoids redundant lookups during SSRF checks.
+- **DNS cache**: `core/utils.py:15` — `OrderedDict`, 300s TTL, max 5000 entries with LRU eviction. Avoids redundant lookups during SSRF checks.
 - Cache keys: `f"url:{expanded_url}"`, `f"ip:{ip}"`, `f"hash:{hash}"`, `f"filehash:{sha256}"`, `f"nsfw:{sha256}"`.
 - Always expand URLs before cache lookup (`expandir_url` in `core/utils.py:126`).
 
@@ -69,7 +69,7 @@ El bot corre en un servidor Pterodactyl. Para verificar cambios localmente solo 
 - 30 URLs/hour per user, 10s cooldown between scans. Tracks in `bot.user_scan_history` and `bot.antispam_scan`. Applied to all scan paths including image URLs.
 
 ## Whitelist
-- `dominio_en_whitelist(dominio, whitelist)` checks exact match or subdomain (`core/utils.py:43`).
+- `dominio_en_whitelist(dominio, whitelist)` checks exact match or subdomain (`core/utils.py:45`).
 - Protected domains (`core/config.py:68-73`: youtube.com, github.com, etc.) cannot be removed via `/whitelist remove`. New guilds inherit these as default whitelist.
 - `/whitelist list` uses `WhitelistPaginatorView` (`ui/views.py:114`) with Anterior/Siguiente buttons when >20 domains.
 
@@ -111,4 +111,4 @@ Astro v6.3.8 + Tailwind v4 (`@tailwindcss/vite`). Deployed on Vercel.
 - **`asyncio.create_task()` without error callbacks** (`bot.py:182,195`): Tasks created in `on_message`/`on_message_edit` silently lose exceptions. Add `task.add_done_callback()` to log errors.
 - **File handle leak** (`core/database.py:198`): `open(DATA_FILE).read()` in `_read_json` lambda never explicitly closes the file handle. Use `with` statement.
 - **`_guild_locks` unbounded growth** (`core/guild_config.py:9`): Lock dict grows as new guilds appear but never shrinks. Use `WeakValueDictionary` or periodic cleanup.
-- **`ANTISPAM_URLS_PER_HOUR` misleading** (`core/config.py:75`): Name says "URLs" but it's used for ALL analysis types (URLs, files, images). Consider renaming to `ANTISPAM_ANALYSIS_PER_HOUR`.
+- **`ANTISPAM_URLS_PER_HOUR` misleading** (`core/config.py:75`): Name says "URLs" but in `/scan` command applies to all analysis types. In auto-analysis (`message_handler.py`), only applies to URL processing — attachments bypass it. Consider renaming to `ANTISPAM_ANALYSIS_PER_HOUR`.

@@ -17,6 +17,8 @@ class EstadisticasCog(commands.Cog):
         for key in self.bot.vt_key_total_requests:
             total += len([t for t in self.bot.vt_key_usage.get(key, []) if ahora - t <= 60])
         limit = self.bot.vt_key_count * 4
+        if limit == 0:
+            return "```\nSin keys VT configuradas\n```"
         porcentaje = (total / limit) * 100
         barra = self.bot.barra_porcentaje(porcentaje, longitud=10)
         return f"{barra} **{porcentaje:.0f}%** ({total}/{limit})"
@@ -29,6 +31,8 @@ class EstadisticasCog(commands.Cog):
             if daily_data["date"] == hoy:
                 total += daily_data["count"]
         limit = self.bot.vt_key_count * 500
+        if limit == 0:
+            return "```\nSin keys VT configuradas\n```"
         porcentaje = (total / limit) * 100
         barra = self.bot.barra_porcentaje(porcentaje, longitud=10)
         return f"{barra} **{porcentaje:.1f}%** ({total}/{limit})"
@@ -41,6 +45,8 @@ class EstadisticasCog(commands.Cog):
             if daily_data["date"] == hoy:
                 total += daily_data["count"]
         limit = self.bot.se_key_count * 500
+        if limit == 0:
+            return "```\nSin keys SightEngine configuradas\n```"
         porcentaje = (total / limit) * 100
         barra = self.bot.barra_porcentaje(porcentaje, longitud=10)
         return f"{barra} **{porcentaje:.1f}%** ({total}/{limit})"

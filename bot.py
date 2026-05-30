@@ -179,7 +179,8 @@ async def on_message(message):
     async def _analisis_con_sem():
         async with bot._analysis_sem:
             await procesar_analisis(bot, message)
-    asyncio.create_task(_analisis_con_sem())
+    task = asyncio.create_task(_analisis_con_sem())
+    task.add_done_callback(lambda t: log.error(f"Task error: {t.exception()}", exc_info=t.exception()) if t.exception() else None)
     await bot.process_commands(message)
 
 @bot.event
@@ -192,7 +193,8 @@ async def on_message_edit(before, after):
     async def _analisis_edit_con_sem():
         async with bot._analysis_sem:
             await procesar_analisis(bot, after)
-    asyncio.create_task(_analisis_edit_con_sem())
+    task = asyncio.create_task(_analisis_edit_con_sem())
+    task.add_done_callback(lambda t: log.error(f"Task error: {t.exception()}", exc_info=t.exception()) if t.exception() else None)
 
 @bot.event
 async def on_guild_remove(guild):

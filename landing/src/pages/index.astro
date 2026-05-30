@@ -454,7 +454,7 @@ const steps = [
         <!-- 2x2 grid -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           {features.filter(f => !f.featured && !f.closing).map((f, i) => (
-            <div class="card-outer group stagger-fade" style={`transition-delay: ${i * 80}ms`}>
+            <div class="card-outer group" style={`transition-delay: ${i * 80}ms`}>
               <div class="card-inner p-6">
                 <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-discord/10 text-2xl text-discord transition-all duration-300 group-hover:bg-threat group-hover:text-white">
                   <Icon name={f.icon} />
