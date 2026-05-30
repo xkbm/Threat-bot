@@ -85,12 +85,16 @@ Astro v6.3.8 + Tailwind v4 (`@tailwindcss/vite`). Deployed on Vercel.
 - **Commands**: `cd landing && pnpm run dev` / `pnpm run build`
 - **Manager**: pnpm only
 - **URL**: `https://threat-bot-discord.vercel.app/`
-- **Pages**: `index.astro` (single-page), `privacidad.astro`, `terminos.astro`
+- **Pages**: `index.astro` (single-page), `privacidad.astro`, `terminos.astro`, `thanks.astro`, `404.astro`
 - **Discord invite**: `https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code`
 - **Bot integration**: `/about` and `/help` have a "Sitio web" button (`discord.ui.Button` with `EMOJI_LINK`) pointing to Vercel URL
 - **Git**: landing changes on `web` branch; fast-forward merge to `main`
 - **Build output**: `landing/dist/` (gitignored). `pnpm run build` also generates `sitemap-index.xml`
 - **Design Context**: ver `PRODUCT.md` (raíz). Register: **brand**. Personalidad: moderno/serio/preciso. Principios: claridad sobre decoración, restricción profesional, enseñar mostrando, credibilidad técnica. Dark-forced, WCAG AA, `prefers-reduced-motion`.
+- **Nav**: Full-width always-visible bar (`bg-surface-900/80 backdrop-blur-sm border-b border-white/5`). Logo + 3 links (desktop) + CTA "Añadir a Discord" con icono `+`. Mobile: logo + CTA solamente (sin hamburger). `Icon` importado de `components/Icon.astro`.
+- **Chat mockup**: 3 escenarios con pesos (50% malicioso, 30% seguro, 20% whitelist). Cada conversación tiene `urlFrom: 'u1'|'u2'` que dice quién envía la URL. Usuarios únicos vía `do/while`. Emojis reales en `landing/public/emoji-*.png` (warn, check, whitelist). Whitelist responde con texto plano (no embed). Malicioso usa borde naranja (`rgb(230,126,34)`), no rojo.
+- **CSS**: Scroll reveal variants: `up` (blur+translate), `scale` (scale+blur), `subtle` (translate sin blur), `fade` (solo opacity), `none`. `.is-visible` DEBE venir después de las variantes en el CSS para que `filter: none` gane. Card hover: `translateY(-2px)`. CTA shadow: `box-shadow: 0 4px 14px rgba(88,101,242,0.25)`. Warm neutrals: hue 40 en superficies de texto.
+- **Emoji files**: `landing/public/emoji-warn.png`, `emoji-check.png`, `emoji-whitelist.png`. `emoji-wrong.png` existe pero NO se usa. Root files (`check.png`, `warn.png`, `wrong.png`, `whitelist.png`) son las fuentes — ya copiados a public.
 
 ## ⚠️ Gotchas
 - **Bound-method illusion** (`bot.py:52-82`): assigning module funcs as bot attrs does NOT bind `self`. `await self.bot.expandir_url(valor)` passes `valor` as bot param. Fix: import directly and pass `self.bot` explicitly.
@@ -100,3 +104,11 @@ Astro v6.3.8 + Tailwind v4 (`@tailwindcss/vite`). Deployed on Vercel.
 - **Logger DEBUG** only on: `cache`, `db`, `handler`, `virustotal`, `sightengine`. Cog loggers inherit INFO from root.
 - **`/scan` file downloads** from attachment URL inside cog (not via `descargar_url_segura`).
 - **`psutil` in requirements.txt** is unused (never imported) — dependency solely from a template or prior version.
+- **SVG `className`** (`landing/`): SVG elements have `className` as `SVGAnimatedString`, not a plain string. Setting `element.className = 'foo'` may throw or silently fail. Use `setAttribute('class', ...)` or avoid manipulating SVG class from JS.
+- **CSS specificity for scroll reveals** (`landing/`): `.scroll-reveal.is-visible` must come AFTER variant rules (`[data-reveal="up"]`, `[data-reveal="scale"]`, etc.) in the CSS. If it comes before, the variant's `filter: blur(Npx)` overrides `filter: none` and content stays blurred forever.
+
+## 🔴 Known bot issues (not yet fixed)
+- **`asyncio.create_task()` without error callbacks** (`bot.py:182,195`): Tasks created in `on_message`/`on_message_edit` silently lose exceptions. Add `task.add_done_callback()` to log errors.
+- **File handle leak** (`core/database.py:198`): `open(DATA_FILE).read()` in `_read_json` lambda never explicitly closes the file handle. Use `with` statement.
+- **`_guild_locks` unbounded growth** (`core/guild_config.py:9`): Lock dict grows as new guilds appear but never shrinks. Use `WeakValueDictionary` or periodic cleanup.
+- **`ANTISPAM_URLS_PER_HOUR` misleading** (`core/config.py:75`): Name says "URLs" but it's used for ALL analysis types (URLs, files, images). Consider renaming to `ANTISPAM_ANALYSIS_PER_HOUR`.
