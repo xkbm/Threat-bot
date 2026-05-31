@@ -18,6 +18,9 @@ class EvalCog(commands.Cog):
 
     @commands.command(name="eval")
     async def eval_prefix(self, ctx: commands.Context, *, codigo: str) -> None:
+        if OWNER_ID is None:
+            log.error("OWNER_ID no configurado — /eval deshabilitado")
+            return
         if str(ctx.author.id) != OWNER_ID:
             return
 
@@ -74,6 +77,10 @@ class EvalCog(commands.Cog):
 
     @app_commands.command(name="eval", description="Ejecuta código Python (solo dueño)")
     async def eval_slash(self, interaction: discord.Interaction, codigo: str) -> None:
+        if OWNER_ID is None:
+            log.error("OWNER_ID no configurado — /eval deshabilitado")
+            await interaction.response.send_message("Comando deshabilitado.", ephemeral=True)
+            return
         if str(interaction.user.id) != OWNER_ID:
             log.warning(f"EVAL INTENTO NO AUTORIZADO → usuario={interaction.user} ({interaction.user.id}) servidor={interaction.guild}")
             await interaction.response.send_message(f"{self.bot.EMOJI_INCORRECTO} No tienes permiso para usar este comando.", ephemeral=True)

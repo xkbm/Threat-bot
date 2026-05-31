@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 MAX_ANALYSIS_TASKS = 100
 
 from core import state
-from core.config import TOKEN, VT_API_KEYS, SE_API_KEYS_PAIRS, OWNER_ID, ANTISPAM_URLS_PER_HOUR
+from core.config import TOKEN, VT_API_KEYS, SE_API_KEYS_PAIRS, OWNER_ID, ANTISPAM_ANALYSIS_PER_HOUR
 from core.database import init_db, cargar_datos, guardar_datos
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(name)s: %(message)s")
@@ -110,7 +110,7 @@ bot.EMOJI_KICK = EMOJI_KICK
 bot.EMOJI_BAN = EMOJI_BAN
 bot.EMOJI_CLEAN = EMOJI_CLEAN
 bot.MAX_FILE_SIZE = MAX_FILE_SIZE
-bot.ANTISPAM_URLS_PER_HOUR = ANTISPAM_URLS_PER_HOUR
+bot.ANTISPAM_ANALYSIS_PER_HOUR = ANTISPAM_ANALYSIS_PER_HOUR
 bot.CACHE_DURATION = CACHE_DURATION
 bot.DATA_FILE = DATA_FILE
 bot.DB_FILE = DB_FILE
@@ -203,6 +203,8 @@ async def on_guild_remove(guild):
         bot.guilds_data.pop(guild_id, None)
         await guardar_datos(inmediato=True)
         log.info(f"Guild {guild_id} ({guild.name}) eliminada — datos limpiados")
+    from core.guild_config import remove_guild_lock
+    await remove_guild_lock(guild_id)
 
 async def shutdown():
     for task in bot._background_tasks:

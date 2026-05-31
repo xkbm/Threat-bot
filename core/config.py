@@ -72,7 +72,7 @@ DOMINIOS_PROTEGIDOS: list[str] = [
     "apple.com", "amazon.com", "discord.com"
 ]
 
-ANTISPAM_URLS_PER_HOUR: int = 30
+ANTISPAM_ANALYSIS_PER_HOUR: int = 30
 ANTISPAM_COOLDOWN: int = 10
 
 IMAGE_EXTENSIONS: list[str] = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.ico', '.heic', '.heif']

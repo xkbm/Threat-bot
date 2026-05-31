@@ -131,7 +131,12 @@ async def enviar_log_guild(guild_id: int, tipo: str, valor: str, detalles: str, 
         embed.add_field(name=f"{EMOJI_LINK} VirusTotal", value=f"[Ver informe]({url_vt})", inline=False)
     embed.set_footer(text=f"ID: {usuario.id} • {time.strftime('%Y-%m-%d %H:%M:%S')}")
     view = LogActionView(guild_id, usuario.id, elemento_id=elemento_id)
-    await channel.send(embed=embed, view=view)
+    try:
+        await channel.send(embed=embed, view=view)
+    except discord.errors.Forbidden:
+        log.error(f"enviar_log_guild: sin permisos send_messages/embed_links en #{channel} (guild {guild_id})")
+    except Exception as e:
+        log.error(f"enviar_log_guild: error enviando a canal {channel_id}: {e}")
 
 async def analizar_url(url: str, guild_id: Optional[int] = None, mensaje_original: Optional[discord.Message] = None, guardar_cache: bool = True) -> tuple[str, discord.Embed, int]:
     _t0 = time.time()
@@ -454,7 +459,7 @@ async def _on_threat_found(tipo_str: str, valor: str, mal: int, guild_id: Option
         if config["strict_mode"]:
             try:
                 await mensaje_original.delete()
-            except Exception:
+            except (discord.errors.Forbidden, discord.errors.NotFound):
                 pass
 
 async def _finalizar_error(guild_id: Optional[int], tipo: str, valor: str) -> None:

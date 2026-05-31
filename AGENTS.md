@@ -29,8 +29,20 @@ Optional multi-key: `VT_API_KEY_2/3`, `SIGHTENGINE_API_USER_2/3` + `SIGHTENGINE_
 ## CI/CD
 `push dev` → GitHub Actions (`test-bot.yml`): `python -m compileall .` + `timeout 15s python bot.py` (dummy env) → if OK → `merge-to-main.yml`: merge dev→main → Pterodactyl git pull + restart.
 
+## Two-project structure
+- **Bot** (root): Python, deployed to Pterodactyl. Branches: `dev` → `main`.
+- **Landing** (`landing/`): Astro/TypeScript, deployed to Vercel. Branch: `web` (fast-forward merge to `main`).
+- These are independent — bot CI does not test landing, and vice versa.
+
 ## Verificación local (no instalar nada)
 El bot corre en un servidor Pterodactyl. Para verificar cambios localmente solo ejecutar `python -m compileall .` — si compila sin errores, está correcto. No instalar requirements ni ejecutar `bot.py` en local.
+
+## Testing
+```
+pip install -r requirements.txt
+python -m pytest tests/ -v
+```
+Tests cover: `core/utils.py` (whitelist, hash validation, double extension, percentage bar, antivirus extraction), `core/cache.py` (hit/miss/expiry), `core/guild_config.py` (lock creation/removal/concurrency).
 
 ## Architecture
 - **Entrypoint** `bot.py:119` `setup_hook` → loads `cogs/*.py`; `on_ready` inits DB + slash sync. `bot._ready_done` guard.
@@ -66,7 +78,7 @@ El bot corre en un servidor Pterodactyl. Para verificar cambios localmente solo 
 - Empty `image_bytes` returns `(False, 0.0, {}, False)` early without calling API.
 
 ## Anti-spam
-- 30 URLs/hour per user, 10s cooldown between scans. Tracks in `bot.user_scan_history` and `bot.antispam_scan`. Applied to all scan paths including image URLs.
+- 30 analyses/hour per user (`ANTISPAM_ANALYSIS_PER_HOUR`), 10s cooldown between scans. Tracks in `bot.user_scan_history` and `bot.antispam_scan`. In `/scan` applies to all types; in auto-analysis only gates URL processing — attachments bypass it.
 
 ## Whitelist
 - `dominio_en_whitelist(dominio, whitelist)` checks exact match or subdomain (`core/utils.py:45`).
@@ -95,20 +107,17 @@ Astro v6.3.8 + Tailwind v4 (`@tailwindcss/vite`). Deployed on Vercel.
 - **Chat mockup**: 3 escenarios con pesos (50% malicioso, 30% seguro, 20% whitelist). Cada conversación tiene `urlFrom: 'u1'|'u2'` que dice quién envía la URL. Usuarios únicos vía `do/while`. Emojis reales en `landing/public/emoji-*.png` (warn, check, whitelist). Whitelist responde con texto plano (no embed). Malicioso usa borde naranja (`rgb(230,126,34)`), no rojo.
 - **CSS**: Scroll reveal variants: `up` (blur+translate), `scale` (scale+blur), `subtle` (translate sin blur), `fade` (solo opacity), `none`. `.is-visible` DEBE venir después de las variantes en el CSS para que `filter: none` gane. Card hover: `translateY(-2px)`. CTA shadow: `box-shadow: 0 4px 14px rgba(88,101,242,0.25)`. Warm neutrals: hue 40 en superficies de texto.
 - **Emoji files**: `landing/public/emoji-warn.png`, `emoji-check.png`, `emoji-whitelist.png`. `emoji-wrong.png` existe pero NO se usa. Root files (`check.png`, `warn.png`, `wrong.png`, `whitelist.png`) son las fuentes — ya copiados a public.
+- **Footer**: Copyright + GitHub icon (`https://github.com/xkbm`, inline SVG) + "Añadir a Discord" link.
 
 ## ⚠️ Gotchas
 - **Bound-method illusion** (`bot.py:52-82`): assigning module funcs as bot attrs does NOT bind `self`. `await self.bot.expandir_url(valor)` passes `valor` as bot param. Fix: import directly and pass `self.bot` explicitly.
 - **Admin slash commands** use `_safe_followup()` wrapper (`cogs/configuracion.py:13-17`) that catches `discord.errors.NotFound` on expired interactions.
-- **`strict_mode`** uses bare `try/except Exception: pass` for message deletion — will silently fail on missing permissions.
+- **`strict_mode`** uses `except (discord.errors.Forbidden, discord.errors.NotFound)` for message deletion — silently ignores permission/missing errors.
 - **SSRF protection**: `descargar_url_segura()` resolves DNS → checks for private/loopback IPs → downloads via IP with `Host` header.
 - **Logger DEBUG** only on: `cache`, `db`, `handler`, `virustotal`, `sightengine`. Cog loggers inherit INFO from root.
 - **`/scan` file downloads** from attachment URL inside cog (not via `descargar_url_segura`).
-- **`psutil` in requirements.txt** is unused (never imported) — dependency solely from a template or prior version.
 - **SVG `className`** (`landing/`): SVG elements have `className` as `SVGAnimatedString`, not a plain string. Setting `element.className = 'foo'` may throw or silently fail. Use `setAttribute('class', ...)` or avoid manipulating SVG class from JS.
 - **CSS specificity for scroll reveals** (`landing/`): `.scroll-reveal.is-visible` must come AFTER variant rules (`[data-reveal="up"]`, `[data-reveal="scale"]`, etc.) in the CSS. If it comes before, the variant's `filter: blur(Npx)` overrides `filter: none` and content stays blurred forever.
 
 ## 🔴 Known bot issues (not yet fixed)
-- **`asyncio.create_task()` without error callbacks** (`bot.py:182,195`): Tasks created in `on_message`/`on_message_edit` silently lose exceptions. Add `task.add_done_callback()` to log errors.
-- **File handle leak** (`core/database.py:198`): `open(DATA_FILE).read()` in `_read_json` lambda never explicitly closes the file handle. Use `with` statement.
-- **`_guild_locks` unbounded growth** (`core/guild_config.py:9`): Lock dict grows as new guilds appear but never shrinks. Use `WeakValueDictionary` or periodic cleanup.
-- **`ANTISPAM_URLS_PER_HOUR` misleading** (`core/config.py:75`): Name says "URLs" but in `/scan` command applies to all analysis types. In auto-analysis (`message_handler.py`), only applies to URL processing — attachments bypass it. Consider renaming to `ANTISPAM_ANALYSIS_PER_HOUR`.
+- (none currently)
