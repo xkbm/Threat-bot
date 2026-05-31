@@ -30,22 +30,6 @@ class AnalisisCog(commands.Cog):
     async def scan(self, interaction: discord.Interaction, tipo: app_commands.Choice[str], valor: Optional[str] = None, archivo: Optional[discord.Attachment] = None) -> None:
         guild_id = interaction.guild.id if interaction.guild else None
 
-        ahora = time.time()
-        user_id = interaction.user.id
-        spam_key = (guild_id, user_id) if guild_id else user_id
-        self.bot.user_scan_history.setdefault(spam_key, [])
-        self.bot.user_scan_history[spam_key] = [t for t in self.bot.user_scan_history[spam_key] if ahora - t < 3600]
-        if len(self.bot.user_scan_history[spam_key]) >= self.bot.ANTISPAM_ANALYSIS_PER_HOUR:
-            oldest = min(self.bot.user_scan_history[spam_key])
-            wait = int(oldest + 3600 - ahora)
-            minutes, seconds = divmod(wait, 60)
-            time_str = f"{minutes}m {seconds}s" if minutes else f"{seconds}s"
-            await interaction.response.send_message(
-                f"{self.bot.EMOJI_COOLDOWN} Límite de 30 análisis/hora alcanzado. "
-                f"Disponible en **{time_str}**.", ephemeral=True)
-            return
-        self.bot.user_scan_history[spam_key].append(ahora)
-
         await interaction.response.defer()
 
         url_original: Optional[str] = None
@@ -129,6 +113,22 @@ class AnalisisCog(commands.Cog):
                         )
             await interaction.edit_original_response(content=None, embed=embed)
             return
+
+        ahora = time.time()
+        user_id = interaction.user.id
+        spam_key = (guild_id, user_id) if guild_id else user_id
+        self.bot.user_scan_history.setdefault(spam_key, [])
+        self.bot.user_scan_history[spam_key] = [t for t in self.bot.user_scan_history[spam_key] if ahora - t < 3600]
+        if len(self.bot.user_scan_history[spam_key]) >= self.bot.ANTISPAM_ANALYSIS_PER_HOUR:
+            oldest = min(self.bot.user_scan_history[spam_key])
+            wait = int(oldest + 3600 - ahora)
+            minutes, seconds = divmod(wait, 60)
+            time_str = f"{minutes}m {seconds}s" if minutes else f"{seconds}s"
+            await interaction.edit_original_response(
+                content=f"{self.bot.EMOJI_COOLDOWN} Límite de 30 análisis/hora alcanzado. "
+                f"Disponible en **{time_str}**.")
+            return
+        self.bot.user_scan_history[spam_key].append(ahora)
 
         _t0 = time.time()
         try:

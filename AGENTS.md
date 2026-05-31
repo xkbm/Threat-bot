@@ -63,8 +63,9 @@ Tests cover: `core/utils.py` (whitelist, hash validation, double extension, perc
 - **RAM**: `OrderedDict` max 100000 entries, 1h TTL. Returns `(tipo, embed, mal)` or `(None, None, 0)`.
 - **SQLite**: `analisis.db` table `analisis(clave, tipo, resultado, embed_json, timestamp, expira)`. Expiry: URL/IP 7d, hash/file/NSFW 30d.
 - **DNS cache**: `core/utils.py:15` — `OrderedDict`, 300s TTL, max 5000 entries with LRU eviction. Avoids redundant lookups during SSRF checks.
-- Cache keys: `f"url:{expanded_url}"`, `f"ip:{ip}"`, `f"hash:{hash}"`, `f"filehash:{sha256}"`, `f"nsfw:{sha256}"`.
-- Always expand URLs before cache lookup (`expandir_url` in `core/utils.py:126`).
+- Cache keys: `f"url:{normalizar_url(url)}"`, `f"ip:{ip}"`, `f"hash:{hash}"`, `f"filehash:{sha256}"`, `f"nsfw:{sha256}"`.
+- URLs are normalized before cache key generation (`normalizar_url` in `core/utils.py:133`): lowercase scheme/host, strip trailing slashes, remove default ports. Prevents duplicate VT calls for equivalent URLs.
+- Always expand URLs before cache lookup (`expandir_url` in `core/utils.py:145`).
 
 ## VT integration (`api/virustotal.py`)
 - `analizar_*` return `(tipo: str, embed: discord.Embed, mal: int)`. `tipo`: `"malicioso"`, `"seguro"`, `"error"`.
@@ -79,6 +80,7 @@ Tests cover: `core/utils.py` (whitelist, hash validation, double extension, perc
 
 ## Anti-spam
 - 30 analyses/hour per user (`ANTISPAM_ANALYSIS_PER_HOUR`), 10s cooldown between scans. Tracks in `bot.user_scan_history` and `bot.antispam_scan`. In `/scan` applies to all types; in auto-analysis only gates URL processing — attachments bypass it.
+- Cache hits bypass cooldown entirely: pre-checks cache for all URLs before applying cooldown. If all cached, no cooldown applied and no API calls made.
 
 ## Whitelist
 - `dominio_en_whitelist(dominio, whitelist)` checks exact match or subdomain (`core/utils.py:45`).
@@ -114,6 +116,7 @@ Astro v6.3.8 + Tailwind v4 (`@tailwindcss/vite`). Deployed on Vercel.
 - **Admin slash commands** use `_safe_followup()` wrapper (`cogs/configuracion.py:13-17`) that catches `discord.errors.NotFound` on expired interactions.
 - **`strict_mode`** uses `except (discord.errors.Forbidden, discord.errors.NotFound)` for message deletion — silently ignores permission/missing errors.
 - **SSRF protection**: `descargar_url_segura()` resolves DNS → checks for private/loopback IPs → downloads via IP with `Host` header.
+- **SSL handshake limitation**: `expandir_url` connects via IP with `Host` header — TLS SNI uses the IP, not the hostname. Fails with CDNs (Cloudflare) that require correct SNI. Fallback works: URL is returned as-is for VT analysis.
 - **Logger DEBUG** only on: `cache`, `db`, `handler`, `virustotal`, `sightengine`. Cog loggers inherit INFO from root.
 - **`/scan` file downloads** from attachment URL inside cog (not via `descargar_url_segura`).
 - **SVG `className`** (`landing/`): SVG elements have `className` as `SVGAnimatedString`, not a plain string. Setting `element.className = 'foo'` may throw or silently fail. Use `setAttribute('class', ...)` or avoid manipulating SVG class from JS.

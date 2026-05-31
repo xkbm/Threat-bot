@@ -10,7 +10,7 @@ import logging
 import discord
 from discord.ext import commands
 from core.config import MAX_IMAGE_SIZE, MAX_FILE_SIZE, EMOJI_CORRECTO, EMOJI_INCORRECTO, EMOJI_WARNING, EMOJI_WHITELIST, EMOJI_LOADING, EMOJI_LINK, EMOJI_FILE, EMOJI_COOLDOWN, EMOJI_REPLY, ANTISPAM_ANALYSIS_PER_HOUR, ANTISPAM_COOLDOWN
-from core.utils import safe_remove_loading, safe_add_reaction, safe_send, dominio_en_whitelist, url_es_imagen, es_imagen, expandir_url, tiene_doble_extension, es_url_segura, descargar_url_segura
+from core.utils import safe_remove_loading, safe_add_reaction, safe_send, dominio_en_whitelist, url_es_imagen, es_imagen, expandir_url, tiene_doble_extension, es_url_segura, descargar_url_segura, normalizar_url
 from core.cache import get_from_cache_mem, set_cache_mem
 from core.database import obtener_analisis_db, guardar_metadatos_hash, obtener_hash_desde_metadatos
 from api.virustotal import analizar_url, analizar_archivo, enviar_log_guild
@@ -273,21 +273,32 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
 
         log.debug(f"URLs tras whitelist: {len(todas_urls)} de {len(urls)}")
 
-        ahora = time.time()
-        user_id = message.author.id
-        spam_key = (guild_id, user_id) if guild_id else user_id
-        bot.user_scan_history.setdefault(spam_key, [])
-        bot.user_scan_history[spam_key] = [t for t in bot.user_scan_history[spam_key] if ahora - t < 3600]
-        if len(bot.user_scan_history[spam_key]) >= ANTISPAM_ANALYSIS_PER_HOUR:
-            await safe_add_reaction(message, EMOJI_COOLDOWN)
-            await _procesar_adjuntos_si_hay(bot, message, guild_id, silent_mode, strict_mode, log_channel_id)
-            return
-        if spam_key in bot.antispam_scan and ahora - bot.antispam_scan[spam_key] < ANTISPAM_COOLDOWN:
-            await safe_add_reaction(message, EMOJI_COOLDOWN)
-            await _procesar_adjuntos_si_hay(bot, message, guild_id, silent_mode, strict_mode, log_channel_id)
-            return
-        bot.antispam_scan[spam_key] = ahora
-        bot.user_scan_history[spam_key].append(ahora)
+        todas_en_cache = True
+        for url in todas_urls:
+            clave_check = f"url:{normalizar_url(url)}"
+            _, embed_check, _ = await get_from_cache_mem(clave_check)
+            if embed_check is None:
+                _, embed_check, _ = await obtener_analisis_db(clave_check)
+            if embed_check is None:
+                todas_en_cache = False
+                break
+
+        if not todas_en_cache:
+            ahora = time.time()
+            user_id = message.author.id
+            spam_key = (guild_id, user_id) if guild_id else user_id
+            bot.user_scan_history.setdefault(spam_key, [])
+            bot.user_scan_history[spam_key] = [t for t in bot.user_scan_history[spam_key] if ahora - t < 3600]
+            if len(bot.user_scan_history[spam_key]) >= ANTISPAM_ANALYSIS_PER_HOUR:
+                await safe_add_reaction(message, EMOJI_COOLDOWN)
+                await _procesar_adjuntos_si_hay(bot, message, guild_id, silent_mode, strict_mode, log_channel_id)
+                return
+            if spam_key in bot.antispam_scan and ahora - bot.antispam_scan[spam_key] < ANTISPAM_COOLDOWN:
+                await safe_add_reaction(message, EMOJI_COOLDOWN)
+                await _procesar_adjuntos_si_hay(bot, message, guild_id, silent_mode, strict_mode, log_channel_id)
+                return
+            bot.antispam_scan[spam_key] = ahora
+            bot.user_scan_history[spam_key].append(ahora)
 
         if len(todas_urls) == 1:
             url = todas_urls[0]
@@ -409,7 +420,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                         await _procesar_adjuntos_si_hay(bot, message, guild_id, silent_mode, strict_mode, log_channel_id)
                         return
                     log.debug(f"URL expandida: {url_original} → {url}")
-                clave = f"url:{url}"
+                clave = f"url:{normalizar_url(url)}"
                 tipo, embed, mal = await get_from_cache_mem(clave)
                 if embed is not None:
                     log.debug(f"Cache HIT (RAM) para URL → resultado={tipo}")
@@ -486,7 +497,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                         dominio_exp = dominio_exp[4:]
                     if dominio_en_whitelist(dominio_exp, whitelist):
                         return None
-                clave = f"url:{url_exp}"
+                clave = f"url:{normalizar_url(url_exp)}"
                 tipo, embed, mal = await get_from_cache_mem(clave)
                 if embed is None:
                     tipo, embed, mal = await obtener_analisis_db(clave)

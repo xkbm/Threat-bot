@@ -1,10 +1,11 @@
-# Commit: f567b8b
+# Commit: a97de2a
 # Prueba de commit
 import discord
 from discord.ext import commands
 import aiohttp
 import asyncio
 import os
+import time
 import logging
 import json as _json
 from datetime import datetime, timezone

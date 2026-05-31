@@ -130,6 +130,17 @@ async def es_url_segura(url: str) -> tuple[bool, str]:
     segura, _, _, err = await _resolve_url(url)
     return segura, err
 
+def normalizar_url(url: str) -> str:
+    parsed = urllib.parse.urlparse(url)
+    scheme = parsed.scheme.lower()
+    hostname = (parsed.netloc or "").lower()
+    if ":80" in hostname and scheme == "http":
+        hostname = hostname[:-3]
+    elif ":443" in hostname and scheme == "https":
+        hostname = hostname[:-4]
+    path = parsed.path.rstrip("/") or "/"
+    return urllib.parse.urlunparse((scheme, hostname, path, parsed.params, parsed.query, ""))
+
 async def expandir_url(bot: commands.Bot, url: str) -> str:
     try:
         for _ in range(5):
