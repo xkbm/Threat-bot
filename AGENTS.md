@@ -48,7 +48,7 @@ Tests cover: `core/utils.py` (whitelist, hash validation, double extension, perc
 - **Entrypoint** `bot.py:119` `setup_hook` → loads `cogs/*.py`; `on_ready` inits DB + slash sync. `bot._ready_done` guard.
 - **Concurrency**: `core/state.py:ANALYSIS_SEMAPHORE = Semaphore(20)` (API calls), `bot._analysis_sem = Semaphore(100)` (in-flight tasks), `bot._download_sem = Semaphore(5)` (attachment downloads).
 - **State shortcut**: `core/state.py` — `state.bot = bot` at `bot.py:31`. Import `from core import state` then `state.bot` anywhere.
-- **Lifecycle**: `bot.close` monkey-patched (`bot.py:217-221`) → cancel tasks → flush data → stop DB pool → close session → original close. `on_guild_remove` (`bot.py:197-203`) removes guild from `guilds_data` + instant flush. Background: `_rotar_estado()` every 30s, `_limpiar_cron()` hourly SQLite cleanup.
+- **Lifecycle**: `bot.close` monkey-patched (`bot.py:217-221`) → cancel tasks → flush data → stop DB pool → close session → original close. `on_guild_remove` (`bot.py:197-203`) removes guild from `guilds_data` + instant flush + removes guild lock. Background: `_rotar_estado()` every 30s, `_limpiar_cron()` hourly SQLite cleanup + `user_scan_history`/`antispam_scan` stale entry cleanup.
 - **Persistence**: SQLite (`analisis.db`, 4-conn WAL pool via `DatabasePool`) for cached scans; JSON (`data.json`) for guild configs. `guardar_datos()` debounces 3s; pass `inmediato=True` for instant writes.
 - **Config details**: `load_dotenv()` in both `bot.py:25` + `core/config.py:5` (innocuo). Timeouts: bot=60s, VT=180s, SE=30s. Size limits: 32MB (VT upload), 2MB (SE image). Errors never cached (`_finalizar_error` solo `update_stats`).
 
@@ -118,6 +118,14 @@ Astro v6.3.8 + Tailwind v4 (`@tailwindcss/vite`). Deployed on Vercel.
 - **`/scan` file downloads** from attachment URL inside cog (not via `descargar_url_segura`).
 - **SVG `className`** (`landing/`): SVG elements have `className` as `SVGAnimatedString`, not a plain string. Setting `element.className = 'foo'` may throw or silently fail. Use `setAttribute('class', ...)` or avoid manipulating SVG class from JS.
 - **CSS specificity for scroll reveals** (`landing/`): `.scroll-reveal.is-visible` must come AFTER variant rules (`[data-reveal="up"]`, `[data-reveal="scale"]`, etc.) in the CSS. If it comes before, the variant's `filter: blur(Npx)` overrides `filter: none` and content stays blurred forever.
+
+## Logging
+- Default format: `[YYYY-MM-DD HH:MM:SS] [LEVEL] logger: message` with timestamps.
+- Set `LOG_FORMAT=json` in `.env` for structured JSON logging (machine-parseable).
+- DEBUG loggers: `cache`, `db`, `handler`, `virustotal`, `sightengine`. All others inherit INFO from root.
+
+## Data validation
+- `cargar_datos()` merges defaults into loaded guild configs — missing fields get safe defaults instead of crashing.
 
 ## 🔴 Known bot issues (not yet fixed)
 - (none currently)

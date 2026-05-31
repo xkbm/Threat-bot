@@ -101,7 +101,9 @@ async def _procesar_archivo(
             async with bot.session.get(archivo.url) as resp:
                 if resp.status != 200:
                     return (archivo.filename, "error", 0, "", "")
-                file_data = await resp.read()
+                file_data = await resp.read(limit=MAX_FILE_SIZE + 1024)
+                if len(file_data) > MAX_FILE_SIZE:
+                    return (archivo.filename, "error", 0, "", "")
             file_hash = hashlib.sha256(file_data).hexdigest()
             content_type = resp.headers.get('Content-Type', '')
             ct_lower = content_type.lower()

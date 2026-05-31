@@ -78,7 +78,7 @@ async def analizar_imagen_multimodelo(image_content_hash: str, image_bytes: byte
                 await guardar_datos()
                 return is_nsfw, max_confidence, models, False
             else:
-                log.debug(f"SE API ERROR → status={resp.status}")
+                log.warning(f"SE API ERROR → status={resp.status} models={SIGHTENGINE_MODELS}")
                 if resp.status == 400:
                     return False, 0.0, {"error": "too_large"}, False
     except Exception as e:

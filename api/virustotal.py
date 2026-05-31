@@ -171,19 +171,19 @@ async def analizar_url(url: str, guild_id: Optional[int] = None, mensaje_origina
                                 log.debug(f"VT URL STATUS → {status} intento={intento+1}/3")
                 log.debug(f"VT URL TIMEOUT → {url} t={time.time()-_t0:.1f}s")
                 await _finalizar_error(guild_id, "url", url)
-                return "error", discord.Embed(title="Error en análisis", description="El análisis no se completó a tiempo.", color=discord.Color.red()), 0
+                return "error", discord.Embed(title="Error en análisis", description=f"El análisis tardó más de lo esperado ({VT_TIMEOUT.total_seconds():.0f}s). Intenta de nuevo.", color=discord.Color.red()), 0
             else:
                 log.debug(f"VT URL ERROR → status={resp.status} url={url} t={time.time()-_t0:.1f}s")
                 await _finalizar_error(guild_id, "url", url)
-                return "error", discord.Embed(title="Error al analizar URL", description="VirusTotal no procesó la solicitud", color=discord.Color.red()), 0
+                return "error", discord.Embed(title="Error al analizar URL", description=f"VirusTotal respondió con código {resp.status}.", color=discord.Color.red()), 0
     except asyncio.TimeoutError:
         log.error(f"VT URL TIMEOUT HTTP → {url} t={time.time()-_t0:.1f}s")
         await _finalizar_error(guild_id, "url", url)
-        return "error", discord.Embed(title="Error de conexión", description="La solicitud a VirusTotal expiró.", color=discord.Color.red()), 0
+        return "error", discord.Embed(title="Error de conexión", description=f"La conexión con VirusTotal expiró ({VT_TIMEOUT.total_seconds():.0f}s).", color=discord.Color.red()), 0
     except Exception as e:
         log.error(f"VT URL EXCEPTION → {url}: {e} t={time.time()-_t0:.1f}s")
         await _finalizar_error(guild_id, "url", url)
-        return "error", discord.Embed(title="Error de conexión", description="No se pudo contactar con VirusTotal", color=discord.Color.red()), 0
+        return "error", discord.Embed(title="Error de conexión", description=f"No se pudo contactar con VirusTotal: {type(e).__name__}", color=discord.Color.red()), 0
 
 
 async def analizar_hash(hash_valor: str, guild_id: Optional[int] = None, mensaje_original: Optional[discord.Message] = None, guardar_cache: bool = True) -> tuple[str, discord.Embed, int]:
@@ -311,8 +311,12 @@ async def analizar_archivo(archivo: discord.Attachment, file_bytes: Optional[byt
                 log.debug(f"VT FILE DESCARGANDO → status={resp.status} t={time.time()-_t:.1f}s")
                 if resp.status != 200:
                     await update_stats(guild_id, "error")
-                    return "error", discord.Embed(title="Error al descargar archivo", description="No se pudo obtener el archivo", color=discord.Color.red()), 0
-                file_bytes = await resp.read()
+                    return "error", discord.Embed(title="Error al descargar archivo", description=f"El servidor respondió con código {resp.status}", color=discord.Color.red()), 0
+                file_bytes = await resp.read(limit=MAX_FILE_SIZE + 1024)
+                if len(file_bytes) > MAX_FILE_SIZE:
+                    log.debug(f"VT FILE DEMASIADO GRANDE → {archivo.filename} bytes={len(file_bytes)} t={time.time()-_t0:.1f}s")
+                    await update_stats(guild_id, "error")
+                    return "error", discord.Embed(title="Archivo demasiado grande", description=f"{EMOJI_FILE} `{archivo.filename}` excede 32 MB", color=discord.Color.red()), 0
                 file_hash = hashlib.sha256(file_bytes).hexdigest()
                 log.debug(f"VT FILE DESCARGADO → hash={file_hash} bytes={len(file_bytes)} t={time.time()-_t0:.1f}s")
         except Exception as e:

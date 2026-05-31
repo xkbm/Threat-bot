@@ -8,7 +8,7 @@ import discord
 import asyncio
 import logging
 from core import state
-from core.config import DB_FILE, DATA_FILE, EXPIRACION
+from core.config import DB_FILE, DATA_FILE, EXPIRACION, DOMINIOS_PROTEGIDOS
 from discord.ext import commands
 
 log = logging.getLogger("db")
@@ -212,9 +212,22 @@ async def cargar_datos() -> None:
                 continue
             else:
                 try:
-                    state.bot.guilds_data[int(gid)] = val
+                    guild_id = int(gid)
                 except ValueError:
                     continue
+                if isinstance(val, dict):
+                    defaults = {
+                        "silent_mode": False,
+                        "strict_mode": False,
+                        "log_channel_id": None,
+                        "whitelist": list(DOMINIOS_PROTEGIDOS),
+                        "stats": {"total_analisis": 0, "seguros": 0, "maliciosos": 0, "errores": 0},
+                        "infracciones": {},
+                        "infracciones_registradas": {},
+                    }
+                    for key, default_val in defaults.items():
+                        val.setdefault(key, default_val)
+                    state.bot.guilds_data[guild_id] = val
         state.bot.vt_key_total_requests = api_usage.get("total_requests", {})
         state.bot.vt_key_daily_usage = api_usage.get("daily_usage", {})
         if not hasattr(state.bot, 'vt_key_usage') or not state.bot.vt_key_usage:

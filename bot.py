@@ -6,6 +6,8 @@ import aiohttp
 import asyncio
 import os
 import logging
+import json as _json
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 
 MAX_ANALYSIS_TASKS = 100
@@ -14,7 +16,24 @@ from core import state
 from core.config import TOKEN, VT_API_KEYS, SE_API_KEYS_PAIRS, OWNER_ID, ANTISPAM_ANALYSIS_PER_HOUR
 from core.database import init_db, cargar_datos, guardar_datos
 
-logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(name)s: %(message)s")
+class StructuredFormatter(logging.Formatter):
+    def format(self, record):
+        log_entry = {
+            "ts": datetime.fromtimestamp(record.created, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"),
+            "level": record.levelname,
+            "logger": record.name,
+            "msg": record.getMessage(),
+        }
+        return _json.dumps(log_entry, ensure_ascii=False)
+
+_log_format = os.getenv("LOG_FORMAT", "text")
+if _log_format == "json":
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(StructuredFormatter())
+    logging.root.handlers = [_handler]
+    logging.root.setLevel(logging.INFO)
+else:
+    logging.basicConfig(level=logging.INFO, format="[%(asctime)s] [%(levelname)s] %(name)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 logging.getLogger("cache").setLevel(logging.DEBUG)
 logging.getLogger("db").setLevel(logging.DEBUG)
 logging.getLogger("handler").setLevel(logging.DEBUG)
@@ -166,7 +185,17 @@ async def _limpiar_cron():
         await asyncio.sleep(3600)
         try:
             await limpiar_db_expirados()
-            log.debug("Caché expirada limpiada")
+            ahora = time.time()
+            expired_history = [k for k, v in bot.user_scan_history.items()
+                              if not v or ahora - v[-1] > 3600]
+            for k in expired_history:
+                del bot.user_scan_history[k]
+            expired_anti = [k for k, v in bot.antispam_scan.items()
+                           if ahora - v > 3600]
+            for k in expired_anti:
+                del bot.antispam_scan[k]
+            if expired_history or expired_anti:
+                log.debug(f"Cleanup: {len(expired_history)} history + {len(expired_anti)} antispam entries removed")
         except Exception as e:
             log.error(f"Error limpiando caché: {e}")
 
