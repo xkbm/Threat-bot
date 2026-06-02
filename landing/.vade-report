@@ -1,0 +1,36 @@
+Successfully installed and configured Vercel Speed Insights for the Astro project.
+
+## Changes Made
+
+### Package Installation
+- Installed `@vercel/speed-insights` v2.0.0 using pnpm
+- Updated package.json to include the new dependency
+- Updated pnpm-lock.yaml with the new dependency tree
+
+### Code Integration
+- Modified `src/layouts/BaseLayout.astro` to import and use the SpeedInsights component
+- Added import statement: `import SpeedInsights from '@vercel/speed-insights/astro'`
+- Placed `<SpeedInsights />` component in the `<head>` section of the layout
+
+## Implementation Details
+
+The integration follows the official Vercel Speed Insights documentation and uses the Astro-specific package export (`@vercel/speed-insights/astro`). This approach was verified by:
+
+1. Fetching the latest documentation from https://vercel.com/docs/speed-insights/quickstart
+2. Confirming Astro has first-class support in the Speed Insights package
+3. Following the implementation pattern from verified Astro projects using Speed Insights
+4. Placing the component in BaseLayout.astro ensures it's included on all pages
+
+## Verification
+
+- ✅ Build completed successfully with no errors
+- ✅ All 5 static routes generated correctly
+- ✅ No linting errors introduced
+- ✅ All dependencies installed and lockfile updated
+
+## Notes
+
+- Speed Insights will automatically track web vitals and performance metrics when deployed to Vercel
+- The component does not track data in development mode
+- Speed Insights needs to be enabled in the Vercel Dashboard for the project to start collecting data
+- Metrics will appear in the Vercel dashboard after deployment and user visits
