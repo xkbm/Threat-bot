@@ -1,6 +1,7 @@
 ---
 import '../styles/global.css';
 import Icon from '../components/Icon.astro';
+import Analytics from '@vercel/analytics/astro';
 import SpeedInsights from '@vercel/speed-insights/astro';
 
 export interface Props {
@@ -46,6 +47,7 @@ const { title = 'Threat — Seguridad Inteligente para Discord', description = '
     </script>
 
     <title>{title}</title>
+    <Analytics />
     <SpeedInsights />
   </head>
   <body class="bg-surface-900 text-surface-100 font-sans antialiased">
