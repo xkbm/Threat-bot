@@ -1,180 +1,160 @@
-# Threat-bot 🛡️
+<p align="center">
+  <img src="landing/public/favicon.png" alt="Threat" width="120" />
+</p>
 
-Bot de Discord para análisis de seguridad que detecta automáticamente malware, URLs maliciosas y contenido NSFW usando VirusTotal y SightEngine.
+<h1 align="center">Threat</h1>
 
-![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
-![Discord.py](https://img.shields.io/badge/discord.py-%E2%89%A52.3.0-purple.svg)
-![License](https://img.shields.io/badge/License-MIT-green.svg)
+<p align="center">Bot de seguridad para Discord que escanea URLs, archivos, imágenes y más — automáticamente.</p>
 
-## ✨ Características Principales
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.10+-blue.svg" alt="Python" />
+  <img src="https://img.shields.io/badge/discord.py-%E2%89%A52.3.0-purple.svg" alt="Discord.py" />
+  <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License" />
+</p>
 
-### 🔍 Análisis Automático
-- **URLs**: Expande acortadores y escanea con VirusTotal
-- **Archivos adjuntos**: Detecta malware (hasta 32MB)
-- **Imágenes**: Detección NSFW con SightEngine (nudity, weapons, alcohol, offensive)
-- **Hashes**: Verificación directa de SHA256/MD5
-- **IPs**: Análisis de reputación
+---
 
-### 🛡️ Protección Activa
-- **Modo estricto**: Elimina automáticamente mensajes peligrosos
-- **Modo silencioso**: Suprime notificaciones públicas
-- **Whitelist**: Dominios seguros configurables por servidor
-- **Anti-spam**: Límite de 30 análisis/hora por usuario
-- **Protección SSRF**: Validación de IPs privadas en descargas
+## Qué hace
 
-### 📊 Comandos Disponibles
+Threat vigila tu servidor y detecta cosas malas antes de que se propaguen. Cuando alguien pega un link sospechoso, manda un archivo o comparte una imagen, el bot lo analiza al instante usando VirusTotal y SightEngine.
 
-| Comando | Descripción |
-|---------|-------------|
-| `/scan` | Escanea URL, archivo, hash o IP (cooldown 30s) |
-| `/silentmode` | Activa modo silencioso |
-| `/strictmode` | Activa modo estricto (elimina amenazas) |
-| `/setlogchannel` | Configura canal de logs |
-| `/whitelist` | Gestiona dominios permitidos |
-| `/usercheck` | Verifica reputación de usuario |
-| `/stats` | Muestra estadísticas del bot |
+Si encuentra algo peligroso, avisa. Si activas el modo estricto, elimina el mensaje solo.
+
+## Características
+
+**Análisis automático**
+- URLs → expande acortadores, escanea con VirusTotal
+- Archivos adjuntos → detecta malware (hasta 32MB)
+- Imágenes → detección NSFW (nudity, weapons, alcohol, offensive)
+- Hashes → verificación directa de SHA256/MD5
+- IPs → análisis de reputación
+
+**Protección activa**
+- Modo estricto → elimina mensajes peligrosos automáticamente
+- Modo silencioso → notifica solo en el canal de logs
+- Whitelist → dominios seguros que configurás por servidor
+- Anti-spam → 30 análisis/hora por usuario, cooldown de 10s
+- Protección SSRF → valida IPs antes de descargar
+
+## Comandos
+
+| Comando | Qué hace |
+|---------|----------|
+| `/scan` | Escanea una URL, archivo, hash o IP |
+| `/autoscan` | Activa/desactiva el escaneo automático |
+| `/silentmode` | Modo silencioso |
+| `/strictmode` | Modo estricto (elimina amenazas) |
+| `/setlogchannel` | Canal donde se envían los logs |
+| `/whitelist` | Dominios que el bot ignora |
+| `/usercheck` | Reputación de un usuario |
+| `/stats` | Estadísticas globales |
 | `/settings` | Configuración del servidor |
-| `/help` | Muestra ayuda completa |
-| `/about` | Información del bot |
+| `/help` | Lista de comandos |
+| `/about` | Info del bot |
 
-### 🔔 Sistema de Logs
-- Alertas en tiempo real con embeds detallados
-- Botones de acción: **Ban**, **Kick**, **Ignore**
-- Registro de infracciones por usuario
-- Estadísticas globales y por servidor
+## Logs
 
-## 🚀 Instalación
+Cuando el bot detecta una amenaza, envía un embed al canal configurado con toda la info: qué detectó, cuántos motores lo marcaron, y botones para **Ban**, **Kick** o **Ignore**. Todo en tiempo real.
 
-### Requisitos Previos
-- Python 3.10 o superior
+## Instalación
+
+Necesitás:
+- Python 3.10+
 - Token de bot de Discord
 - API keys de VirusTotal y SightEngine
 
-### Pasos de Instalación
-
-1. **Clonar el repositorio**
 ```bash
 git clone <repository-url>
 cd threat-bot
-```
-
-2. **Instalar dependencias**
-```bash
 pip install -r requirements.txt
 ```
 
-3. **Configurar variables de entorno**
-
-Crear un archivo `.env` en la raíz del proyecto:
+Creá un archivo `.env` en la raíz:
 
 ```env
-# Discord
 DISCORD_TOKEN=tu_token_de_discord
 OWNER_ID=tu_id_de_usuario
 
-# VirusTotal (hasta 3 keys rotativas)
 VT_API_KEY=tu_primera_key
 # VT_API_KEY_2=segunda_key_opcional
 # VT_API_KEY_3=tercera_key_opcional
 
-# SightEngine (hasta 3 pares rotativos)
 SIGHTENGINE_API_USER=tu_usuario
 SIGHTENGINE_API_KEY=tu_key
 # SIGHTENGINE_API_USER_2=usuario2
 # SIGHTENGINE_API_KEY_2=key2
 ```
 
-4. **Ejecutar el bot**
+Y listo:
+
 ```bash
 python bot.py
 ```
 
-## 🏗️ Arquitectura del Proyecto
+## Estructura
 
 ```
 threat-bot/
-├── bot.py                 # Entry point y configuración principal
-├── requirements.txt       # Dependencias de Python
-├── .env                   # Variables de entorno (no versionado)
-│
-├── api/                   # Integraciones con APIs externas
-│   ├── virustotal.py      # Cliente VirusTotal (rotación de keys)
-│   └── sightengine.py     # Cliente SightEngine (detección NSFW)
-│
-├── cogs/                  # Módulos de comandos
-│   ├── analisis.py        # Comando /scan y lógica principal
-│   ├── configuracion.py   # Comandos de configuración
-│   ├── whitelist.py       # Gestión de whitelist
+├── bot.py                 # Entry point
+├── api/
+│   ├── virustotal.py      # VirusTotal (rotación de keys)
+│   └── sightengine.py     # SightEngine (NSFW)
+├── cogs/                  # Comandos
+│   ├── analisis.py        # /scan
+│   ├── configuracion.py   # Config del servidor
+│   ├── whitelist.py       # Whitelist
 │   ├── stats.py           # Estadísticas
-│   ├── help.py            # Sistema de ayuda
-│   ├── about.py           # Información del bot
-│   ├── rep.py             # Reputación de usuarios
-│   ├── eval.py            # Comandos de owner (/eval, /reboot)
-│   └── reboot.py          # Reinicio controlado
-│
-├── core/                  # Núcleo del sistema
-│   ├── config.py          # Constantes y configuración global
-│   ├── database.py        # Pool de conexiones SQLite
-│   ├── cache.py           # Caché en RAM con TTL
-│   ├── utils.py           # Funciones utilitarias (SSRF, DNS, etc.)
-│   ├── state.py           # Estado global del bot
-│   └── guild_config.py    # Persistencia de configuración por guild
-│
-├── ui/                    # Interfaz de usuario
-│   ├── message_handler.py # Pipeline de análisis automático
-│   └── views.py           # Vistas y botones interactivos
-│
-└── data/                  # Datos persistentes (generados)
-    ├── analisis.db        # Caché SQLite de análisis
-    └── data.json          # Configuración de servidores
+│   ├── help.py            # Ayuda
+│   ├── about.py           # Info
+│   ├── rep.py             # /usercheck
+│   ├── eval.py            # Owner only
+│   └── reboot.py          # Reinicio
+├── core/
+│   ├── config.py          # Configuración global
+│   ├── database.py        # Pool SQLite
+│   ├── cache.py           # Caché RAM con TTL
+│   ├── utils.py           # Utilidades (SSRF, DNS)
+│   ├── state.py           # Estado global
+│   └── guild_config.py    # Config por servidor
+├── ui/
+│   ├── message_handler.py # Pipeline de análisis
+│   └── views.py           # Botones interactivos
+└── data/                  # Datos generados
+    ├── analisis.db        # Caché SQLite
+    └── data.json          # Config de servidores
 ```
 
-## ⚙️ Configuración Avanzada
+## Configuración
 
-### Límites y Cuotas
-- **VirusTotal**: 500 req/día por key, rotación automática hasta 3 keys
-- **SightEngine**: Rotación de hasta 3 pares de credenciales
-- **Archivos**: Máximo 32MB para VT, 2MB para SightEngine
-- **Concurrencia**: 20 análisis simultáneos máximos
-- **Caché RAM**: 100,000 entradas con TTL de 1 hora
+**Límites:**
+- VirusTotal: 500 req/día por key, hasta 3 keys en rotación
+- SightEngine: hasta 3 pares de credenciales
+- Archivos: 32MB (VT), 2MB (SightEngine)
+- Concurrencia: 20 análisis simultáneos
+- Caché RAM: 100k entradas, TTL de 1 hora
 
-### Tiempos de Expiración de Caché
-| Tipo | Duración |
-|------|----------|
+**Caché:**
+
+| Tipo | Expira en |
+|------|-----------|
 | URLs | 7 días |
 | IPs | 7 días |
 | Hashes | 30 días |
 | Archivos | 30 días |
 | NSFW | 30 días |
 
-### Dominios Protegidos
-Los siguientes dominios están en whitelist por defecto y no pueden eliminarse:
-- `youtube.com`, `github.com`, `discord.com`, `microsoft.com`, etc.
+**Dominios protegidos** (no se pueden quitar de la whitelist): youtube.com, github.com, discord.com, microsoft.com, y otros más.
 
-## 🔒 Seguridad
+## Seguridad
 
-### Protección SSRF
-El bot implementa validación estricta contra Server-Side Request Forgery:
-1. Resolución DNS manual de hostnames
-2. Verificación de IPs privadas/loopback
-3. Descarga mediante IP con header `Host` original
+**SSRF:** Resuelve DNS manualmente, verifica que la IP no sea privada/loopback, y descarga por IP con el header `Host` original.
 
-### Anti-Spam
-- 30 análisis por hora por usuario
-- Cooldown de 10 segundos entre escaneos
-- Tracking persistente de uso
+**Anti-spam:** 30 análisis/hora por usuario, cooldown de 10 segundos, tracking persistente.
 
-### Permisos Requeridos
-El bot necesita los siguientes permisos:
-- Leer/enviar mensajes
-- Gestionar mensajes (modo estricto)
-- Ban/Kick miembros (botones de log)
-- Embed links
-- Adjuntar archivos
+**Permisos que necesita el bot:** Leer/enviar mensajes, gestionar mensajes (modo estricto), ban/kick (botones de log), embed links, adjuntar archivos.
 
-## 📝 Uso Típico
+## Uso rápido
 
-### Análisis Manual
 ```
 /scan url: https://ejemplo.com/archivo.exe
 /scan file: [adjuntar archivo]
@@ -182,56 +162,15 @@ El bot necesita los siguientes permisos:
 /scan ip: 8.8.8.8
 ```
 
-### Configuración Inicial
-1. Invita el bot a tu servidor
-2. Configura canal de logs: `/setlogchannel #canal`
-3. (Opcional) Activa modo estricto: `/strictmode`
-4. Añade dominios seguros: `/whitelist add ejemplo.com`
+Después de invitar al bot:
+1. `/setlogchannel #canal` — para que avise ahí
+2. `/strictmode true` — si querés que elimine mensajes peligrosos
+3. `/whitelist add ejemplo.com` — para que ignore dominios seguros
 
-### Interpretación de Resultados
+## Licencia
 
-**🟢 Seguro**
-```
-✅ Resultado: Seguro
-🔍 Motores: 0/89 detectaron amenazas
-📊 Confianza: Alta
-```
+MIT. Ver [LICENSE](LICENSE).
 
-**🔴 Malicioso**
-```
-⚠️ Resultado: MALICIOSO
-🦠 Detectado por: 15/89 motores
-🏷️ Etiquetas: trojan, ransomware
-🔗 Ver en VT: [enlace]
-```
+---
 
-**🔞 NSFW**
-```
-⚠️ Contenido Inapropiado Detectado
-📸 Modelos: nudity (92%), weapon (15%)
-🎯 Confianza máxima: 92%
-```
-
-## 📊 Estadísticas
-
-El bot mantiene estadísticas en tiempo real:
-- Análisis totales por tipo (URL, archivo, hash, IP, NSFW)
-- Amenazas detectadas
-- Uso de APIs (VirusTotal, SightEngine)
-- Infracciones por usuario
-- Actividad por servidor
-
-## 📄 Licencia
-
-Este proyecto está bajo la licencia MIT. Ver el archivo [LICENSE](LICENSE) para más detalles.
-
-## 🤝 Contribuciones
-
-Las contribuciones son bienvenidas. Por favor:
-1. Fork el repositorio
-2. Crea una rama (`git checkout -b feature/nueva-funcionalidad`)
-3. Commit tus cambios (`git commit -m 'Añadir nueva funcionalidad'`)
-4. Push a la rama (`git push origin feature/nueva-funcionalidad`)
-5. Abre un Pull Request
-
-**Hecho con ❤️ para comunidades de Discord más seguras**
+Hecho para que las comunidades de Discord duerman un poco más tranquilas.
