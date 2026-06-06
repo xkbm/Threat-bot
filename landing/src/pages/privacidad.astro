@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
 ---
 
 <BaseLayout
@@ -9,6 +10,10 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 >
   <section class="section-scanline px-6 pt-28 pb-24 sm:py-36">
     <div class="mx-auto max-w-3xl">
+      <a href="/" class="mb-6 inline-flex items-center gap-1.5 text-sm text-surface-400 transition-colors hover:text-surface-200">
+        <Icon name="arrow-left" size="1em" />
+        Volver
+      </a>
       <h1 class="mb-8 text-4xl font-bold tracking-tight md:text-5xl">
         Política de <span class="text-shield">Privacidad</span>
       </h1>
