@@ -9,8 +9,7 @@ class ReputacionCog(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-    @app_commands.command(name="usercheck", description="Muestra las infracciones de seguridad de un usuario (solo admins)")
-    @app_commands.default_permissions(administrator=True)
+    @app_commands.command(name="usercheck", description="Muestra las infracciones de seguridad de un usuario")
     @app_commands.describe(usuario="Usuario a consultar")
     async def usercheck(self, interaction: discord.Interaction, usuario: discord.Member) -> None:
         await interaction.response.defer(ephemeral=True)
