@@ -27,15 +27,15 @@ class HelpCog(commands.Cog):
         )
 
         embed.add_field(
-            name=f"{self.bot.EMOJI_STATS} Utilidades [5]",
-            value="`/stats` • `/about` • `/uptime` • `/ping` • `/help`",
+            name=f"{self.bot.EMOJI_STATS} Utilidades [6]",
+            value="`/stats` • `/about` • `/uptime` • `/ping` • `/help` • `/usercheck`",
             inline=False
         )
 
         embed.add_field(
-            name=f"{self.bot.EMOJI_GUARDIAN} Moderación [7]",
+            name=f"{self.bot.EMOJI_GUARDIAN} Moderación [6]",
             value=(
-                "`/usercheck` • `/silentmode` • `/strictmode` • "
+                "`/silentmode` • `/strictmode` • "
                 "`/whitelist` • `/setlogchannel` • `/disablelogchannel` • `/settings`"
             ),
             inline=False

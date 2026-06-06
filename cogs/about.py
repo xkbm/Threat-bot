@@ -62,34 +62,10 @@ class InfoCog(commands.Cog):
         embed = discord.Embed(
             title=f"{self.bot.EMOJI_SHIELD} Acerca de Threat",
             description=(
-                "Threat es un bot de seguridad para Discord que protege tu servidor "
-                "analizando enlaces, archivos y contenido NSFW en tiempo real."
+                "Threat fue desarrollado para mantener las comunidades más seguras.\n"
+                "Protege tu servidor automáticamente usando VirusTotal y Sightengine, evitando malware, phishing y NSFW."
             ),
             color=discord.Color(0x36393F)
-        )
-
-        embed.add_field(
-            name="Qué hace",
-            value=(
-                "• Analiza **URLs** contra la base de datos de VirusTotal\n"
-                "• Detecta **imágenes NSFW** con Sightengine\n"
-                "• Escanea **archivos** adjuntos (hasta 32MB)\n"
-                "• Verifica **IPs** y **hashes** sospechosos\n"
-                "• **Funciona solo** — solo tienes que añadirlo y olvidarte"
-            ),
-            inline=False
-        )
-
-        embed.add_field(
-            name="Cómo protege",
-            value=(
-                "• Analiza automáticamente cada enlace enviado en el chat\n"
-                "• Reacciona con iconos de alerta si detecta amenazas\n"
-                "• Los moderadores pueden configurar un **canal de logs**\n"
-                "• Modo estricto elimina mensajes peligrosos automáticamente\n"
-                "• **Whitelist** para dominios de confianza"
-            ),
-            inline=False
         )
 
         embed.set_footer(
