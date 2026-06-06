@@ -214,18 +214,11 @@ async def maybe_send_review_prompt(bot, channel: discord.abc.Messageable) -> Non
     embed = discord.Embed(
         description=(
             "Si te gusta Threat, ¡considera dejar una reseña en Top.gg!\n"
-            f"<{REVIEW_PROMPT_URL}>"
+            f"[Dejar reseña]({REVIEW_PROMPT_URL})"
         ),
         color=discord.Color(0xff3366)
     )
-    view = discord.ui.View()
-    view.add_item(discord.ui.Button(
-        style=discord.ButtonStyle.link,
-        url=REVIEW_PROMPT_URL,
-        label="Dejar reseña",
-        emoji=bot.EMOJI_LINK
-    ))
     try:
-        await channel.send(embed=embed, view=view)
+        await channel.send(embed=embed)
     except Exception:
         pass
