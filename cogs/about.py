@@ -62,44 +62,38 @@ class InfoCog(commands.Cog):
         embed = discord.Embed(
             title=f"{self.bot.EMOJI_SHIELD} Acerca de Threat",
             description=(
-                "Analiza URLs, IPs, hashes y archivos con VirusTotal "
-                "y detecta contenido NSFW con Sightengine.\n"
-                "Incluye caché inteligente, sistema de infracciones y logs con botones."
+                "Threat es un bot de seguridad para Discord que protege tu servidor "
+                "analizando enlaces, archivos y contenido NSFW en tiempo real."
             ),
-            color=discord.Color.blue()
+            color=discord.Color(0x36393F)
         )
 
         embed.add_field(
-            name=f"{self.bot.EMOJI_LUPA} Análisis",
+            name="Qué hace",
             value=(
-                "• Escaneo automático de enlaces, archivos e imágenes\n"
-                "• Mensajes editados y URLs acortadas\n"
-                "• Doble extensión y verificación MIME\n"
-                "• **`/scan`** — análisis manual de URL, IP, hash o archivo"
+                "• Analiza **URLs** contra la base de datos de VirusTotal\n"
+                "• Detecta **imágenes NSFW** con Sightengine\n"
+                "• Escanea **archivos** adjuntos (hasta 32MB)\n"
+                "• Verifica **IPs** y **hashes** sospechosos\n"
+                "• **Funciona solo** — solo tienes que añadirlo y olvidarte"
             ),
             inline=False
         )
 
         embed.add_field(
-            name=f"{self.bot.EMOJI_GUARDIAN} Moderación",
+            name="Cómo protege",
             value=(
-                "• **`/silentmode`** — Solo reacciones, sin mensajes\n"
-                "• **`/strictmode`** — Elimina mensajes peligrosos\n"
-                "• **`/whitelist`** — Dominios de confianza\n"
-                "• **`/setlogchannel`** — Canal de logs con botones\n"
-                "• **`/usercheck`** — Infracciones de un usuario"
+                "• Analiza automáticamente cada enlace enviado en el chat\n"
+                "• Reacciona con iconos de alerta si detecta amenazas\n"
+                "• Los moderadores pueden configurar un **canal de logs**\n"
+                "• Modo estricto elimina mensajes peligrosos automáticamente\n"
+                "• **Whitelist** para dominios de confianza"
             ),
             inline=False
         )
 
-        embed.add_field(
-            name=f"{self.bot.EMOJI_STATS} Caché y límites",
-            value=(
-                "• **Caché**: 1h memoria + 7-30 días SQLite\n"
-                "• **API**: 3 keys VT (12/min) + 3 Sightengine\n"
-                "• **Límites**: 30 análisis/hora, 5 por mensaje"
-            ),
-            inline=False
+        embed.set_footer(
+            text="El proyecto acualmente es de codigo cerrado, pero puede que en un futuro se vuelva open source. Si quieres apoyar el proyecto puedes compartirlo con otros."
         )
 
         view = discord.ui.View()
