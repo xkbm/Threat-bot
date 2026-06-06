@@ -213,8 +213,8 @@ async def maybe_send_review_prompt(bot, channel: discord.abc.Messageable) -> Non
         return
     embed = discord.Embed(
         description=(
-            "Si te gusta Threat, ¡considera dejar una reseña en Top.gg!\n"
-            f"[Dejar reseña]({REVIEW_PROMPT_URL})"
+            "Si te gusta Threat, ¡considera [dejar una reseña en Top.gg!]"
+            f"({REVIEW_PROMPT_URL})"
         ),
         color=discord.Color(0xff3366)
     )
