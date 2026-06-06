@@ -54,7 +54,7 @@ class InfoCog(commands.Cog):
         except discord.errors.NotFound:
             pass
 
-    @app_commands.command(name="about", description="Información detallada sobre las capacidades y funcionamiento del bot de seguridad Threat")
+    @app_commands.command(name="about", description="Sobre Threat")
     async def about(self, interaction: discord.Interaction) -> None:
         log.debug(f"ABOUT → usuario={interaction.user.id} guild={interaction.guild.id if interaction.guild else None}")
         await interaction.response.defer()

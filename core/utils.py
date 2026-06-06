@@ -202,3 +202,30 @@ def es_hash_valido(valor: str) -> bool:
 def tiene_doble_extension(filename: str) -> bool:
     partes = filename.rsplit('.', 2)
     return len(partes) == 3 and partes[1].lower() in ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'pdf', 'doc', 'xls', 'exe', 'vbs', 'ps1', 'bat', 'cmd', 'msi', 'scr', 'lnk', 'com', 'gadget', 'docx', 'xlsx', 'ppt', 'pptx', 'jar', 'py']
+
+import random as _random
+
+REVIEW_PROMPT_URL = "https://top.gg/bot/1038186932456390726#reviews"
+REVIEW_PROMPT_CHANCE = 0.05
+
+async def maybe_send_review_prompt(bot, channel: discord.abc.Messageable) -> None:
+    if _random.random() >= REVIEW_PROMPT_CHANCE:
+        return
+    embed = discord.Embed(
+        description=(
+            "Si te gusta Threat, ¡considera dejar una reseña en Top.gg!\n"
+            f"<{REVIEW_PROMPT_URL}>"
+        ),
+        color=discord.Color(0xff3366)
+    )
+    view = discord.ui.View()
+    view.add_item(discord.ui.Button(
+        style=discord.ButtonStyle.link,
+        url=REVIEW_PROMPT_URL,
+        label="Dejar reseña",
+        emoji=bot.EMOJI_LINK
+    ))
+    try:
+        await channel.send(embed=embed, view=view)
+    except Exception:
+        pass
