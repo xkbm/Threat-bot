@@ -19,6 +19,11 @@
   --color-threat-light: #EF4444;
   --color-topgg: #ff3366;
   --color-topgg-light: #ff5588;
+  --color-shield: #1A5AD8;
+  --color-shield-light: #4A7FE0;
+  --color-round1: #DC2626;
+  --color-round2: #F59E0B;
+  --color-round3: #22C55E;
   --color-surface-50: #F8F9FA;
   --color-surface-100: #EBEDF0;
   --color-surface-200: #CED0D4;
@@ -50,10 +55,15 @@
     --color-alert-light: oklch(0.75 0.12 75);
     --color-secure: oklch(0.6 0.15 160);
     --color-secure-light: oklch(0.65 0.12 160);
-    --color-threat: oklch(0.55 0.22 30);
-    --color-threat-light: oklch(0.62 0.18 30);
+    --color-threat: oklch(0.55 0.22 275);
+    --color-threat-light: oklch(0.62 0.18 275);
     --color-topgg: oklch(0.6 0.22 15);
     --color-topgg-light: oklch(0.65 0.2 15);
+    --color-shield: oklch(0.52 0.18 260);
+    --color-shield-light: oklch(0.65 0.14 260);
+    --color-round1: oklch(0.58 0.22 27);
+    --color-round2: oklch(0.77 0.16 70);
+    --color-round3: oklch(0.72 0.19 150);
     --color-surface-50: oklch(0.98 0.003 40);
     --color-surface-100: oklch(0.95 0.003 40);
     --color-surface-200: oklch(0.89 0.003 40);
@@ -89,6 +99,11 @@
   --color-threat-light: #EF4444;
   --color-topgg: #ff3366;
   --color-topgg-light: #ff5588;
+  --color-shield: #1A5AD8;
+  --color-shield-light: #4A7FE0;
+  --color-round1: #DC2626;
+  --color-round2: #F59E0B;
+  --color-round3: #22C55E;
   --color-surface-50: #F8F9FA;
   --color-surface-100: #EBEDF0;
   --color-surface-200: #CED0D4;
@@ -165,7 +180,7 @@ button, a, summary, [role="button"] {
 }
 
 section[id] {
-  scroll-margin-top: 4.5rem;
+  scroll-margin-top: 1rem;
 }
 
 h1, h2, h3 {
@@ -210,10 +225,6 @@ body::after {
 }
 
 /* ---- Nav ---- */
-
-header {
-  transition: background 0.3s var(--ease-out-expo);
-}
 
 /* ---- CTA primary button ---- */
 
@@ -480,14 +491,11 @@ header {
   }
 }
 
-/* Threat nav icon — hover effect for PNG logo */
-.nav-threat-icon {
-  width: 18px;
-  height: 18px;
-  border-radius: 2px;
-  transition: filter 0.2s ease, transform 0.2s ease;
+/* Nav icon — shared hover effect */
+.nav-icon {
+  transition: transform 0.2s ease, filter 0.2s ease;
 }
-.nav-threat-icon:hover {
-  filter: brightness(1.3) drop-shadow(0 0 4px rgba(88, 101, 242, 0.5));
+.nav-icon:hover {
   transform: scale(1.1);
+  filter: brightness(1.2);
 }

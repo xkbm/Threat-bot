@@ -15,16 +15,9 @@ const features = [
     description: 'SightEngine: desnudos, armas, alcohol y contenido ofensivo. Descarga segura sin exponer tu IP.',
   },
   {
-    icon: 'ban',
-    title: 'Anti-Spam',
-    description: '30 URLs/hora por usuario, cooldown de 10s entre análisis.',
-  },
-
-  {
     icon: 'database',
     title: 'Cache',
     description: 'RAM + SQLite con expiración automática. URLs 7 días, archivos 30 días.',
-    closing: true,
   },
   {
     icon: 'check-double',
@@ -96,7 +89,7 @@ const steps = [
         "name": "¿Threat guarda mis datos personales?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Solo almacenamos datos necesarios para el funcionamiento: configuración del servidor y caché temporal de análisis. No almacenamos mensajes completos, información personal ni contenido de conversaciones."
+          "text": "Solo se almacenan datos necesarios para el funcionamiento: configuración del servidor y caché temporal de análisis. No almacenamos mensajes completos, información personal ni contenido de conversaciones."
         }
       },
       {
@@ -112,7 +105,7 @@ const steps = [
         "name": "¿Qué hago si el bot marca un falso positivo?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Puedes agregar el dominio a la whitelist con /whitelist add. Si consideras que es un error recurrente, contacta al desarrollador para revisar el caso."
+          "text": "Puedes agregar el dominio a la whitelist con /whitelist add."
         }
       }
     ]
@@ -137,7 +130,7 @@ const steps = [
   </script>
 
   <!-- HERO -->
-  <section class="section-scanline relative overflow-hidden flex flex-col min-h-[100dvh] px-6 pt-20">
+  <section class="section-scanline relative overflow-hidden flex flex-col min-h-[100dvh] px-6 pt-6">
     <div class="pointer-events-none absolute inset-0 z-0" style="background: radial-gradient(ellipse 800px 600px at 50% -100px, rgba(88,101,242,0.06), transparent);" aria-hidden="true"></div>
     <div class="flex-1 flex items-center justify-center mx-auto max-w-6xl w-full relative z-10">
       <div class="relative z-10 w-full">
@@ -157,21 +150,19 @@ const steps = [
               <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer" class="group cta-primary inline-flex items-center gap-3 rounded-full bg-discord px-7 py-3.5 font-semibold text-white">
                 <Icon name="plus" />
                 Añadir a Discord
-                <span class="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center transition-transform duration-200 group-hover:translate-x-0.5">
-                  <Icon name="arrow-right" size="0.75em" />
                 </span>
               </a>
             </div>
           </div>
           <!-- Chat mockup -->
-          <div id="chat-mockup" class="w-full max-w-md mx-auto lg:mx-0 text-left">
+          <div id="chat-mockup" class="w-full max-w-md mx-auto lg:mx-0 text-left" aria-hidden="true">
             <div class="card-outer">
               <div class="card-inner-alt">
                 <div class="border-b border-surface-700/50 px-3 sm:px-5 py-3 flex items-center gap-2">
                   <div class="flex items-center gap-1.5">
-                    <span class="h-2 w-2 rounded-full bg-threat"></span>
-                    <span class="h-2 w-2 rounded-full bg-surface-600"></span>
-                    <span class="h-2 w-2 rounded-full bg-surface-600"></span>
+                    <span class="h-2 w-2 rounded-full bg-round1"></span>
+                    <span class="h-2 w-2 rounded-full bg-round2"></span>
+                    <span class="h-2 w-2 rounded-full bg-round3"></span>
                   </div>
                   <span class="ml-auto font-mono text-[10px] uppercase tracking-wider text-surface-500"># general</span>
                 </div>
@@ -199,7 +190,7 @@ const steps = [
                       <span class="ml-1 text-xs">Threat está escribiendo</span>
                     </div>
                   </div>
-                  <div id="chat-bot-response" class="opacity-0">
+                  <div id="chat-bot-response" class="opacity-0 min-h-[120px]">
                     <div class="mb-1 flex items-center gap-2">
                       <span class="font-mono text-xs font-medium text-white">Threat</span>
                       <span class="inline-flex items-center gap-0.5 rounded bg-discord px-1.5 py-[1px] text-[9px] font-semibold leading-normal text-white"><Icon name="check" class="text-white" size="9px" /> APP</span>
@@ -207,7 +198,7 @@ const steps = [
                     <!-- Embed response (malicious/safe) -->
                     <div id="chat-response-card" class="border-l-4 bg-surface-800 p-3.5" style="border-left-color: rgb(230, 126, 34);">
                       <div class="mb-1 flex items-center gap-1.5">
-                        <img id="chat-response-emoji" src="/emoji-warn.png" alt="" class="w-4 h-4" />
+                        <img id="chat-response-emoji" src="/emoji-warn.png" alt="" class="w-4 h-4" width="16" height="16" />
                         <span id="chat-response-title" class="text-sm font-semibold text-threat-light">URL Maliciosa Detectada</span>
                       </div>
                       <p id="chat-response-desc" class="mb-2 text-xs text-surface-300">
@@ -223,7 +214,7 @@ const steps = [
                     </div>
                     <!-- Plain text response (whitelist) -->
                     <div id="chat-response-text" class="hidden text-sm text-surface-300">
-                      <img src="/emoji-whitelist.png" alt="" class="inline w-4 h-4 mr-1" />
+                      <img src="/emoji-whitelist.png" alt="" class="inline w-4 h-4 mr-1" width="16" height="16" />
                       <strong class="text-surface-100">Dominio(s) en whitelist.</strong> No se requiere análisis.
                     </div>
                   </div>
@@ -258,7 +249,7 @@ const steps = [
                 titulo: 'URL Maliciosa Detectada',
                 emoji: '/emoji-warn.png',
                 borderColor: 'rgb(230, 126, 34)',
-                titleClass: 'text-threat-light',
+                titleClass: 'text-surface-100',
                 conversaciones: [
                   { u1: '\u00bfAlguien tiene el link del nuevo asset?', u2: 'creo que s\u00ed, te lo paso', urlFrom: 'u2' },
                   { u1: 'Me lleg\u00f3 un link raro', u2: '\u00bfcu\u00e1l es?', urlFrom: 'u1' },
@@ -280,12 +271,12 @@ const steps = [
                 titulo: 'URL Segura',
                 emoji: '/emoji-check.png',
                 borderColor: 'var(--color-secure)',
-                titleClass: 'text-secure-light',
+                titleClass: 'text-surface-100',
                 conversaciones: [
                   { u1: '\u00bfAlguien ha usado esto?', u2: 's\u00ed, es confiable', urlFrom: 'u1' },
                   { u1: 'Mira el repo nuevo', u2: '\u00bfqu\u00e9 hay?', urlFrom: 'u1' },
-                  { u1: 'Pasen la doc de python', u2: 'aqu\u00ed la tienes', urlFrom: 'u2' },
-                  { u1: '\u00bfEs seguro este enlace?', u2: 's\u00ed, tranquilo', urlFrom: 'u1' },
+                  { u1: '\u00bfAlguien tiene el link?', u2: 's\u00ed, aqu\u00ed va', urlFrom: 'u2' },
+                  { u1: '\u00bfMe pasan el enlace?', u2: 'claro, aqu\u00ed va', urlFrom: 'u2' },
                 ],
               },
               // --- WHITELIST (el bot solo reacciona, no env\u00eda embed) ---
@@ -299,7 +290,7 @@ const steps = [
                 titulo: '',
                 emoji: '/emoji-whitelist.png',
                 borderColor: 'var(--color-secure)',
-                titleClass: 'text-secure-light',
+                titleClass: 'text-surface-100',
                 conversaciones: [
                   { u1: 'Miren este video', u2: '\u00bfde qu\u00e9 trata?', urlFrom: 'u1' },
                   { u1: 'Pasen la playlist nueva', u2: 'aqu\u00ed la tienes', urlFrom: 'u2' },
@@ -387,11 +378,12 @@ const steps = [
                 inputText.textContent = '';
                 inputCursor.classList.remove('hidden');
                 let i = 0;
-                const interval = setInterval(() => {
+                function typeChar() {
                   inputText.textContent = url.slice(0, i + 1);
                   i++;
-                  if (i >= url.length) {
-                    clearInterval(interval);
+                  if (i < url.length) {
+                    setTimeout(typeChar, 55);
+                  } else {
                     inputText.textContent = url;
                     inputCursor.classList.add('hidden');
                     inputText.classList.remove('text-surface-100');
@@ -410,7 +402,8 @@ const steps = [
                       }, 500);
                     }, 500);
                   }
-                }, 55);
+                }
+                typeChar();
               }, 600);
             }, 500);
           });
@@ -418,7 +411,7 @@ const steps = [
       </div>
     </div>
     <div class="flex justify-center">
-      <a href="#features" class="text-surface-600 transition-colors duration-200 hover:text-surface-400">
+      <a href="#features" class="text-surface-500 transition-colors duration-200 hover:text-surface-300">
         <Icon name="chevron-down" size="1.25em" />
       </a>
     </div>
@@ -439,7 +432,7 @@ const steps = [
           <div class="card-outer group">
             <div class="card-inner-alt p-6 sm:p-8">
               <div class="flex flex-col sm:flex-row items-start gap-6">
-                <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-discord/10 text-3xl text-discord transition-all duration-300 group-hover:bg-threat group-hover:text-white">
+                <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-discord/10 text-3xl text-discord transition-all duration-300 group-hover:bg-discord-light group-hover:text-white">
                   <Icon name={f.icon} />
                 </div>
                 <div class="flex-1 min-w-0">
@@ -457,7 +450,7 @@ const steps = [
           {features.filter(f => !f.featured && !f.closing).map((f, i) => (
             <div class="card-outer group" style={`transition-delay: ${i * 80}ms`}>
               <div class="card-inner p-6">
-                <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-discord/10 text-2xl text-discord transition-all duration-300 group-hover:bg-threat group-hover:text-white">
+                <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-discord/10 text-2xl text-discord transition-all duration-300 group-hover:bg-discord-light group-hover:text-white">
                   <Icon name={f.icon} />
                 </div>
                 <h3 class="mb-2 text-lg font-semibold text-white">{f.title}</h3>
@@ -472,7 +465,7 @@ const steps = [
           <div class="card-outer group">
             <div class="card-inner-alt p-6 sm:p-8">
               <div class="flex flex-col sm:flex-row items-start gap-6">
-                <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-discord/10 text-3xl text-discord transition-all duration-300 group-hover:bg-threat group-hover:text-white">
+                <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-discord/10 text-3xl text-discord transition-all duration-300 group-hover:bg-discord-light group-hover:text-white">
                   <Icon name={f.icon} />
                 </div>
                 <div class="flex-1 min-w-0">
@@ -515,7 +508,7 @@ const steps = [
             <div class="flex-1 min-w-0 card-outer group">
               <div class="card-inner p-5 sm:p-6">
                 <div class="flex items-start gap-4">
-                  <div class="hidden sm:flex mt-0.5 h-10 w-10 shrink-0 items-center justify-center rounded-full bg-discord/10 text-xl text-discord transition-all duration-300 group-hover:bg-threat group-hover:text-white">
+                  <div class="hidden sm:flex mt-0.5 h-10 w-10 shrink-0 items-center justify-center rounded-full bg-discord/10 text-xl text-discord transition-all duration-300 group-hover:bg-discord-light group-hover:text-white">
                     <Icon name={step.icon} />
                   </div>
                   <div class="min-w-0">
@@ -539,20 +532,19 @@ const steps = [
           Comandos
         </h2>
         <p class="mx-auto max-w-2xl text-surface-400">
-          Ocho comandos para gestionar la seguridad de tu servidor.
+          9 comandos para gestionar la seguridad de tu servidor.
         </p>
       </div>
       <div class="card-outer">
         <div class="card-inner-alt divide-y divide-surface-700/50 overflow-hidden">
           {commands.map((cmd, i) => (
             <div class="group flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-3.5 sm:py-4 transition-colors duration-200 hover:bg-surface-800/50">
-              <div class="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-full bg-surface-700 text-surface-400 transition-all duration-300 group-hover:bg-threat/20 group-hover:text-threat-light">
+              <div class="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-full bg-surface-700 text-surface-400 transition-all duration-300 group-hover:bg-discord-light/20 group-hover:text-discord-light">
                 <Icon name={cmd.icon} size="0.875em" />
               </div>
               <div class="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-3">
                 <div class="flex items-center gap-1.5">
                   <code class="font-mono text-sm font-medium text-white truncate">{cmd.name}</code>
-                  <span class="hidden sm:inline font-mono text-[8px] uppercase tracking-wider text-surface-500 border border-surface-600 rounded px-1 py-[1px]">SLASH</span>
                 </div>
                 <span class="text-xs text-surface-500 truncate">{cmd.desc}</span>
               </div>
@@ -595,7 +587,7 @@ const steps = [
           <Icon name="plus" size="0.875em" />
         </summary>
         <div class="faq-answer">
-          Solo almacenamos datos necesarios para el funcionamiento: configuración del servidor y caché temporal de análisis. No almacenamos mensajes completos, información personal ni contenido de conversaciones. Consulta nuestra <a href="/privacidad" class="text-discord-light hover:underline">Política de Privacidad</a> para más detalles.
+          Solo se almacenan datos necesarios para el funcionamiento: configuración del servidor y caché temporal de análisis. No almacenamos mensajes completos, información personal ni contenido de conversaciones. Consulta nuestra <a href="/privacidad" class="text-discord-light hover:underline">Política de Privacidad</a> para más detalles.
         </div>
       </details>
       <details class="faq-details">
@@ -613,7 +605,7 @@ const steps = [
           <Icon name="plus" size="0.875em" />
         </summary>
         <div class="faq-answer">
-          Puedes agregar el dominio a la whitelist con <code class="font-mono text-discord-light">/whitelist add</code>. Si consideras que es un error recurrente, contacta a <strong class="text-surface-100">imsh4d0w_</strong> para revisar el caso.
+          Puedes agregar el dominio a la whitelist con <code class="font-mono text-discord-light">/whitelist add</code>.
         </div>
       </details>
     </div>
@@ -628,8 +620,6 @@ const steps = [
       <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer" class="group cta-primary inline-flex items-center gap-3 rounded-full bg-discord px-10 py-4 text-lg font-semibold text-white">
         <Icon name="plus" />
         Añadir a Discord
-        <span class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center transition-transform duration-200 group-hover:translate-x-0.5">
-          <Icon name="arrow-right" />
         </span>
       </a>
     </div>

@@ -8,7 +8,7 @@ export interface Props {
   canonical?: string;
 }
 
-const { title = 'Threat — Seguridad para Discord', description = 'Threat detecta URLs maliciosas, contenido NSFW y phishing en tu servidor de Discord. Análisis automático con VirusTotal y SightEngine. Gratis.', canonical = Astro.url.pathname } = Astro.props;
+const { title = 'Threat — Bot de Seguridad Gratis para Discord', description = 'Threat detecta URLs maliciosas, contenido NSFW y phishing en tu servidor de Discord. Análisis automático con VirusTotal y SightEngine. Gratis.', canonical = Astro.url.pathname } = Astro.props;
 ---
 
 <!doctype html>
@@ -26,6 +26,8 @@ const { title = 'Threat — Seguridad para Discord', description = 'Threat detec
     <meta property="og:url" content={`https://threat-bot-discord.vercel.app${canonical}`} />
     <meta property="og:locale" content="es_ES" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content="https://threat-bot-discord.vercel.app/ogimage.png" />
 
     <link rel="icon" type="image/png" href="/favicon.png" />
@@ -49,34 +51,26 @@ const { title = 'Threat — Seguridad para Discord', description = 'Threat detec
   <body class="bg-surface-900 text-surface-100 font-sans antialiased">
     <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
 
-    <header class="fixed top-0 inset-x-0 z-50 bg-surface-900/30 backdrop-blur-sm border-b border-white/5">
-      <nav class="mx-auto max-w-6xl px-6 py-4 flex items-center justify-between">
-        <a href="/" class="text-lg font-bold tracking-tight text-white shrink-0">Threat</a>
+    <div class="fixed top-4 right-4 z-50 flex items-center gap-1">
+      <a href="https://top.gg/bot/1038186932456390726" target="_blank" rel="noopener noreferrer"
+         class="inline-flex items-center justify-center rounded-full p-2.5 text-topgg hover:text-topgg-light nav-icon"
+         aria-label="Top.gg">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+          <path d="M0 4.3785h7.6215V12H2.329A2.3212 2.3212 0 0 1 .0077 9.6788Zm24 0H8.757v15.243h3.1144a4.5071 4.5071 0 0 0 4.507-4.5071V12h3.1145A4.5073 4.5073 0 0 0 24 7.4929Z"/>
+        </svg>
+      </a>
+      <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer"
+         class="inline-flex items-center justify-center rounded-full p-2.5 text-shield hover:text-shield-light nav-icon"
+         aria-label="Añadir a Discord">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 246 276" fill="currentColor">
+          <g transform="translate(-114.198436,400.875862) scale(0.100000,-0.100000)">
+            <path d="M2235 3919 c-143 -98 -380 -221 -520 -269 -114 -40 -311 -79 -439 -88 l-100 -7 -8 -30 c-16 -62 -30 -304 -25 -430 8 -176 32 -334 73 -493 35 -135 45 -164 92 -282 149 -368 402 -677 731 -892 103 -66 336 -188 362 -188 16 0 269 127 290 146 8 8 19 14 23 14 14 0 158 103 224 159 184 159 325 336 436 545 74 141 154 372 181 528 8 41 20 36 -125 58 -181 28 -434 -7 -650 -89 -208 -79 -432 -251 -534 -408 -48 -75 -89 -153 -81 -153 3 0 40 26 82 57 196 145 525 260 798 279 78 6 92 4 104 -10 13 -15 8 -30 -43 -129 -92 -182 -222 -340 -387 -473 -74 -60 -268 -181 -306 -190 -25 -7 -136 49 -241 122 -35 24 -65 44 -68 44 -14 0 -195 178 -220 215 -11 17 -11 28 2 65 53 158 172 338 324 491 312 312 806 527 1300 565 47 3 89 8 93 11 12 7 -18 439 -32 460 -3 5 -64 14 -136 21 -158 14 -283 40 -424 88 -118 40 -310 133 -414 200 -37 24 -70 44 -73 44 -3 0 -37 25 -76 55 -38 30 -73 54 -77 54 -3 -1 -64 -42 -136 -90z m257 -408 c215 -130 441 -217 693 -266 80 -15 105 -31 105 -66 0 -9 -6 -21 -12 -26 -7 -6 -89 -13 -183 -16 -482 -17 -879 -173 -1168 -460 -57 -56 -113 -115 -125 -130 -41 -51 -90 -121 -115 -167 -13 -24 -29 -46 -35 -48 -25 -8 -90 156 -138 351 -26 106 -57 392 -52 484 l3 58 80 17 c143 31 179 41 270 70 157 50 360 147 490 235 27 18 55 33 61 33 7 0 63 -31 126 -69z"/>
+          </g>
+        </svg>
+      </a>
+    </div>
 
-        <div class="hidden sm:flex items-center gap-6 text-sm text-surface-400">
-          <a href="/#features" class="hover:text-white transition-colors">Características</a>
-          <a href="/#how-it-works" class="hover:text-white transition-colors">Cómo funciona</a>
-          <a href="/#commands" class="hover:text-white transition-colors">Comandos</a>
-        </div>
-
-        <div class="flex items-center gap-1">
-          <a href="https://top.gg/bot/1038186932456390726" target="_blank" rel="noopener noreferrer"
-             class="inline-flex items-center justify-center rounded-full p-2.5 text-surface-400 hover:text-topgg transition-colors"
-             aria-label="Top.gg">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-              <path d="M0 4.3785h7.6215V12H2.329A2.3212 2.3212 0 0 1 .0077 9.6788Zm24 0H8.757v15.243h3.1144a4.5071 4.5071 0 0 0 4.507-4.5071V12h3.1145A4.5073 4.5073 0 0 0 24 7.4929Z"/>
-            </svg>
-          </a>
-          <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer"
-             class="inline-flex items-center justify-center rounded-full p-2.5 text-surface-400 transition-colors"
-             aria-label="Añadir a Discord">
-            <img src="/favicon.png" alt="" class="nav-threat-icon" width="18" height="18" />
-          </a>
-        </div>
-      </nav>
-    </header>
-
-    <main id="main-content">
+    <main id="main-content" tabindex="-1">
       <slot />
     </main>
 
@@ -86,48 +80,51 @@ const { title = 'Threat — Seguridad para Discord', description = 'Threat detec
           <!-- Brand -->
           <div class="flex flex-col gap-2">
             <div class="flex items-center gap-2">
-              <img src="/favicon.png" alt="" class="w-5 h-5" width="20" height="20" />
               <span class="text-sm font-bold text-white">Threat</span>
             </div>
-            <p class="text-xs text-surface-500 max-w-xs">
-              Protección contra amenazas para tu servidor de Discord.
+            <p class="text-xs text-surface-400 max-w-xs">
+              Seguridad para Discord.
             </p>
           </div>
           <!-- Producto -->
           <div class="flex flex-col gap-2">
             <span class="text-xs font-semibold uppercase tracking-wider text-surface-400">Producto</span>
-            <a href="/#features" class="text-xs text-surface-500 transition-colors duration-200 hover:text-surface-300">Características</a>
-            <a href="/#how-it-works" class="text-xs text-surface-500 transition-colors duration-200 hover:text-surface-300">Cómo funciona</a>
-            <a href="/#commands" class="text-xs text-surface-500 transition-colors duration-200 hover:text-surface-300">Comandos</a>
+            <a href="/#features" class="text-xs text-surface-400 transition-colors duration-200 hover:text-surface-200">Características</a>
+            <a href="/#how-it-works" class="text-xs text-surface-400 transition-colors duration-200 hover:text-surface-200">Cómo funciona</a>
+            <a href="/#commands" class="text-xs text-surface-400 transition-colors duration-200 hover:text-surface-200">Comandos</a>
           </div>
           <!-- Legal -->
           <div class="flex flex-col gap-2">
             <span class="text-xs font-semibold uppercase tracking-wider text-surface-400">Legal</span>
-            <a href="/privacidad" class="text-xs text-surface-500 transition-colors duration-200 hover:text-surface-300">Privacidad</a>
-            <a href="/terminos" class="text-xs text-surface-500 transition-colors duration-200 hover:text-surface-300">Términos</a>
+            <a href="/privacidad" class="text-xs text-surface-400 transition-colors duration-200 hover:text-surface-200">Privacidad</a>
+            <a href="/terminos" class="text-xs text-surface-400 transition-colors duration-200 hover:text-surface-200">Términos</a>
           </div>
         </div>
         <div class="mt-8 flex flex-col items-center gap-4 border-t border-surface-800 pt-6 sm:flex-row sm:justify-between">
-          <p class="text-xs text-surface-600">Threat &copy; {new Date().getFullYear()}</p>
-          <div class="flex items-center gap-4">
+          <p class="text-xs text-surface-500">Threat &copy; {new Date().getFullYear()}</p>
+          <div class="flex items-center gap-4 text-surface-400">
             <a href="https://github.com/xkbm" target="_blank" rel="noopener noreferrer"
-               class="text-surface-500 transition-colors duration-200 hover:text-surface-300"
+               class="hover:text-surface-200 nav-icon"
                aria-label="GitHub">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
               </svg>
             </a>
             <a href="https://top.gg/bot/1038186932456390726" target="_blank" rel="noopener noreferrer"
-               class="text-surface-500 transition-colors duration-200 hover:text-topgg"
+               class="hover:text-topgg-light nav-icon"
                aria-label="Top.gg">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
                 <path d="M0 4.3785h7.6215V12H2.329A2.3212 2.3212 0 0 1 .0077 9.6788Zm24 0H8.757v15.243h3.1144a4.5071 4.5071 0 0 0 4.507-4.5071V12h3.1145A4.5073 4.5073 0 0 0 24 7.4929Z"/>
               </svg>
             </a>
             <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer"
-               class="inline-flex items-center justify-center rounded-full text-surface-500 transition-colors duration-200"
+               class="hover:text-shield-light nav-icon"
                aria-label="Añadir a Discord">
-              <img src="/favicon.png" alt="" class="nav-threat-icon" style="width:16px;height:16px" width="16" height="16" />
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 246 276" fill="currentColor">
+                <g transform="translate(-114.198436,400.875862) scale(0.100000,-0.100000)">
+                  <path d="M2235 3919 c-143 -98 -380 -221 -520 -269 -114 -40 -311 -79 -439 -88 l-100 -7 -8 -30 c-16 -62 -30 -304 -25 -430 8 -176 32 -334 73 -493 35 -135 45 -164 92 -282 149 -368 402 -677 731 -892 103 -66 336 -188 362 -188 16 0 269 127 290 146 8 8 19 14 23 14 14 0 158 103 224 159 184 159 325 336 436 545 74 141 154 372 181 528 8 41 20 36 -125 58 -181 28 -434 -7 -650 -89 -208 -79 -432 -251 -534 -408 -48 -75 -89 -153 -81 -153 3 0 40 26 82 57 196 145 525 260 798 279 78 6 92 4 104 -10 13 -15 8 -30 -43 -129 -92 -182 -222 -340 -387 -473 -74 -60 -268 -181 -306 -190 -25 -7 -136 49 -241 122 -35 24 -65 44 -68 44 -14 0 -195 178 -220 215 -11 17 -11 28 2 65 53 158 172 338 324 491 312 312 806 527 1300 565 47 3 89 8 93 11 12 7 -18 439 -32 460 -3 5 -64 14 -136 21 -158 14 -283 40 -424 88 -118 40 -310 133 -414 200 -37 24 -70 44 -73 44 -3 0 -37 25 -76 55 -38 30 -73 54 -77 54 -3 -1 -64 -42 -136 -90z m257 -408 c215 -130 441 -217 693 -266 80 -15 105 -31 105 -66 0 -9 -6 -21 -12 -26 -7 -6 -89 -13 -183 -16 -482 -17 -879 -173 -1168 -460 -57 -56 -113 -115 -125 -130 -41 -51 -90 -121 -115 -167 -13 -24 -29 -46 -35 -48 -25 -8 -90 156 -138 351 -26 106 -57 392 -52 484 l3 58 80 17 c143 31 179 41 270 70 157 50 360 147 490 235 27 18 55 33 61 33 7 0 63 -31 126 -69z"/>
+                </g>
+              </svg>
             </a>
           </div>
         </div>
