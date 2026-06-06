@@ -59,6 +59,7 @@ EMOJI_KEY: str = "<:SM_Key:1497274741160149153>"
 EMOJI_KICK: str = "<:SM_Kick:1498412609484099626>"
 EMOJI_BAN: str = "<:SM_Ban:1498412610704375848>"
 EMOJI_CLEAN: str = "<:SM_Clean:1498412609056014336>"
+EMOJI_GITHUB: str = "<:Github:1512615005588160562>"
 
 ANTIVIRUS_CONOCIDOS: list[str] = [
     "Kaspersky", "McAfee", "Avast", "Norton", "BitDefender", "ESET", "Symantec",

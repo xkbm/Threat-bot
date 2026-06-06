@@ -109,6 +109,12 @@ class InfoCog(commands.Cog):
             label="Sitio Web",
             emoji=self.bot.EMOJI_LINK
         ))
+        view.add_item(discord.ui.Button(
+            style=discord.ButtonStyle.link,
+            url="https://github.com/xkbm",
+            label="GitHub",
+            emoji=self.bot.EMOJI_GITHUB
+        ))
 
         try:
             await interaction.edit_original_response(embed=embed, view=view)
