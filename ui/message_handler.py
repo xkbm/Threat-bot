@@ -15,7 +15,7 @@ from core.cache import get_from_cache_mem, set_cache_mem
 from core.database import obtener_analisis_db, guardar_metadatos_hash, obtener_hash_desde_metadatos
 from api.virustotal import analizar_url, analizar_archivo, enviar_log_guild
 from api.sightengine import analizar_imagen_multimodelo
-from core.guild_config import obtener_config_guild, registrar_infraccion
+from core.guild_config import obtener_config_guild, registrar_infraccion, update_stats
 from core.state import ANALYSIS_SEMAPHORE
 
 log = logging.getLogger("handler")
@@ -54,6 +54,8 @@ async def _procesar_imagen(
             content_hash = hashlib.sha256(img_data).hexdigest()
             async with ANALYSIS_SEMAPHORE:
                 is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(content_hash, img_data)
+            if not models.get("error"):
+                await update_stats(guild_id, "malicioso" if is_nsfw else "seguro")
             if is_nsfw and guild_id:
                 await registrar_infraccion(guild_id, message.author.id, f"nsfw:{content_hash}")
             dummy = discord.Embed(title="NSFW Meta")
@@ -364,6 +366,8 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                         return
                     content_hash = hashlib.sha256(img_data).hexdigest()
                     is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(content_hash, img_data)
+                    if not models.get("error"):
+                        await update_stats(guild_id, "malicioso" if is_nsfw else "seguro")
                     dummy = discord.Embed(title="NSFW URL Meta")
                     await set_cache_mem(clave_meta_url, json.dumps({"hash": content_hash}), dummy, 0)
                     await guardar_metadatos_hash(clave_meta_url, content_hash)

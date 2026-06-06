@@ -221,7 +221,6 @@ async def cargar_datos() -> None:
                         "strict_mode": False,
                         "log_channel_id": None,
                         "whitelist": list(DOMINIOS_PROTEGIDOS),
-                        "stats": {"total_analisis": 0, "seguros": 0, "maliciosos": 0, "errores": 0},
                         "infracciones": {},
                         "infracciones_registradas": {},
                     }

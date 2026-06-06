@@ -40,23 +40,6 @@ def obtener_stats_globales() -> dict[str, int]:
     return state.bot.guilds_data["__global__"]
 
 async def update_stats(guild_id: Optional[int], tipo: str) -> None:
-    if guild_id:
-        async with await _get_guild_lock(guild_id):
-            if guild_id not in state.bot.guilds_data:
-                state.bot.guilds_data[guild_id] = {
-                    "silent_mode": False, "strict_mode": False, "log_channel_id": None,
-                    "whitelist": list(DOMINIOS_PROTEGIDOS),
-                    "stats": {"total_analisis": 0, "seguros": 0, "maliciosos": 0, "errores": 0},
-                    "infracciones": {}, "infracciones_registradas": {},
-                }
-            stats = state.bot.guilds_data[guild_id]["stats"]
-            stats["total_analisis"] += 1
-            if tipo == "seguro":
-                stats["seguros"] += 1
-            elif tipo == "malicioso":
-                stats["maliciosos"] += 1
-            else:
-                stats["errores"] += 1
     async with _global_lock:
         if "__global__" not in state.bot.guilds_data:
             state.bot.guilds_data["__global__"] = {"total_analisis": 0, "seguros": 0, "maliciosos": 0, "errores": 0}
@@ -77,7 +60,6 @@ async def registrar_infraccion(guild_id: int, user_id: int, elemento_id: str) ->
             state.bot.guilds_data[guild_id] = {
                 "silent_mode": False, "strict_mode": False, "log_channel_id": None,
                 "whitelist": list(DOMINIOS_PROTEGIDOS),
-                "stats": {"total_analisis": 0, "seguros": 0, "maliciosos": 0, "errores": 0},
                 "infracciones": {}, "infracciones_registradas": {},
             }
         config = state.bot.guilds_data[guild_id]
