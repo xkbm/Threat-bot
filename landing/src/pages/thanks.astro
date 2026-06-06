@@ -34,12 +34,12 @@ const steps = [
   <section class="section-scanline relative flex min-h-[100dvh] items-center justify-center px-6 pt-24 pb-16 sm:py-32">
     <div class="relative z-10 mx-auto max-w-3xl w-full">
       <div class="flex flex-col items-center text-center">
-        <div class="mb-8 flex h-20 w-20 items-center justify-center rounded-full bg-discord/10">
-          <Icon name="check-circle" class="text-4xl text-discord" />
+        <div class="mb-8 flex h-20 w-20 items-center justify-center rounded-full bg-shield/10">
+          <Icon name="check-circle" class="text-4xl text-shield" />
         </div>
 
         <h1 class="mb-4 max-w-2xl text-5xl font-black leading-none tracking-tight sm:text-6xl md:text-7xl">
-          <span class="text-discord">Threat</span> añadido
+          <span class="text-shield">Threat</span> añadido
         </h1>
 
         <p class="mb-12 max-w-xl text-base text-surface-400 sm:text-lg">
@@ -52,7 +52,7 @@ const steps = [
           {steps.map((s) => (
             <div class="card-outer group">
               <div class="card-inner p-5 text-left">
-                <div class="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-discord/10 text-xl text-discord transition-all duration-300 group-hover:bg-discord-light group-hover:text-white">
+                <div class="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-shield/10 text-xl text-shield transition-all duration-300 group-hover:bg-shield-light group-hover:text-white">
                   <Icon name={s.icon} />
                 </div>
                 <h3 class="mb-1 text-sm font-semibold text-white">{s.title}</h3>

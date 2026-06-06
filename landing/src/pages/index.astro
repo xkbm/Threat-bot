@@ -208,7 +208,7 @@ const steps = [
                         <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-surface-500">URL</div>
                         <code class="chat-url block truncate rounded bg-surface-700 px-2 py-1 font-mono text-xs text-surface-200"></code>
                       </div>
-                      <span id="chat-response-link" class="inline-flex items-center gap-1 text-xs text-discord-light">
+                      <span id="chat-response-link" class="inline-flex items-center gap-1 text-xs text-shield-light">
                         <Icon name="external-link-alt" /> Ver informe completo
                       </span>
                     </div>
@@ -222,7 +222,7 @@ const steps = [
                 <div class="mt-5 border-t border-surface-700/50 px-3 sm:px-5 py-3">
                   <div class="flex items-center gap-2 rounded-lg border border-surface-600 bg-surface-800 px-3 py-2 sm:px-4 sm:py-2.5 text-sm text-surface-500">
                     <span id="chat-input-text" class="flex-1 text-surface-500">Escribe un mensaje...</span>
-                    <span id="chat-input-cursor" class="hidden inline-block h-[1.1em] w-[2px] bg-discord animate-composing-cursor"></span>
+                    <span id="chat-input-cursor" class="hidden inline-block h-[1.1em] w-[2px] bg-shield animate-composing-cursor"></span>
                     <Icon name="paperclip" />
                   </div>
                 </div>
@@ -432,7 +432,7 @@ const steps = [
           <div class="card-outer group">
             <div class="card-inner-alt p-6 sm:p-8">
               <div class="flex flex-col sm:flex-row items-start gap-6">
-                <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-discord/10 text-3xl text-discord transition-all duration-300 group-hover:bg-discord-light group-hover:text-white">
+                <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-shield/10 text-3xl text-shield transition-all duration-300 group-hover:bg-shield-light group-hover:text-white">
                   <Icon name={f.icon} />
                 </div>
                 <div class="flex-1 min-w-0">
@@ -450,7 +450,7 @@ const steps = [
           {features.filter(f => !f.featured && !f.closing).map((f, i) => (
             <div class="card-outer group" style={`transition-delay: ${i * 80}ms`}>
               <div class="card-inner p-6">
-                <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-discord/10 text-2xl text-discord transition-all duration-300 group-hover:bg-discord-light group-hover:text-white">
+                <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-shield/10 text-2xl text-shield transition-all duration-300 group-hover:bg-shield-light group-hover:text-white">
                   <Icon name={f.icon} />
                 </div>
                 <h3 class="mb-2 text-lg font-semibold text-white">{f.title}</h3>
@@ -465,7 +465,7 @@ const steps = [
           <div class="card-outer group">
             <div class="card-inner-alt p-6 sm:p-8">
               <div class="flex flex-col sm:flex-row items-start gap-6">
-                <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-discord/10 text-3xl text-discord transition-all duration-300 group-hover:bg-discord-light group-hover:text-white">
+                <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-shield/10 text-3xl text-shield transition-all duration-300 group-hover:bg-shield-light group-hover:text-white">
                   <Icon name={f.icon} />
                 </div>
                 <div class="flex-1 min-w-0">
@@ -493,13 +493,13 @@ const steps = [
       </div>
       <div class="relative mx-auto max-w-3xl">
         <!-- Vertical connector line (hidden on mobile, visible sm+) -->
-        <div class="hidden sm:block absolute left-8 lg:left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-discord/40 via-surface-700 to-surface-700 lg:-translate-x-px"></div>
+        <div class="hidden sm:block absolute left-8 lg:left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-shield/40 via-surface-700 to-surface-700 lg:-translate-x-px"></div>
 
         {steps.map((step, i) => (
           <div class={`relative flex flex-col sm:flex-row items-start sm:items-center gap-6 pb-16 last:pb-0 ${i % 2 === 0 ? '' : 'lg:flex-row-reverse'}`}>
             <!-- Node dot -->
             <div class="relative z-10 flex items-center gap-4 sm:flex-col sm:w-16 lg:w-1/2 shrink-0">
-              <span class="relative grid h-10 w-10 sm:h-12 sm:w-12 place-items-center rounded-full bg-surface-850 ring-2 ring-surface-700 font-mono text-xs sm:text-sm font-bold text-discord">
+              <span class="relative grid h-10 w-10 sm:h-12 sm:w-12 place-items-center rounded-full bg-surface-850 ring-2 ring-surface-700 font-mono text-xs sm:text-sm font-bold text-shield">
                 {String(i + 1).padStart(2, '0')}
               </span>
             </div>
@@ -508,7 +508,7 @@ const steps = [
             <div class="flex-1 min-w-0 card-outer group">
               <div class="card-inner p-5 sm:p-6">
                 <div class="flex items-start gap-4">
-                  <div class="hidden sm:flex mt-0.5 h-10 w-10 shrink-0 items-center justify-center rounded-full bg-discord/10 text-xl text-discord transition-all duration-300 group-hover:bg-discord-light group-hover:text-white">
+                  <div class="hidden sm:flex mt-0.5 h-10 w-10 shrink-0 items-center justify-center rounded-full bg-shield/10 text-xl text-shield transition-all duration-300 group-hover:bg-shield-light group-hover:text-white">
                     <Icon name={step.icon} />
                   </div>
                   <div class="min-w-0">
@@ -539,7 +539,7 @@ const steps = [
         <div class="card-inner-alt divide-y divide-surface-700/50 overflow-hidden">
           {commands.map((cmd, i) => (
             <div class="group flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-3.5 sm:py-4 transition-colors duration-200 hover:bg-surface-800/50">
-              <div class="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-full bg-surface-700 text-surface-400 transition-all duration-300 group-hover:bg-discord-light/20 group-hover:text-discord-light">
+              <div class="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-full bg-surface-700 text-surface-400 transition-all duration-300 group-hover:bg-shield-light/20 group-hover:text-shield-light">
                 <Icon name={cmd.icon} size="0.875em" />
               </div>
               <div class="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-3">
@@ -578,7 +578,7 @@ const steps = [
           <Icon name="plus" size="0.875em" />
         </summary>
         <div class="faq-answer">
-          Invita al bot con el enlace de arriba, usa <code class="font-mono text-discord-light">/setlogchannel</code> para configurar el canal de logs, y opcionalmente <code class="font-mono text-discord-light">/silentmode</code> o <code class="font-mono text-discord-light">/strictmode</code> según tus necesidades.
+          Invita al bot con el enlace de arriba, usa <code class="font-mono text-shield-light">/setlogchannel</code> para configurar el canal de logs, y opcionalmente <code class="font-mono text-shield-light">/silentmode</code> o <code class="font-mono text-shield-light">/strictmode</code> según tus necesidades.
         </div>
       </details>
       <details class="faq-details">
@@ -587,7 +587,7 @@ const steps = [
           <Icon name="plus" size="0.875em" />
         </summary>
         <div class="faq-answer">
-          Solo se almacenan datos necesarios para el funcionamiento: configuración del servidor y caché temporal de análisis. No almacenamos mensajes completos, información personal ni contenido de conversaciones. Consulta nuestra <a href="/privacidad" class="text-discord-light hover:underline">Política de Privacidad</a> para más detalles.
+          Solo se almacenan datos necesarios para el funcionamiento: configuración del servidor y caché temporal de análisis. No almacenamos mensajes completos, información personal ni contenido de conversaciones. Consulta nuestra <a href="/privacidad" class="text-shield-light hover:underline">Política de Privacidad</a> para más detalles.
         </div>
       </details>
       <details class="faq-details">
@@ -605,7 +605,7 @@ const steps = [
           <Icon name="plus" size="0.875em" />
         </summary>
         <div class="faq-answer">
-          Puedes agregar el dominio a la whitelist con <code class="font-mono text-discord-light">/whitelist add</code>.
+          Puedes agregar el dominio a la whitelist con <code class="font-mono text-shield-light">/whitelist add</code>.
         </div>
       </details>
     </div>

@@ -38,12 +38,12 @@
 
   --glass-bg: rgba(24, 25, 28, 0.85);
   --card-outer-bg: rgba(54, 57, 63, 0.15);
-  --card-outer-hover-bg: rgba(88, 101, 242, 0.12);
-  --eyebrow-bg: rgba(88, 101, 242, 0.1);
+  --card-outer-hover-bg: rgba(26, 89, 216, 0.12);
+  --eyebrow-bg: rgba(26, 89, 216, 0.1);
   --eyebrow-threat-bg: rgba(220, 38, 38, 0.12);
   --eyebrow-secure-bg: rgba(74, 222, 128, 0.12);
-  --selection-bg: rgba(88, 101, 242, 0.4);
-  --card-hover-shadow-color: rgba(88, 101, 242, 0.15);
+  --selection-bg: rgba(26, 89, 216, 0.4);
+  --card-hover-shadow-color: rgba(26, 89, 216, 0.15);
 }
 
 @supports (color: oklch(0 0 0)) {
@@ -78,12 +78,12 @@
 
     --glass-bg: color-mix(in oklch, var(--color-surface-850) 85%, transparent);
     --card-outer-bg: color-mix(in oklch, var(--color-surface-600) 15%, transparent);
-    --card-outer-hover-bg: color-mix(in oklch, var(--color-discord) 12%, transparent);
-    --eyebrow-bg: color-mix(in oklch, var(--color-discord) 10%, transparent);
+    --card-outer-hover-bg: color-mix(in oklch, var(--color-shield) 12%, transparent);
+    --eyebrow-bg: color-mix(in oklch, var(--color-shield) 10%, transparent);
     --eyebrow-threat-bg: color-mix(in oklch, var(--color-threat) 12%, transparent);
     --eyebrow-secure-bg: color-mix(in oklch, var(--color-secure) 12%, transparent);
-    --selection-bg: color-mix(in srgb, var(--color-discord) 40%, transparent);
-    --card-hover-shadow-color: color-mix(in srgb, var(--color-discord) 15%, transparent);
+    --selection-bg: color-mix(in srgb, var(--color-shield) 40%, transparent);
+    --card-hover-shadow-color: color-mix(in srgb, var(--color-shield) 15%, transparent);
   }
 }
 
@@ -170,13 +170,13 @@ a:focus-visible,
 button:focus-visible,
 summary:focus-visible,
 [tabindex]:focus-visible {
-  outline: 2px solid var(--color-discord);
+  outline: 2px solid var(--color-shield);
   outline-offset: 2px;
 }
 
 button, a, summary, [role="button"] {
   touch-action: manipulation;
-  -webkit-tap-highlight-color: rgba(88, 101, 242, 0.3);
+  -webkit-tap-highlight-color: rgba(26, 89, 216, 0.3);
 }
 
 section[id] {
@@ -268,7 +268,7 @@ body::after {
   margin: 0;
   clip: auto;
   white-space: normal;
-  background: var(--color-discord);
+  background: var(--color-shield);
   color: white;
   font-weight: 600;
   border-radius: 0.5rem;
@@ -321,7 +321,7 @@ body::after {
   text-transform: uppercase;
   border-radius: 2px;
   background: var(--eyebrow-bg);
-  color: var(--color-discord-light);
+  color: var(--color-shield-light);
 }
 
 .eyebrow-threat {
@@ -344,7 +344,7 @@ body::after {
     rgba(255, 255, 255, 0.015) 2px,
     rgba(255, 255, 255, 0.015) 4px
   ),
-  url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='2' cy='2' r='0.75' fill='%235865F2' opacity='0.06'/%3E%3C/svg%3E");
+  url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='2' cy='2' r='0.75' fill='%231A5AD8' opacity='0.06'/%3E%3C/svg%3E");
 }
 
 /* ---- Scroll reveals ---- */
@@ -413,7 +413,7 @@ body::after {
 }
 
 .faq-details[open] {
-  border-left-color: var(--color-discord);
+  border-left-color: var(--color-shield);
 }
 
 .faq-details summary {
