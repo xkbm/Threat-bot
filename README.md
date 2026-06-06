@@ -1,7 +1,7 @@
 <p align="center">
   <img src="landing/public/favicon.png" alt="Threat" width="120" />
 </p>
-<p align="center"># Threat</p>
+<p align="center">Threat</p>
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.10+-blue.svg" alt="Python" />
   <img src="https://img.shields.io/badge/discord.py-%E2%89%A52.3.0-purple.svg" alt="Discord.py" />
