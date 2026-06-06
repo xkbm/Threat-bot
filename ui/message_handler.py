@@ -248,6 +248,9 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
     log_channel_id = config["log_channel_id"]
     whitelist = config.get("whitelist", [])
 
+    if not config.get("auto_scan_enabled", True):
+        return
+
     url_pattern = r'https?://[^\s]+'
     urls = re.findall(url_pattern, message.content)
     log.debug(f"Mensaje de {message.author} en guild={guild_id}: {len(urls)} URLs, {len(message.attachments)} adjuntos")

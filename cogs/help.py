@@ -33,9 +33,9 @@ class HelpCog(commands.Cog):
         )
 
         embed.add_field(
-            name=f"{self.bot.EMOJI_GUARDIAN} Moderación [6]",
+            name=f"{self.bot.EMOJI_GUARDIAN} Moderación [7]",
             value=(
-                "`/silentmode` • `/strictmode` • "
+                "`/autoscan` • `/silentmode` • `/strictmode` • "
                 "`/whitelist` • `/setlogchannel` • `/disablelogchannel` • `/settings`"
             ),
             inline=False

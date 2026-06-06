@@ -44,6 +44,20 @@ class ConfiguracionCog(commands.Cog):
         log.debug(f"STRICTMODE → guild={interaction.guild.id} estado={estado} admin={interaction.user.id}")
         await self._safe_followup(interaction, f"{self.bot.EMOJI_CORRECTO} Modo estricto {'activado' if estado else 'desactivado'}.", ephemeral=True)
 
+    @app_commands.command(name="autoscan", description="Activa/desactiva el escaneo automático (solo admins)")
+    @app_commands.default_permissions(administrator=True)
+    @app_commands.describe(estado="True = activo, False = desactivado")
+    async def autoscan(self, interaction: discord.Interaction, estado: bool) -> None:
+        await interaction.response.defer(ephemeral=True)
+        if not interaction.guild:
+            await self._safe_followup(interaction, f"{self.bot.EMOJI_INCORRECTO} Este comando solo funciona en servidores.", ephemeral=True)
+            return
+        config = await self.bot.obtener_config_guild(interaction.guild.id)
+        config["auto_scan_enabled"] = estado
+        await self.bot.guardar_datos(inmediato=True)
+        log.debug(f"AUTOSCAN → guild={interaction.guild.id} estado={estado} admin={interaction.user.id}")
+        await self._safe_followup(interaction, f"{self.bot.EMOJI_CORRECTO} Auto-scan {'activado' if estado else 'desactivado'}.", ephemeral=True)
+
     @app_commands.command(name="setlogchannel", description="Establece el canal para logs de amenazas (solo admins)")
     @app_commands.default_permissions(administrator=True)
     @app_commands.describe(canal="Canal donde se enviarán los logs")
@@ -81,10 +95,12 @@ class ConfiguracionCog(commands.Cog):
         config = await self.bot.obtener_config_guild(interaction.guild.id)
         silent = config.get("silent_mode", False)
         strict = config.get("strict_mode", False)
+        auto_scan = config.get("auto_scan_enabled", True)
         log_id = config.get("log_channel_id")
         log_channel = interaction.guild.get_channel(log_id) if log_id else None
 
         descripcion = (
+            f"{self.bot.EMOJI_SHIELD} **Auto-scan:** {'Activado' if auto_scan else 'Desactivado'}\n"
             f"{self.bot.EMOJI_GUARDIAN} **Modo silencioso:** {'Activado' if silent else 'Desactivado'}\n"
             f"{self.bot.EMOJI_WARNING} **Modo estricto:** {'Activado' if strict else 'Desactivado'}\n"
             f"{self.bot.EMOJI_LINK} **Canal de logs:** {log_channel.mention if log_channel else '*No configurado*'}"

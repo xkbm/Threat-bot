@@ -26,6 +26,7 @@ async def obtener_config_guild(guild_id: int) -> dict[str, Any]:
             state.bot.guilds_data[guild_id] = {
                 "silent_mode": False,
                 "strict_mode": False,
+                "auto_scan_enabled": True,
                 "log_channel_id": None,
                 "whitelist": list(DOMINIOS_PROTEGIDOS),
                 "stats": {"total_analisis": 0, "seguros": 0, "maliciosos": 0, "errores": 0},

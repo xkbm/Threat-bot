@@ -219,6 +219,7 @@ async def cargar_datos() -> None:
                     defaults = {
                         "silent_mode": False,
                         "strict_mode": False,
+                        "auto_scan_enabled": True,
                         "log_channel_id": None,
                         "whitelist": list(DOMINIOS_PROTEGIDOS),
                         "infracciones": {},
