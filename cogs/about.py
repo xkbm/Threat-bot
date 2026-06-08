@@ -69,7 +69,7 @@ class InfoCog(commands.Cog):
         )
 
         embed.set_footer(
-            text="El proyecto acualmente es de codigo cerrado, pero puede que en un futuro se vuelva open source. Si quieres apoyar el proyecto puedes compartirlo con otros."
+            text="El proyecto actualmente es de código cerrado, pero puede que en un futuro se vuelva open source. Si quieres apoyar el proyecto puedes compartirlo con otros."
         )
 
         view = discord.ui.View()
