@@ -1,3 +1,11 @@
+<!--
+┌───────────────────────────────┐
+│  zzZ                          │
+│ (o.o)  Threat Bot             │
+│ /|__|\  shh... está durmiendo │
+│ github.com/xkbm               │
+└───────────────────────────────┘
+-->
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Icon from '../components/Icon.astro';
@@ -129,7 +137,6 @@ const steps = [
   }
   </script>
 
-  <!-- HERO -->
   <section class="section-scanline relative overflow-hidden flex flex-col min-h-[100dvh] px-6 pt-6">
     <div class="pointer-events-none absolute inset-0 z-0" style="background: radial-gradient(ellipse 800px 600px at 50% -100px, rgba(88,101,242,0.06), transparent);" aria-hidden="true"></div>
     <div class="flex-1 flex items-center justify-center mx-auto max-w-6xl w-full relative z-10">
@@ -154,7 +161,6 @@ const steps = [
               </a>
             </div>
           </div>
-          <!-- Chat mockup -->
           <div id="chat-mockup" class="w-full max-w-md mx-auto lg:mx-0 text-left" aria-hidden="true">
             <div class="card-outer">
               <div class="card-inner-alt">
@@ -195,7 +201,6 @@ const steps = [
                       <span class="font-mono text-xs font-medium text-white">Threat</span>
                       <span class="inline-flex items-center gap-0.5 rounded bg-discord px-1.5 py-[1px] text-[9px] font-semibold leading-normal text-white"><Icon name="check" class="text-white" size="9px" /> APP</span>
                     </div>
-                    <!-- Embed response (malicious/safe) -->
                     <div id="chat-response-card" class="border-l-4 bg-surface-800 p-3.5" style="border-left-color: rgb(230, 126, 34);">
                       <div class="mb-1 flex items-center gap-1.5">
                         <img id="chat-response-emoji" src="/emoji-warn.png" alt="" class="w-4 h-4" width="16" height="16" />
@@ -212,7 +217,6 @@ const steps = [
                         <Icon name="external-link-alt" /> Ver informe completo
                       </span>
                     </div>
-                    <!-- Plain text response (whitelist) -->
                     <div id="chat-response-text" class="hidden text-sm text-surface-300">
                       <img src="/emoji-whitelist.png" alt="" class="inline w-4 h-4 mr-1" width="16" height="16" />
                       <strong class="text-surface-100">Dominio(s) en whitelist.</strong> No se requiere análisis.
@@ -235,7 +239,6 @@ const steps = [
             const usuarios = ['Alex', 'María', 'Carlos', 'Laura', 'Pedro', 'Sofía', 'Ana', 'Luis', 'Elena', 'Diego', 'Martín', 'Valentina', 'Joaquín', 'Camila', 'Rodrigo'];
 
             const escenarios = [
-              // --- MALICIOSO (cuentas comprometidas se ven normales) ---
               {
                 tipo: 'malicioso',
                 urls: [
@@ -251,15 +254,14 @@ const steps = [
                 borderColor: 'rgb(230, 126, 34)',
                 titleClass: 'text-surface-100',
                 conversaciones: [
-                  { u1: '\u00bfAlguien tiene el link del nuevo asset?', u2: 'creo que s\u00ed, te lo paso', urlFrom: 'u2' },
-                  { u1: 'Me lleg\u00f3 un link raro', u2: '\u00bfcu\u00e1l es?', urlFrom: 'u1' },
-                  { u1: 'Oye, te paso un enlace', u2: 'dale, m\u00e1ndalo', urlFrom: 'u1' },
-                  { u1: 'Mira esto que me lleg\u00f3 al DM', u2: 'p\u00e1salo al general', urlFrom: 'u1' },
-                  { u1: '\u00bfEs seguro este enlace?', u2: 'no s\u00e9, p\u00e1salo a ver', urlFrom: 'u1' },
-                  { u1: 'Necesito ayuda con un archivo', u2: 't\u00edralo aqu\u00ed', urlFrom: 'u1' },
+                  { u1: '¿Alguien tiene el link del nuevo asset?', u2: 'creo que sí, te lo paso', urlFrom: 'u2' },
+                  { u1: 'Me llegó un link raro', u2: '¿cuál es?', urlFrom: 'u1' },
+                  { u1: 'Oye, te paso un enlace', u2: 'dale, mándalo', urlFrom: 'u1' },
+                  { u1: 'Mira esto que me llegó al DM', u2: 'pásalo al general', urlFrom: 'u1' },
+                  { u1: '¿Es seguro este enlace?', u2: 'no sé, pásalo a ver', urlFrom: 'u1' },
+                  { u1: 'Necesito ayuda con un archivo', u2: 'tíralo aquí', urlFrom: 'u1' },
                 ],
               },
-              // --- SEGURO ---
               {
                 tipo: 'seguro',
                 urls: [
@@ -273,13 +275,12 @@ const steps = [
                 borderColor: 'var(--color-secure)',
                 titleClass: 'text-surface-100',
                 conversaciones: [
-                  { u1: '\u00bfAlguien ha usado esto?', u2: 's\u00ed, es confiable', urlFrom: 'u1' },
-                  { u1: 'Mira el repo nuevo', u2: '\u00bfqu\u00e9 hay?', urlFrom: 'u1' },
-                  { u1: '\u00bfAlguien tiene el link?', u2: 's\u00ed, aqu\u00ed va', urlFrom: 'u2' },
-                  { u1: '\u00bfMe pasan el enlace?', u2: 'claro, aqu\u00ed va', urlFrom: 'u2' },
+                  { u1: '¿Alguien ha usado esto?', u2: 'sí, es confiable', urlFrom: 'u1' },
+                  { u1: 'Mira el repo nuevo', u2: '¿qué hay?', urlFrom: 'u1' },
+                  { u1: '¿Alguien tiene el link?', u2: 'sí, aquí va', urlFrom: 'u2' },
+                  { u1: '¿Me pasan el enlace?', u2: 'claro, aquí va', urlFrom: 'u2' },
                 ],
               },
-              // --- WHITELIST (el bot solo reacciona, no env\u00eda embed) ---
               {
                 tipo: 'whitelist',
                 urls: [
@@ -292,30 +293,26 @@ const steps = [
                 borderColor: 'var(--color-secure)',
                 titleClass: 'text-surface-100',
                 conversaciones: [
-                  { u1: 'Miren este video', u2: '\u00bfde qu\u00e9 trata?', urlFrom: 'u1' },
-                  { u1: 'Pasen la playlist nueva', u2: 'aqu\u00ed la tienes', urlFrom: 'u2' },
-                  { u1: '\u00bfAlguien tiene el link del stream?', u2: 's\u00ed, aqu\u00ed va', urlFrom: 'u2' },
+                  { u1: 'Miren este video', u2: '¿de qué trata?', urlFrom: 'u1' },
+                  { u1: 'Pasen la playlist nueva', u2: 'aquí la tienes', urlFrom: 'u2' },
+                  { u1: '¿Alguien tiene el link del stream?', u2: 'sí, aquí va', urlFrom: 'u2' },
                 ],
               },
             ];
 
             function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
-            // Seleccionar escenario con pesos: 50% malicioso, 30% seguro, 20% whitelist
             const roll = Math.random();
             const escenario = roll < 0.5 ? escenarios[0] : roll < 0.8 ? escenarios[1] : escenarios[2];
             const url = rand(escenario.urls);
             const conv = rand(escenario.conversaciones);
 
-            // Nombres \u00fanicos para u1 y u2
             const u1Name = rand(usuarios);
             let u2Name;
             do { u2Name = rand(usuarios); } while (u2Name === u1Name);
 
-            // Qui\u00e9n env\u00eda la URL (determinado por la conversaci\u00f3n)
             const urlSender = conv.urlFrom === 'u2' ? u2Name : u1Name;
 
-            // Configurar el bot response din\u00e1micamente
             const responseCard = document.getElementById('chat-response-card');
             const responseText = document.getElementById('chat-response-text');
             const responseEmoji = document.getElementById('chat-response-emoji');
@@ -325,11 +322,9 @@ const steps = [
             const responseLink = document.getElementById('chat-response-link');
 
             if (escenario.tipo === 'whitelist') {
-              // Whitelist: respuesta de texto plano (como el bot real)
               responseCard.classList.add('hidden');
               responseText.classList.remove('hidden');
             } else {
-              // Malicioso/Seguro: respuesta embed
               responseCard.classList.remove('hidden');
               responseText.classList.add('hidden');
               responseCard.style.borderLeftColor = escenario.borderColor;
@@ -349,14 +344,12 @@ const steps = [
               }
             }
 
-            // Configurar conversaci\u00f3n
             const chatInitials = document.querySelectorAll('.chat-initial');
             chatInitials[0].querySelector('.font-mono').textContent = u1Name;
             chatInitials[0].querySelector('.text-surface-300').textContent = conv.u1;
             chatInitials[1].querySelector('.font-mono').textContent = u2Name;
             chatInitials[1].querySelector('.text-surface-300').textContent = conv.u2;
 
-            // Configurar el mensaje del usuario que env\u00eda la URL
             document.querySelectorAll('.chat-url-text, .chat-url').forEach((el) => el.textContent = url);
             document.querySelector('#chat-sent .font-mono').textContent = urlSender;
 
@@ -417,7 +410,6 @@ const steps = [
     </div>
   </section>
 
-  <!-- FEATURES -->
   <section id="features" class="scroll-reveal relative border-t border-surface-800 bg-surface-900 px-6 py-20 sm:py-28" data-reveal="scale">
     <div class="mx-auto max-w-6xl">
       <div class="mb-16 text-center">
@@ -427,7 +419,6 @@ const steps = [
       </div>
 
       <div class="flex flex-col gap-6">
-        <!-- Featured card (full-width) -->
         {features.filter(f => f.featured).map((f) => (
           <div class="card-outer group">
             <div class="card-inner-alt p-6 sm:p-8">
@@ -445,7 +436,6 @@ const steps = [
           </div>
         ))}
 
-        <!-- 2x2 grid -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           {features.filter(f => !f.featured && !f.closing).map((f, i) => (
             <div class="card-outer group" style={`transition-delay: ${i * 80}ms`}>
@@ -460,7 +450,6 @@ const steps = [
           ))}
         </div>
 
-        <!-- Closing card (full-width) -->
         {features.filter(f => f.closing).map((f) => (
           <div class="card-outer group">
             <div class="card-inner-alt p-6 sm:p-8">
@@ -480,7 +469,6 @@ const steps = [
     </div>
   </section>
 
-  <!-- HOW IT WORKS -->
   <section id="how-it-works" class="scroll-reveal section-scanline relative border-t border-surface-800 bg-surface-850 px-6 py-24 sm:py-32" data-reveal="none">
     <div class="mx-auto max-w-6xl">
       <div class="mb-16 text-center">
@@ -492,19 +480,16 @@ const steps = [
         </p>
       </div>
       <div class="relative mx-auto max-w-3xl">
-        <!-- Vertical connector line (hidden on mobile, visible sm+) -->
         <div class="hidden sm:block absolute left-8 lg:left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-shield/40 via-surface-700 to-surface-700 lg:-translate-x-px"></div>
 
         {steps.map((step, i) => (
           <div class={`relative flex flex-col sm:flex-row items-start sm:items-center gap-6 pb-16 last:pb-0 ${i % 2 === 0 ? '' : 'lg:flex-row-reverse'}`}>
-            <!-- Node dot -->
             <div class="relative z-10 flex items-center gap-4 sm:flex-col sm:w-16 lg:w-1/2 shrink-0">
               <span class="relative grid h-10 w-10 sm:h-12 sm:w-12 place-items-center rounded-full bg-surface-850 ring-2 ring-surface-700 font-mono text-xs sm:text-sm font-bold text-shield">
                 {String(i + 1).padStart(2, '0')}
               </span>
             </div>
 
-            <!-- Content card -->
             <div class="flex-1 min-w-0 card-outer group">
               <div class="card-inner p-5 sm:p-6">
                 <div class="flex items-start gap-4">
@@ -524,7 +509,6 @@ const steps = [
     </div>
   </section>
 
-  <!-- COMMANDS -->
   <section id="commands" class="scroll-reveal relative border-t border-surface-800 bg-surface-900 px-6 py-20 sm:py-28" data-reveal="subtle">
     <div class="mx-auto max-w-6xl">
       <div class="mb-16 text-center">
@@ -555,7 +539,6 @@ const steps = [
     </div>
   </section>
 
-  <!-- FAQ -->
   <section id="faq" class="scroll-reveal section-scanline relative border-t border-surface-800 bg-surface-850 px-6 py-16 sm:py-24" data-reveal="none">
     <div class="mx-auto max-w-3xl">
       <div class="mb-12">
@@ -611,7 +594,6 @@ const steps = [
     </div>
   </section>
 
-  <!-- CTA -->
   <section class="scroll-reveal section-scanline relative overflow-hidden border-t border-surface-800 bg-surface-900 px-6 py-24 sm:py-32" data-reveal="fade">
     <div class="relative z-10 mx-auto max-w-3xl text-center">
       <h2 class="mb-6 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
