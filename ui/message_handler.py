@@ -235,6 +235,12 @@ async def _procesar_adjuntos_si_hay(
     if message.attachments:
         await _procesar_adjuntos(bot, message, guild_id, silent_mode, strict_mode, log_channel_id)
 
+def _limpiar_url(url: str) -> str:
+    while url and url[-1] in ')]}>.,;:':
+        url = url[:-1]
+    return url
+
+
 async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None:
     if len(message.content) > 5000:
         message.content = message.content[:5000]
@@ -252,7 +258,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
         return
 
     url_pattern = r'https?://[^\s]+'
-    urls = re.findall(url_pattern, message.content)
+    urls = [_limpiar_url(u) for u in re.findall(url_pattern, message.content)]
     log.debug(f"Mensaje de {message.author} en guild={guild_id}: {len(urls)} URLs, {len(message.attachments)} adjuntos")
 
     if urls:
