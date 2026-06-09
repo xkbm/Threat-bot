@@ -55,7 +55,7 @@ async def _procesar_imagen(
             async with ANALYSIS_SEMAPHORE:
                 is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(content_hash, img_data)
             if not models.get("error"):
-                await update_stats(guild_id, "malicioso" if is_nsfw else "seguro")
+                        await update_stats(guild_id, "nsfw" if is_nsfw else "seguro")
             if is_nsfw and guild_id:
                 await registrar_infraccion(guild_id, message.author.id, f"nsfw:{content_hash}")
             dummy = discord.Embed(title="NSFW Meta")
@@ -153,15 +153,18 @@ async def _procesar_adjuntos(
     total = len(resultados_img) + len(resultados_arch)
     if total == 0:
         return
-    maliciosos = sum(1 for _, t, _, _ in resultados_img if t == "nsfw") + sum(1 for _, t, _, _, _ in resultados_arch if t == "malicioso")
+    maliciosos = sum(1 for _, t, _, _, _ in resultados_arch if t == "malicioso")
     nsfw = sum(1 for _, t, _, _ in resultados_img if t == "nsfw")
     seguros = sum(1 for _, t, _, _ in resultados_img if t == "seguro") + sum(1 for _, t, _, _, _ in resultados_arch if t == "seguro")
-    errores = total - maliciosos - seguros
+    errores = total - maliciosos - nsfw - seguros
     has_doble_ext = any(tiene_doble_extension(a.filename) for a in adjuntos)
 
-    if maliciosos or nsfw:
+    if maliciosos:
         color = discord.Color.orange()
         titulo = f"{EMOJI_WARNING} ¡Amenazas detectadas en archivos adjuntos!"
+    elif nsfw:
+        color = discord.Color.orange()
+        titulo = f"{EMOJI_NSFW} Contenido NSFW detectado"
     elif errores:
         color = discord.Color.red()
         titulo = f"{EMOJI_ERROR} Análisis completado con errores"
@@ -171,7 +174,10 @@ async def _procesar_adjuntos(
 
     descripcion = f"**{total}** archivo(s) analizado(s) en el mensaje de {message.author.mention}:\n"
     descripcion += f"{EMOJI_CORRECTO} Seguros: **{seguros}**\n"
-    descripcion += f"{EMOJI_NSFW} Maliciosos/NSFW: **{maliciosos}**\n"
+    if nsfw:
+        descripcion += f"{EMOJI_NSFW} NSFW: **{nsfw}**\n"
+    if maliciosos:
+        descripcion += f"{EMOJI_WARNING} Maliciosos: **{maliciosos}**\n"
     descripcion += f"{EMOJI_ERROR} Errores: **{errores}**"
     embed_resumen = discord.Embed(title=titulo, description=descripcion, color=color)
 
@@ -203,7 +209,7 @@ async def _procesar_adjuntos(
     if log_channel_id:
         for filename, tipo, models, content_hash in resultados_img:
             if tipo == "nsfw" and content_hash:
-                await enviar_log_guild(guild_id, "Imagen NSFW (múltiples)", filename, "Detectado en análisis múltiple", message.author, elemento_id=f"nsfw:{content_hash}")
+                await enviar_log_guild(guild_id, "Imagen NSFW (múltiples)", filename, "Detectado en análisis múltiple", message.author, elemento_id=f"nsfw:{content_hash}", es_nsfw=True)
         for filename, tipo, mal, file_hash, wm in resultados_arch:
             if tipo == "malicioso" and file_hash:
                 await enviar_log_guild(guild_id, "Archivo (múltiples)", filename, f"{mal} detecciones", message.author, elemento_id=f"filehash:{file_hash}")
@@ -213,12 +219,14 @@ async def _procesar_adjuntos(
 
     if maliciosos:
         await safe_add_reaction(message, EMOJI_WARNING)
+    elif nsfw:
+        await safe_add_reaction(message, EMOJI_NSFW)
     elif errores:
         await safe_add_reaction(message, EMOJI_ERROR)
     else:
         await safe_add_reaction(message, EMOJI_CORRECTO)
 
-    if (maliciosos or has_doble_ext) and strict_mode:
+    if (maliciosos or nsfw or has_doble_ext) and strict_mode:
         try:
             await message.delete()
         except (discord.errors.Forbidden, discord.errors.NotFound):
@@ -346,7 +354,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                             embed.add_field(name="Resultados", value=f"{EMOJI_NSFW} Imagen NSFW\n{detalles_str}", inline=False)
                             await safe_send(message, embed, reference=message)
                             if log_channel_id:
-                                await enviar_log_guild(guild_id, "Imagen NSFW", url, detalles_str, message.author, elemento_id=f"nsfw:{cached_hash}")
+                                await enviar_log_guild(guild_id, "Imagen NSFW", url, detalles_str, message.author, elemento_id=f"nsfw:{cached_hash}", es_nsfw=True)
                             if strict_mode:
                                 try:
                                     await message.delete()
@@ -378,7 +386,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                     content_hash = hashlib.sha256(img_data).hexdigest()
                     is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(content_hash, img_data)
                     if not models.get("error"):
-                        await update_stats(guild_id, "malicioso" if is_nsfw else "seguro")
+                        await update_stats(guild_id, "nsfw" if is_nsfw else "seguro")
                     dummy = discord.Embed(title="NSFW URL Meta")
                     await set_cache_mem(clave_meta_url, json.dumps({"hash": content_hash}), dummy, 0)
                     await guardar_metadatos_hash(clave_meta_url, content_hash)
@@ -407,7 +415,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                     embed.add_field(name="Resultados", value=f"{EMOJI_NSFW} Imagen NSFW\n{detalles_str}", inline=False)
                     await safe_send(message, embed, reference=message)
                     if log_channel_id:
-                        await enviar_log_guild(guild_id, "Imagen NSFW", url, detalles_str, message.author, elemento_id=f"nsfw:{content_hash}")
+                        await enviar_log_guild(guild_id, "Imagen NSFW", url, detalles_str, message.author, elemento_id=f"nsfw:{content_hash}", es_nsfw=True)
                     if strict_mode:
                         try:
                             await message.delete()

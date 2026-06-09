@@ -29,7 +29,7 @@ async def obtener_config_guild(guild_id: int) -> dict[str, Any]:
                 "auto_scan_enabled": True,
                 "log_channel_id": None,
                 "whitelist": list(DOMINIOS_PROTEGIDOS),
-                "stats": {"total_analisis": 0, "seguros": 0, "maliciosos": 0, "errores": 0},
+                "stats": {"total_analisis": 0, "seguros": 0, "maliciosos": 0, "nsfw": 0, "errores": 0},
                 "infracciones": {},
                 "infracciones_registradas": {},
             }
@@ -37,19 +37,21 @@ async def obtener_config_guild(guild_id: int) -> dict[str, Any]:
 
 def obtener_stats_globales() -> dict[str, int]:
     if "__global__" not in state.bot.guilds_data:
-        state.bot.guilds_data["__global__"] = {"total_analisis": 0, "seguros": 0, "maliciosos": 0, "errores": 0}
+        state.bot.guilds_data["__global__"] = {"total_analisis": 0, "seguros": 0, "maliciosos": 0, "nsfw": 0, "errores": 0}
     return state.bot.guilds_data["__global__"]
 
 async def update_stats(guild_id: Optional[int], tipo: str) -> None:
     async with _global_lock:
         if "__global__" not in state.bot.guilds_data:
-            state.bot.guilds_data["__global__"] = {"total_analisis": 0, "seguros": 0, "maliciosos": 0, "errores": 0}
+            state.bot.guilds_data["__global__"] = {"total_analisis": 0, "seguros": 0, "maliciosos": 0, "nsfw": 0, "errores": 0}
         global_stats = state.bot.guilds_data["__global__"]
         global_stats["total_analisis"] += 1
         if tipo == "seguro":
             global_stats["seguros"] += 1
         elif tipo == "malicioso":
             global_stats["maliciosos"] += 1
+        elif tipo == "nsfw":
+            global_stats["nsfw"] = global_stats.get("nsfw", 0) + 1
         else:
             global_stats["errores"] += 1
     await guardar_datos()

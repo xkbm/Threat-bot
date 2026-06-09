@@ -68,6 +68,7 @@ class EstadisticasCog(commands.Cog):
             embed.add_field(name=f"{self.bot.EMOJI_LUPA} Total análisis", value=f"**{total}**", inline=True)
             embed.add_field(name=f"{self.bot.EMOJI_CORRECTO} Seguros", value=f"**{stats['seguros']}**", inline=True)
             embed.add_field(name=f"{self.bot.EMOJI_WARNING} Maliciosos", value=f"**{stats['maliciosos']}**", inline=True)
+            embed.add_field(name=f"{self.bot.EMOJI_NSFW} NSFW", value=f"**{stats.get('nsfw', 0)}**", inline=True)
             embed.add_field(name=f"{self.bot.EMOJI_INCORRECTO} Errores", value=f"**{stats['errores']}**", inline=True)
             embed.add_field(
                 name=f"{self.bot.EMOJI_STATS} Detecciones (%)",
