@@ -284,6 +284,10 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
 
         log.debug(f"URLs tras whitelist: {len(todas_urls)} de {len(urls)}")
 
+        ahora = time.time()
+        user_id = message.author.id
+        spam_key = (guild_id, user_id) if guild_id else user_id
+
         todas_en_cache = True
         for url in todas_urls:
             clave_check = f"url:{normalizar_url(url)}"
@@ -294,20 +298,18 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                 todas_en_cache = False
                 break
 
+        bot.user_scan_history.setdefault(spam_key, [])
+        bot.user_scan_history[spam_key] = [t for t in bot.user_scan_history[spam_key] if ahora - t < 3600]
+        if len(bot.user_scan_history[spam_key]) >= ANTISPAM_ANALYSIS_PER_HOUR:
+            await safe_add_reaction(message, EMOJI_COOLDOWN)
+            await _procesar_adjuntos_si_hay(bot, message, guild_id, silent_mode, strict_mode, log_channel_id)
+            return
+        if spam_key in bot.antispam_scan and ahora - bot.antispam_scan[spam_key] < ANTISPAM_COOLDOWN:
+            await safe_add_reaction(message, EMOJI_COOLDOWN)
+            await _procesar_adjuntos_si_hay(bot, message, guild_id, silent_mode, strict_mode, log_channel_id)
+            return
+
         if not todas_en_cache:
-            ahora = time.time()
-            user_id = message.author.id
-            spam_key = (guild_id, user_id) if guild_id else user_id
-            bot.user_scan_history.setdefault(spam_key, [])
-            bot.user_scan_history[spam_key] = [t for t in bot.user_scan_history[spam_key] if ahora - t < 3600]
-            if len(bot.user_scan_history[spam_key]) >= ANTISPAM_ANALYSIS_PER_HOUR:
-                await safe_add_reaction(message, EMOJI_COOLDOWN)
-                await _procesar_adjuntos_si_hay(bot, message, guild_id, silent_mode, strict_mode, log_channel_id)
-                return
-            if spam_key in bot.antispam_scan and ahora - bot.antispam_scan[spam_key] < ANTISPAM_COOLDOWN:
-                await safe_add_reaction(message, EMOJI_COOLDOWN)
-                await _procesar_adjuntos_si_hay(bot, message, guild_id, silent_mode, strict_mode, log_channel_id)
-                return
             bot.antispam_scan[spam_key] = ahora
             bot.user_scan_history[spam_key].append(ahora)
 

@@ -10,7 +10,7 @@ import urllib.parse
 import logging
 from collections import OrderedDict
 from discord.ext import commands
-from core.config import EMOJI_LOADING, ANTIVIRUS_CONOCIDOS, IMAGE_EXTENSIONS, VT_MAX_REQUESTS_PER_USER
+from core.config import EMOJI_LOADING, ANTIVIRUS_CONOCIDOS, IMAGE_EXTENSIONS, VT_MAX_ANALYSES_PER_MINUTE
 
 log = logging.getLogger("utils")
 _dns_cache: OrderedDict[str, tuple[float, str]] = OrderedDict()
@@ -228,7 +228,7 @@ async def check_vt_user_limit(user_id: int) -> bool:
     ahora = time.time()
     history = state.bot.vt_user_requests.setdefault(user_id, [])
     state.bot.vt_user_requests[user_id] = [t for t in history if ahora - t < 60]
-    if len(state.bot.vt_user_requests[user_id]) >= VT_MAX_REQUESTS_PER_USER:
+    if len(state.bot.vt_user_requests[user_id]) >= VT_MAX_ANALYSES_PER_MINUTE:
         return False
     state.bot.vt_user_requests[user_id].append(ahora)
     return True
