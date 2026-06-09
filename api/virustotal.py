@@ -128,7 +128,7 @@ async def enviar_log_guild(guild_id: int, tipo: str, valor: str, detalles: str, 
     else:
         embed = discord.Embed(
             title=f"{EMOJI_WARNING} Amenaza Detectada",
-            description=f"**{tipo}** analizado resultó **malicioso**",
+            description=f"**{tipo.upper()}** analizado resultó **malicioso**",
             color=discord.Color.red()
         )
     embed.add_field(name=f"{EMOJI_FINGERPRINT} Valor", value=f"`{valor}`", inline=False)
