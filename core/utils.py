@@ -10,7 +10,7 @@ import urllib.parse
 import logging
 from collections import OrderedDict
 from discord.ext import commands
-from core.config import EMOJI_LOADING, ANTIVIRUS_CONOCIDOS, IMAGE_EXTENSIONS
+from core.config import EMOJI_LOADING, ANTIVIRUS_CONOCIDOS, IMAGE_EXTENSIONS, VT_MAX_REQUESTS_PER_USER
 
 log = logging.getLogger("utils")
 _dns_cache: OrderedDict[str, tuple[float, str]] = OrderedDict()
@@ -222,3 +222,13 @@ async def maybe_send_review_prompt(bot, channel: discord.abc.Messageable) -> Non
         await channel.send(embed=embed)
     except Exception:
         pass
+
+async def check_vt_user_limit(user_id: int) -> bool:
+    from core import state
+    ahora = time.time()
+    history = state.bot.vt_user_requests.setdefault(user_id, [])
+    state.bot.vt_user_requests[user_id] = [t for t in history if ahora - t < 60]
+    if len(state.bot.vt_user_requests[user_id]) >= VT_MAX_REQUESTS_PER_USER:
+        return False
+    state.bot.vt_user_requests[user_id].append(ahora)
+    return True
