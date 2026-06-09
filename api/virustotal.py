@@ -171,7 +171,7 @@ async def analizar_url(url: str, guild_id: Optional[int] = None, mensaje_origina
                                 log.debug(f"VT URL STATUS → {status} intento={intento+1}/3")
                 log.debug(f"VT URL TIMEOUT → {url} t={time.time()-_t0:.1f}s")
                 await _finalizar_error(guild_id, "url", url)
-                return "error", discord.Embed(title="Error en análisis", description=f"El análisis tardó más de lo esperado ({VT_TIMEOUT.total_seconds():.0f}s). Intenta de nuevo.", color=discord.Color.red()), 0
+                return "error", discord.Embed(title="Error en análisis", description=f"El análisis tardó más de lo esperado ({VT_TIMEOUT.total or 180:.0f}s). Intenta de nuevo.", color=discord.Color.red()), 0
             else:
                 log.debug(f"VT URL ERROR → status={resp.status} url={url} t={time.time()-_t0:.1f}s")
                 await _finalizar_error(guild_id, "url", url)
@@ -179,7 +179,7 @@ async def analizar_url(url: str, guild_id: Optional[int] = None, mensaje_origina
     except asyncio.TimeoutError:
         log.error(f"VT URL TIMEOUT HTTP → {url} t={time.time()-_t0:.1f}s")
         await _finalizar_error(guild_id, "url", url)
-        return "error", discord.Embed(title="Error de conexión", description=f"La conexión con VirusTotal expiró ({VT_TIMEOUT.total_seconds():.0f}s).", color=discord.Color.red()), 0
+        return "error", discord.Embed(title="Error de conexión", description=f"La conexión con VirusTotal expiró ({VT_TIMEOUT.total or 180:.0f}s).", color=discord.Color.red()), 0
     except Exception as e:
         log.error(f"VT URL EXCEPTION → {url}: {e} t={time.time()-_t0:.1f}s")
         await _finalizar_error(guild_id, "url", url)
@@ -435,25 +435,26 @@ async def _procesar_analisis_archivo(analysis: dict, archivo: discord.Attachment
         if guardar_cache:
             await guardar_analisis_db(clave, "file", "malicioso", embed, mal)
             await set_cache_mem(clave, "malicioso", embed, mal)
-            await guardar_metadatos_hash(f"file:{archivo.filename}:{archivo.size}", file_hash)
+            meta_clave = f"file:{archivo.filename}:{archivo.size}"
+            await guardar_metadatos_hash(meta_clave, file_hash)
+            dummy = discord.Embed(title="File Meta")
+            await set_cache_mem(meta_clave, json.dumps({"hash": file_hash}), dummy, 0)
         return "malicioso", embed, mal
     else:
         embed = discord.Embed(title=f"{EMOJI_CORRECTO} Archivo Seguro", description=f"{EMOJI_FILE} `{archivo.filename}` parece limpio (0 detecciones)", color=discord.Color.green())
         if guardar_cache:
             await guardar_analisis_db(clave, "file", "seguro", embed, 0)
             await set_cache_mem(clave, "seguro", embed, 0)
-            await guardar_metadatos_hash(f"file:{archivo.filename}:{archivo.size}", file_hash)
+            meta_clave = f"file:{archivo.filename}:{archivo.size}"
+            await guardar_metadatos_hash(meta_clave, file_hash)
+            dummy = discord.Embed(title="File Meta")
+            await set_cache_mem(meta_clave, json.dumps({"hash": file_hash}), dummy, 0)
         await update_stats(guild_id, "seguro")
         return "seguro", embed, 0
 
-async def _on_threat_found(tipo_str: str, valor: str, mal: int, guild_id: Optional[int], mensaje_original: Optional[discord.Message], vt_link: Optional[str] = None, results: Optional[dict] = None, guardar_cache: bool = True, elemento_id: Optional[str] = None) -> None:
-    if guild_id:
+async def _post_threat_side_effects(guild_id: int, tipo_str: str, valor: str, mal: int, mensaje_original: discord.Message, vt_link: Optional[str], eid: str) -> None:
+    try:
         await update_stats(guild_id, "malicioso")
-    if mensaje_original and guild_id:
-        if elemento_id:
-            eid = elemento_id
-        else:
-            eid = f"url:{valor}" if tipo_str in ("URL", "url") else f"hash:{valor}" if tipo_str == "hash" else f"ip:{valor}"
         await registrar_infraccion(guild_id, mensaje_original.author.id, eid)
         if vt_link:
             await enviar_log_guild(guild_id, tipo_str, valor, f"{mal} detecciones", mensaje_original.author, vt_link, elemento_id=eid)
@@ -465,6 +466,15 @@ async def _on_threat_found(tipo_str: str, valor: str, mal: int, guild_id: Option
                 await mensaje_original.delete()
             except (discord.errors.Forbidden, discord.errors.NotFound):
                 pass
+    except Exception as e:
+        log.error(f"Error en post-threat side effects: {e}")
+
+
+async def _on_threat_found(tipo_str: str, valor: str, mal: int, guild_id: Optional[int], mensaje_original: Optional[discord.Message], vt_link: Optional[str] = None, results: Optional[dict] = None, guardar_cache: bool = True, elemento_id: Optional[str] = None) -> None:
+    if guild_id and mensaje_original:
+        eid = elemento_id or (f"url:{valor}" if tipo_str in ("URL", "url") else f"hash:{valor}" if tipo_str == "hash" else f"ip:{valor}")
+        task = asyncio.create_task(_post_threat_side_effects(guild_id, tipo_str, valor, mal, mensaje_original, vt_link, eid))
+        task.add_done_callback(lambda t: log.error(f"Post-threat error: {t.exception()}", exc_info=t.exception()) if t.exception() else None)
 
 async def _finalizar_error(guild_id: Optional[int], tipo: str, valor: str) -> None:
     await update_stats(guild_id, "error")

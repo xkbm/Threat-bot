@@ -8,6 +8,7 @@ import discord
 import asyncio
 import logging
 from core import state
+from core.cache import set_cache_mem
 from core.config import DB_FILE, DATA_FILE, EXPIRACION, DOMINIOS_PROTEGIDOS
 from discord.ext import commands
 
@@ -107,7 +108,17 @@ async def obtener_analisis_db(clave: str) -> tuple[Optional[str], Optional[disco
 
 
 async def limpiar_db_expirados() -> None:
-    await POOL.execute('DELETE FROM analisis WHERE expira < ?', (time.time(),))
+    ahora = time.time()
+    while True:
+        await POOL.execute(
+            'DELETE FROM analisis WHERE clave IN (SELECT clave FROM analisis WHERE expira < ? LIMIT 1000)',
+            (ahora,)
+        )
+        row = await POOL.fetchone(
+            'SELECT COUNT(*) FROM analisis WHERE expira < ?', (ahora,)
+        )
+        if not row or row[0] == 0:
+            break
 
 
 async def obtener_hash_desde_metadatos(clave_metadatos: str) -> Optional[str]:
@@ -120,7 +131,11 @@ async def obtener_hash_desde_metadatos(clave_metadatos: str) -> Optional[str]:
         if now < expira:
             try:
                 data = json.loads(resultado)
-                return data.get("hash")
+                hash_val = data.get("hash")
+                if hash_val:
+                    dummy = discord.Embed(title="Meta")
+                    await set_cache_mem(clave_metadatos, json.dumps({"hash": hash_val}), dummy, 0)
+                return hash_val
             except Exception:
                 pass
     return None
