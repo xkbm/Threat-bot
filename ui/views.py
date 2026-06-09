@@ -47,6 +47,22 @@ class RazonModal(discord.ui.Modal, title="Razón de la acción"):
                 await interaction.response.send_message(f"Error inesperado: {e}", ephemeral=True)
             else:
                 await self.parent_view._finalizar_accion(interaction, "Kick", self.razon_texto)
+        elif self.accion == "ignore":
+            config = await obtener_config_guild(self.parent_view.guild_id)
+            uid = str(self.parent_view.user_id)
+            if self.parent_view.elemento_id and uid in config.get("infracciones_registradas", {}):
+                registradas = config["infracciones_registradas"][uid]
+                if self.parent_view.elemento_id in registradas:
+                    registradas.remove(self.parent_view.elemento_id)
+                    if uid in config["infracciones"]:
+                        config["infracciones"][uid] = max(0, config["infracciones"].get(uid, 1) - 1)
+                    await guardar_datos(inmediato=True)
+                    await interaction.response.send_message(f"Infracción eliminada.\n**Razón:** {self.razon_texto}", ephemeral=True)
+                    await self.parent_view._finalizar_accion(interaction, "Ignorar", self.razon_texto)
+                else:
+                    await interaction.response.send_message("Esa infracción ya no existe.", ephemeral=True)
+            else:
+                await interaction.response.send_message("No se pudo identificar la infracción.", ephemeral=True)
 
     async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
         await interaction.response.send_message(f"Error: {error}", ephemeral=True)
@@ -126,19 +142,14 @@ class LogActionView(discord.ui.View):
             return
         config = await obtener_config_guild(self.guild_id)
         uid = str(self.user_id)
-        if self.elemento_id and uid in config.get("infracciones_registradas", {}):
-            registradas = config["infracciones_registradas"][uid]
-            if self.elemento_id in registradas:
-                registradas.remove(self.elemento_id)
-                if uid in config["infracciones"]:
-                    config["infracciones"][uid] = max(0, config["infracciones"].get(uid, 1) - 1)
-                await guardar_datos(inmediato=True)
-                await interaction.response.send_message("Infracción eliminada.", ephemeral=True)
-            else:
-                await interaction.response.send_message("Esa infracción ya no existe.", ephemeral=True)
-        else:
-                await interaction.response.send_message("No se pudo identificar la infracción.", ephemeral=True)
-        await self._finalizar_accion(interaction, "Ignorar", "Infracción removida por administrador")
+        if not self.elemento_id or uid not in config.get("infracciones_registradas", {}):
+            await interaction.response.send_message("No se pudo identificar la infracción.", ephemeral=True)
+            return
+        if self.elemento_id not in config["infracciones_registradas"][uid]:
+            await interaction.response.send_message("Esa infracción ya no existe.", ephemeral=True)
+            return
+        modal = RazonModal("ignore", self, interaction)
+        await interaction.response.send_modal(modal)
 
 
 class ConfirmBanView(discord.ui.View):
