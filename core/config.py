@@ -77,7 +77,7 @@ DOMINIOS_PROTEGIDOS: list[str] = [
 
 ANTISPAM_ANALYSIS_PER_HOUR: int = 30
 ANTISPAM_COOLDOWN: int = 10
-VT_MAX_REQUESTS_PER_USER: int = 4
+VT_MAX_ANALYSES_PER_MINUTE: int = 4
 
 IMAGE_EXTENSIONS: list[str] = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.ico', '.heic', '.heif']
 
