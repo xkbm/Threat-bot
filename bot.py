@@ -54,6 +54,7 @@ bot.guilds_data = {}
 
 bot.antispam_scan = {}
 bot.user_scan_history = {}
+bot.vt_user_requests = {}
 bot._ready_done = False
 bot._background_tasks: list[asyncio.Task] = []
 bot._analysis_sem = asyncio.Semaphore(MAX_ANALYSIS_TASKS)

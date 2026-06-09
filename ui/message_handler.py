@@ -10,7 +10,7 @@ import logging
 import discord
 from discord.ext import commands
 from core.config import MAX_IMAGE_SIZE, MAX_FILE_SIZE, EMOJI_CORRECTO, EMOJI_INCORRECTO, EMOJI_ERROR, EMOJI_WARNING, EMOJI_WHITELIST, EMOJI_LOADING, EMOJI_LINK, EMOJI_FILE, EMOJI_COOLDOWN, EMOJI_REPLY, EMOJI_NSFW, ANTISPAM_ANALYSIS_PER_HOUR, ANTISPAM_COOLDOWN
-from core.utils import safe_remove_loading, safe_add_reaction, safe_send, dominio_en_whitelist, url_es_imagen, es_imagen, expandir_url, tiene_doble_extension, es_url_segura, descargar_url_segura, normalizar_url
+from core.utils import safe_remove_loading, safe_add_reaction, safe_send, dominio_en_whitelist, url_es_imagen, es_imagen, expandir_url, tiene_doble_extension, es_url_segura, descargar_url_segura, normalizar_url, check_vt_user_limit
 from core.cache import get_from_cache_mem, set_cache_mem
 from core.database import obtener_analisis_db, guardar_metadatos_hash, obtener_hash_desde_metadatos
 from api.virustotal import analizar_url, analizar_archivo, enviar_log_guild
@@ -471,6 +471,17 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                     await _procesar_adjuntos_si_hay(bot, message, guild_id, silent_mode, strict_mode, log_channel_id)
                     return
 
+                if not await check_vt_user_limit(message.author.id):
+                    await safe_add_reaction(message, EMOJI_ERROR)
+                    embed_rl = discord.Embed(
+                        title=f"{EMOJI_ERROR} Límite de análisis alcanzado",
+                        description="Demasiadas solicitudes. Espera un momento e intenta de nuevo.",
+                        color=discord.Color.red()
+                    )
+                    await safe_send(message, embed_rl, reference=message)
+                    await _procesar_adjuntos_si_hay(bot, message, guild_id, silent_mode, strict_mode, log_channel_id)
+                    return
+
                 await safe_add_reaction(message, EMOJI_LOADING)
                 try:
                     tipo, embed, mal = await analizar_url(url, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
@@ -532,6 +543,8 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
 
             if urls_api:
                 async def _api_url(url_original: str, url_exp: str, fue_exp: bool) -> tuple[str, str, str, int]:
+                    if not await check_vt_user_limit(message.author.id):
+                        return (url_original, url_exp, "error", 0)
                     async with ANALYSIS_SEMAPHORE:
                         tipo, embed, mal = await analizar_url(url_exp, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
                     return (url_original, url_exp, tipo, mal)
