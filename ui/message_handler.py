@@ -9,7 +9,7 @@ from typing import Optional
 import logging
 import discord
 from discord.ext import commands
-from core.config import MAX_IMAGE_SIZE, MAX_FILE_SIZE, EMOJI_CORRECTO, EMOJI_INCORRECTO, EMOJI_WARNING, EMOJI_WHITELIST, EMOJI_LOADING, EMOJI_LINK, EMOJI_FILE, EMOJI_COOLDOWN, EMOJI_REPLY, ANTISPAM_ANALYSIS_PER_HOUR, ANTISPAM_COOLDOWN
+from core.config import MAX_IMAGE_SIZE, MAX_FILE_SIZE, EMOJI_CORRECTO, EMOJI_INCORRECTO, EMOJI_ERROR, EMOJI_WARNING, EMOJI_WHITELIST, EMOJI_LOADING, EMOJI_LINK, EMOJI_FILE, EMOJI_COOLDOWN, EMOJI_REPLY, EMOJI_NSFW, ANTISPAM_ANALYSIS_PER_HOUR, ANTISPAM_COOLDOWN
 from core.utils import safe_remove_loading, safe_add_reaction, safe_send, dominio_en_whitelist, url_es_imagen, es_imagen, expandir_url, tiene_doble_extension, es_url_segura, descargar_url_segura, normalizar_url
 from core.cache import get_from_cache_mem, set_cache_mem
 from core.database import obtener_analisis_db, guardar_metadatos_hash, obtener_hash_desde_metadatos
@@ -164,15 +164,15 @@ async def _procesar_adjuntos(
         titulo = f"{EMOJI_WARNING} ¡Amenazas detectadas en archivos adjuntos!"
     elif errores:
         color = discord.Color.red()
-        titulo = f"{EMOJI_WARNING} Análisis completado con errores"
+        titulo = f"{EMOJI_ERROR} Análisis completado con errores"
     else:
         color = discord.Color.green()
         titulo = f"{EMOJI_CORRECTO} Todos los archivos son seguros"
 
     descripcion = f"**{total}** archivo(s) analizado(s) en el mensaje de {message.author.mention}:\n"
     descripcion += f"{EMOJI_CORRECTO} Seguros: **{seguros}**\n"
-    descripcion += f"{EMOJI_WARNING} Maliciosos/NSFW: **{maliciosos}**\n"
-    descripcion += f"{EMOJI_INCORRECTO} Errores: **{errores}**"
+    descripcion += f"{EMOJI_NSFW} Maliciosos/NSFW: **{maliciosos}**\n"
+    descripcion += f"{EMOJI_ERROR} Errores: **{errores}**"
     embed_resumen = discord.Embed(title=titulo, description=descripcion, color=color)
 
     campo = ""
@@ -184,11 +184,11 @@ async def _procesar_adjuntos(
             if models.get('offensive', 0.0) >= 0.7: detalles_img.append(f"Ofensivo {models['offensive']*100:.0f}%")
             if models.get('alcohol', 0.0) >= 0.7: detalles_img.append(f"Alcohol {models['alcohol']*100:.0f}%")
             detalle_str = ", ".join(detalles_img) if detalles_img else "Contenido inapropiado"
-            campo += f"{EMOJI_WARNING} `{filename}` (NSFW: {detalle_str})\n"
+            campo += f"{EMOJI_NSFW} `{filename}` (NSFW: {detalle_str})\n"
         elif tipo == "seguro":
             campo += f"{EMOJI_CORRECTO} `{filename}` (imagen)\n"
         else:
-            campo += f"{EMOJI_INCORRECTO} `{filename}` (error)\n"
+            campo += f"{EMOJI_ERROR} `{filename}` (error)\n"
 
     for filename, tipo, mal, file_hash, wm in resultados_arch:
         if tipo == "malicioso":
@@ -196,7 +196,7 @@ async def _procesar_adjuntos(
         elif tipo == "seguro":
             campo += f"{EMOJI_CORRECTO} `{filename}`\n"
         else:
-            campo += f"{EMOJI_INCORRECTO} `{filename}`\n"
+            campo += f"{EMOJI_ERROR} `{filename}`\n"
 
     embed_resumen.add_field(name="Resultados", value=campo[:1024], inline=False)
 
@@ -214,7 +214,7 @@ async def _procesar_adjuntos(
     if maliciosos:
         await safe_add_reaction(message, EMOJI_WARNING)
     elif errores:
-        await safe_add_reaction(message, EMOJI_WARNING)
+        await safe_add_reaction(message, EMOJI_ERROR)
     else:
         await safe_add_reaction(message, EMOJI_CORRECTO)
 
@@ -333,15 +333,15 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                         if is_nsfw:
                             if guild_id:
                                 await registrar_infraccion(guild_id, message.author.id, f"nsfw:{cached_hash}")
-                            await safe_add_reaction(message, EMOJI_WARNING)
+                            await safe_add_reaction(message, EMOJI_NSFW)
                             detectados: list[str] = []
                             if models.get('nudity', 0.0) >= 0.5: detectados.append(f"Desnudez {models['nudity']*100:.0f}%")
                             if models.get('weapon', 0.0) >= 0.5: detectados.append(f"Armas {models['weapon']*100:.0f}%")
                             if models.get('offensive', 0.0) >= 0.7: detectados.append(f"Ofensivo {models['offensive']*100:.0f}%")
                             if models.get('alcohol', 0.0) >= 0.7: detectados.append(f"Alcohol {models['alcohol']*100:.0f}%")
                             detalles_str = ", ".join(detectados) if detectados else "Contenido inapropiado"
-                            embed = discord.Embed(title=f"{EMOJI_WARNING} Contenido Inapropiado Detectado", description=f"{detalles_str}", color=discord.Color.orange())
-                            embed.add_field(name="Resultados", value=f"{EMOJI_WARNING} Imagen NSFW\n{detalles_str}", inline=False)
+                            embed = discord.Embed(title=f"{EMOJI_NSFW} Contenido Inapropiado Detectado", description=f"{detalles_str}", color=discord.Color.orange())
+                            embed.add_field(name="Resultados", value=f"{EMOJI_NSFW} Imagen NSFW\n{detalles_str}", inline=False)
                             await safe_send(message, embed, reference=message)
                             if log_channel_id:
                                 await enviar_log_guild(guild_id, "Imagen NSFW", url, detalles_str, message.author, elemento_id=f"nsfw:{cached_hash}")
@@ -364,13 +364,13 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                         img_data, error = await descargar_url_segura(bot, url, max_size=MAX_IMAGE_SIZE)
                     if error:
                         if error == "too_large":
-                            await safe_add_reaction(message, EMOJI_INCORRECTO)
+                            await safe_add_reaction(message, EMOJI_ERROR)
                             if not silent_mode:
-                                embed = discord.Embed(title=f"{EMOJI_INCORRECTO} Imagen demasiado grande", description="No se puede analizar (>2 MB)", color=discord.Color.red())
+                                embed = discord.Embed(title=f"{EMOJI_ERROR} Imagen demasiado grande", description="No se puede analizar (>2 MB)", color=discord.Color.red())
                                 await safe_send(message, embed, reference=message)
                         else:
-                            await safe_add_reaction(message, EMOJI_INCORRECTO)
-                            await safe_send(message, discord.Embed(title=f"{EMOJI_INCORRECTO} URL bloqueada", description=f"La URL apunta a una dirección interna: {error}", color=discord.Color.red()), reference=message)
+                            await safe_add_reaction(message, EMOJI_ERROR)
+                            await safe_send(message, discord.Embed(title=f"{EMOJI_ERROR} URL bloqueada", description=f"La URL apunta a una dirección interna: {error}", color=discord.Color.red()), reference=message)
                         await _procesar_adjuntos_si_hay(bot, message, guild_id, silent_mode, strict_mode, log_channel_id)
                         return
                     content_hash = hashlib.sha256(img_data).hexdigest()
@@ -384,9 +384,9 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                     await safe_remove_loading(bot, message)
 
                 if models.get("error") == "too_large":
-                    await safe_add_reaction(message, EMOJI_WARNING)
+                    await safe_add_reaction(message, EMOJI_ERROR)
                     if not silent_mode:
-                        embed = discord.Embed(title=f"{EMOJI_WARNING} Imagen no analizada", description="Supera el límite de Sightengine", color=discord.Color.orange())
+                        embed = discord.Embed(title=f"{EMOJI_ERROR} Imagen no analizada", description="Supera el límite de Sightengine", color=discord.Color.orange())
                         await safe_send(message, embed, reference=message)
                     await _procesar_adjuntos_si_hay(bot, message, guild_id, silent_mode, strict_mode, log_channel_id)
                     return
@@ -394,15 +394,15 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                 if is_nsfw:
                     if guild_id:
                         await registrar_infraccion(guild_id, message.author.id, f"nsfw:{content_hash}")
-                    await safe_add_reaction(message, EMOJI_WARNING)
+                    await safe_add_reaction(message, EMOJI_NSFW)
                     detectados: list[str] = []
                     if models.get('nudity', 0.0) >= 0.5: detectados.append(f"Desnudez {models['nudity']*100:.0f}%")
                     if models.get('weapon', 0.0) >= 0.5: detectados.append(f"Armas {models['weapon']*100:.0f}%")
                     if models.get('offensive', 0.0) >= 0.7: detectados.append(f"Ofensivo {models['offensive']*100:.0f}%")
                     if models.get('alcohol', 0.0) >= 0.7: detectados.append(f"Alcohol {models['alcohol']*100:.0f}%")
                     detalles_str = ", ".join(detectados) if detectados else "Contenido inapropiado"
-                    embed = discord.Embed(title=f"{EMOJI_WARNING} Contenido Inapropiado Detectado", description=f"{detalles_str}", color=discord.Color.orange())
-                    embed.add_field(name="Resultados", value=f"{EMOJI_WARNING} Imagen NSFW\n{detalles_str}", inline=False)
+                    embed = discord.Embed(title=f"{EMOJI_NSFW} Contenido Inapropiado Detectado", description=f"{detalles_str}", color=discord.Color.orange())
+                    embed.add_field(name="Resultados", value=f"{EMOJI_NSFW} Imagen NSFW\n{detalles_str}", inline=False)
                     await safe_send(message, embed, reference=message)
                     if log_channel_id:
                         await enviar_log_guild(guild_id, "Imagen NSFW", url, detalles_str, message.author, elemento_id=f"nsfw:{content_hash}")
@@ -467,7 +467,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                     else:
                         if not silent_mode:
                             await safe_send(message, embed, reference=message)
-                        await safe_add_reaction(message, EMOJI_INCORRECTO)
+                        await safe_add_reaction(message, EMOJI_ERROR)
                     await _procesar_adjuntos_si_hay(bot, message, guild_id, silent_mode, strict_mode, log_channel_id)
                     return
 
@@ -490,7 +490,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                 else:
                     if not silent_mode:
                         await safe_send(message, embed, reference=message)
-                    await safe_add_reaction(message, EMOJI_INCORRECTO)
+                    await safe_add_reaction(message, EMOJI_ERROR)
                 await _procesar_adjuntos_si_hay(bot, message, guild_id, silent_mode, strict_mode, log_channel_id)
                 return
 
@@ -550,13 +550,13 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                     await registrar_infraccion(guild_id, message.author.id, f"url:{url_exp}")
 
             color = discord.Color.orange() if maliciosas else (discord.Color.red() if errores else discord.Color.green())
-            titulo = f"{EMOJI_WARNING} Amenazas detectadas" if maliciosas else (f"{EMOJI_WARNING} Errores en el análisis" if errores else f"{EMOJI_CORRECTO} Todos los enlaces son seguros")
+            titulo = f"{EMOJI_WARNING} Amenazas detectadas" if maliciosas else (f"{EMOJI_ERROR} Errores en el análisis" if errores else f"{EMOJI_CORRECTO} Todos los enlaces son seguros")
             descripcion = f"Se analizaron **{len(todas_urls)}** enlace(s) en el mensaje de {message.author.mention}:\n" \
-                          f"{EMOJI_CORRECTO} Seguros: **{seguras}**\n{EMOJI_WARNING} Maliciosos: **{maliciosas}**\n{EMOJI_INCORRECTO} Errores: **{errores}**"
+                          f"{EMOJI_CORRECTO} Seguros: **{seguras}**\n{EMOJI_WARNING} Maliciosos: **{maliciosas}**\n{EMOJI_ERROR} Errores: **{errores}**"
             embed_resumen = discord.Embed(title=titulo, description=descripcion, color=color)
             valor_campo = ""
             for url_orig, url_exp, tipo, _ in resultados:
-                icono = EMOJI_WARNING if tipo == "malicioso" else (EMOJI_CORRECTO if tipo == "seguro" else EMOJI_INCORRECTO)
+                icono = EMOJI_WARNING if tipo == "malicioso" else (EMOJI_CORRECTO if tipo == "seguro" else EMOJI_ERROR)
                 txt = f"{icono} `{url_orig}`"
                 if url_orig != url_exp:
                     txt += f"\n{EMOJI_REPLY} `{url_exp}`"
@@ -582,7 +582,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
         if maliciosas:
             await safe_add_reaction(message, EMOJI_WARNING)
         elif errores:
-            await safe_add_reaction(message, EMOJI_WARNING)
+            await safe_add_reaction(message, EMOJI_ERROR)
         else:
             await safe_add_reaction(message, EMOJI_CORRECTO)
         if maliciosas and strict_mode:
