@@ -63,5 +63,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Local-only docs
+PRODUCT.md
+AGENTS.md
+
 # Deploy
 .vercel
