@@ -9,7 +9,7 @@ Para reportar un bug, abrir un [issue](https://github.com/xkbm/Threat-bot/issues
 - Descripción clara del problema
 - Pasos para reproducir
 - Comportamiento esperado vs actual
-- Versión del bot (si es posible)
+- Fecha en que se detectó el problema
 
 ## Proponer features
 
