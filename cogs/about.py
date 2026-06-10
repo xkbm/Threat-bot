@@ -69,7 +69,7 @@ class InfoCog(commands.Cog):
         )
 
         embed.set_footer(
-            text="El proyecto actualmente es de código cerrado, pero puede que en un futuro se vuelva open source. Si quieres apoyar el proyecto puedes compartirlo con otros."
+            text="Threat es un proyecto open source bajo licencia AGPL-3.0. Código fuente disponible en GitHub."
         )
 
         view = discord.ui.View()
@@ -81,7 +81,7 @@ class InfoCog(commands.Cog):
         ))
         view.add_item(discord.ui.Button(
             style=discord.ButtonStyle.link,
-            url="https://github.com/xkbm",
+            url="https://github.com/xkbm/Threat-bot",
             label="GitHub",
             emoji=self.bot.EMOJI_GITHUB
         ))
