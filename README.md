@@ -5,6 +5,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.10+-blue.svg" alt="Python" />
   <img src="https://img.shields.io/badge/discord.py-%E2%89%A52.3.0-purple.svg" alt="Discord.py" />
+  <img src="https://img.shields.io/badge/Licencia-AGPL--3.0-blue.svg" alt="Licencia" />
 </p>
 
 ---
@@ -52,7 +53,7 @@ Cuando el bot detecta una amenaza, envía un embed al canal configurado con toda
 
 ## Licencia
 
-Este proyecto está licenciado bajo [GNU Affero General Public License v3.0](LICENSE). Puedes ver el código fuente, pero cualquier modificación o distribución debe mantener esta misma licencia.
+Este proyecto está licenciado bajo [GNU Affero General Public License v3.0](LICENSE).
 
 ---
 
