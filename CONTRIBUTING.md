@@ -1,10 +1,10 @@
 # Contribuir a Threat
 
-Gracias por su interés en contribuir a Threat.
+Gracias por interés en contribuir a Threat.
 
 ## Reportar bugs
 
-Si encuentra un bug, abra un [issue](https://github.com/xkbm/Threat-bot/issues) con:
+Para reportar un bug, abrir un [issue](https://github.com/xkbm/Threat-bot/issues) con:
 
 - Descripción clara del problema
 - Pasos para reproducir
@@ -13,20 +13,20 @@ Si encuentra un bug, abra un [issue](https://github.com/xkbm/Threat-bot/issues) 
 
 ## Proponer features
 
-Abra un issue con la etiqueta `enhancement` describiendo:
+Abrir un issue con la etiqueta `enhancement` describiendo:
 
 - Qué problema resuelve
-- Cómo lo imagina
-- Alternativas que considere
+- Cómo se imagina la solución
+- Alternativas consideradas
 
 ## Enviar código
 
-1. Haga fork del repositorio
-2. Cree una branch para su cambio (`git checkout -b feature/nombre`)
-3. Haga sus modificaciones
-4. Asegúrese de que `python -m compileall .` pase sin errores
-5. Abra un Pull Request describiendo su cambio
+1. Hacer fork del repositorio
+2. Crear una branch (`git checkout -b feature/nombre`)
+3. Hacer las modificaciones
+4. Verificar que `python -m compileall .` pase sin errores
+5. Abrir un Pull Request describiendo el cambio
 
 ## Licencia
 
-Al contribuir, acepta que su código sea licenciado bajo [AGPL-3.0](LICENSE).
+Al contribuir, el código se licencia bajo [AGPL-3.0](LICENSE).
