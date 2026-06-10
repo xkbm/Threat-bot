@@ -50,6 +50,12 @@ Cuando el bot detecta una amenaza, envía un embed al canal configurado con toda
 
 ---
 
+## Licencia
+
+Este proyecto está licenciado bajo [GNU Affero General Public License v3.0](LICENSE). Puedes ver el código fuente, pero cualquier modificación o distribución debe mantener esta misma licencia.
+
+---
+
 <p align="center">
   <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands">Añadir Threat a tu servidor</a> · 
   <a href="https://threat-bot-discord.vercel.app">Sitio web</a>
