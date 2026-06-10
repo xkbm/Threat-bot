@@ -8,7 +8,7 @@ import logging
 import aiohttp
 import discord
 from core import state
-from core.config import VT_API_KEYS, SE_API_KEYS_PAIRS, MAX_FILE_SIZE, EMOJI_WARNING, EMOJI_CORRECTO, EMOJI_INCORRECTO, EMOJI_LINK, EMOJI_FILE, EMOJI_FINGERPRINT, EMOJI_GUARDIAN, EMOJI_SHIELD
+from core.config import VT_API_KEYS, SE_API_KEYS_PAIRS, MAX_FILE_SIZE, EMOJI_WARNING, EMOJI_CORRECTO, EMOJI_INCORRECTO, EMOJI_LINK, EMOJI_FILE, EMOJI_FINGERPRINT, EMOJI_GUARDIAN, EMOJI_SHIELD, EMOJI_NSFW
 from core.cache import get_from_cache_mem, set_cache_mem
 from core.database import guardar_analisis_db, guardar_metadatos_hash
 from core.utils import obtener_top_antivirus, es_hash_valido
@@ -111,19 +111,26 @@ async def registrar_uso_vt(key: str) -> None:
         state.bot.vt_key_daily_usage[key]["count"] += 1
     state.bot.vt_key_total_requests[key] += 1
 
-async def enviar_log_guild(guild_id: int, tipo: str, valor: str, detalles: str, usuario: discord.User, url_vt: Optional[str] = None, elemento_id: Optional[str] = None) -> None:
+async def enviar_log_guild(guild_id: int, tipo: str, valor: str, detalles: str, usuario: discord.User, url_vt: Optional[str] = None, elemento_id: Optional[str] = None, es_nsfw: bool = False) -> Optional[discord.Message]:
     config = await obtener_config_guild(guild_id)
     log_channel_id = config["log_channel_id"]
     if log_channel_id is None:
-        return
+        return None
     channel = state.bot.get_channel(log_channel_id)
     if channel is None:
-        return
-    embed = discord.Embed(
-        title=f"{EMOJI_WARNING} Amenaza Detectada",
-        description=f"**{tipo}** analizado resultó **malicioso**",
-        color=discord.Color.red()
-    )
+        return None
+    if es_nsfw:
+        embed = discord.Embed(
+            title=f"{EMOJI_NSFW} Contenido NSFW Detectado",
+            description=f"**{tipo}** contenido NSFW detectado",
+            color=discord.Color.orange()
+        )
+    else:
+        embed = discord.Embed(
+            title=f"{EMOJI_WARNING} Amenaza Detectada",
+            description=f"**{tipo.upper()}** analizado resultó **malicioso**",
+            color=discord.Color.red()
+        )
     embed.add_field(name=f"{EMOJI_FINGERPRINT} Valor", value=f"`{valor}`", inline=False)
     embed.add_field(name=f"{EMOJI_GUARDIAN} Usuario", value=usuario.mention, inline=True)
     embed.add_field(name=f"{EMOJI_SHIELD} Detalles", value=detalles, inline=True)
@@ -131,7 +138,15 @@ async def enviar_log_guild(guild_id: int, tipo: str, valor: str, detalles: str, 
         embed.add_field(name=f"{EMOJI_LINK} VirusTotal", value=f"[Ver informe]({url_vt})", inline=False)
     embed.set_footer(text=f"ID: {usuario.id} • {time.strftime('%Y-%m-%d %H:%M:%S')}")
     view = LogActionView(guild_id, usuario.id, elemento_id=elemento_id)
-    await channel.send(embed=embed, view=view)
+    try:
+        msg = await channel.send(embed=embed, view=view)
+        view.message = msg
+        return msg
+    except discord.errors.Forbidden:
+        log.error(f"enviar_log_guild: sin permisos send_messages/embed_links en #{channel} (guild {guild_id})")
+    except Exception as e:
+        log.error(f"enviar_log_guild: error enviando a canal {channel_id}: {e}")
+    return None
 
 async def analizar_url(url: str, guild_id: Optional[int] = None, mensaje_original: Optional[discord.Message] = None, guardar_cache: bool = True) -> tuple[str, discord.Embed, int]:
     _t0 = time.time()
@@ -166,19 +181,19 @@ async def analizar_url(url: str, guild_id: Optional[int] = None, mensaje_origina
                                 log.debug(f"VT URL STATUS → {status} intento={intento+1}/3")
                 log.debug(f"VT URL TIMEOUT → {url} t={time.time()-_t0:.1f}s")
                 await _finalizar_error(guild_id, "url", url)
-                return "error", discord.Embed(title="Error en análisis", description="El análisis no se completó a tiempo.", color=discord.Color.red()), 0
+                return "error", discord.Embed(title="Error en análisis", description=f"El análisis tardó más de lo esperado ({VT_TIMEOUT.total or 180:.0f}s). Intenta de nuevo.", color=discord.Color.red()), 0
             else:
                 log.debug(f"VT URL ERROR → status={resp.status} url={url} t={time.time()-_t0:.1f}s")
                 await _finalizar_error(guild_id, "url", url)
-                return "error", discord.Embed(title="Error al analizar URL", description="VirusTotal no procesó la solicitud", color=discord.Color.red()), 0
+                return "error", discord.Embed(title="Error al analizar URL", description=f"VirusTotal respondió con código {resp.status}.", color=discord.Color.red()), 0
     except asyncio.TimeoutError:
         log.error(f"VT URL TIMEOUT HTTP → {url} t={time.time()-_t0:.1f}s")
         await _finalizar_error(guild_id, "url", url)
-        return "error", discord.Embed(title="Error de conexión", description="La solicitud a VirusTotal expiró.", color=discord.Color.red()), 0
+        return "error", discord.Embed(title="Error de conexión", description=f"La conexión con VirusTotal expiró ({VT_TIMEOUT.total or 180:.0f}s).", color=discord.Color.red()), 0
     except Exception as e:
         log.error(f"VT URL EXCEPTION → {url}: {e} t={time.time()-_t0:.1f}s")
         await _finalizar_error(guild_id, "url", url)
-        return "error", discord.Embed(title="Error de conexión", description="No se pudo contactar con VirusTotal", color=discord.Color.red()), 0
+        return "error", discord.Embed(title="Error de conexión", description=f"No se pudo contactar con VirusTotal: {type(e).__name__}", color=discord.Color.red()), 0
 
 
 async def analizar_hash(hash_valor: str, guild_id: Optional[int] = None, mensaje_original: Optional[discord.Message] = None, guardar_cache: bool = True) -> tuple[str, discord.Embed, int]:
@@ -306,8 +321,12 @@ async def analizar_archivo(archivo: discord.Attachment, file_bytes: Optional[byt
                 log.debug(f"VT FILE DESCARGANDO → status={resp.status} t={time.time()-_t:.1f}s")
                 if resp.status != 200:
                     await update_stats(guild_id, "error")
-                    return "error", discord.Embed(title="Error al descargar archivo", description="No se pudo obtener el archivo", color=discord.Color.red()), 0
-                file_bytes = await resp.read()
+                    return "error", discord.Embed(title="Error al descargar archivo", description=f"El servidor respondió con código {resp.status}", color=discord.Color.red()), 0
+                file_bytes = await resp.read(limit=MAX_FILE_SIZE + 1024)
+                if len(file_bytes) > MAX_FILE_SIZE:
+                    log.debug(f"VT FILE DEMASIADO GRANDE → {archivo.filename} bytes={len(file_bytes)} t={time.time()-_t0:.1f}s")
+                    await update_stats(guild_id, "error")
+                    return "error", discord.Embed(title="Archivo demasiado grande", description=f"{EMOJI_FILE} `{archivo.filename}` excede 32 MB", color=discord.Color.red()), 0
                 file_hash = hashlib.sha256(file_bytes).hexdigest()
                 log.debug(f"VT FILE DESCARGADO → hash={file_hash} bytes={len(file_bytes)} t={time.time()-_t0:.1f}s")
         except Exception as e:
@@ -426,25 +445,26 @@ async def _procesar_analisis_archivo(analysis: dict, archivo: discord.Attachment
         if guardar_cache:
             await guardar_analisis_db(clave, "file", "malicioso", embed, mal)
             await set_cache_mem(clave, "malicioso", embed, mal)
-            await guardar_metadatos_hash(f"file:{archivo.filename}:{archivo.size}", file_hash)
+            meta_clave = f"file:{archivo.filename}:{archivo.size}"
+            await guardar_metadatos_hash(meta_clave, file_hash)
+            dummy = discord.Embed(title="File Meta")
+            await set_cache_mem(meta_clave, json.dumps({"hash": file_hash}), dummy, 0)
         return "malicioso", embed, mal
     else:
         embed = discord.Embed(title=f"{EMOJI_CORRECTO} Archivo Seguro", description=f"{EMOJI_FILE} `{archivo.filename}` parece limpio (0 detecciones)", color=discord.Color.green())
         if guardar_cache:
             await guardar_analisis_db(clave, "file", "seguro", embed, 0)
             await set_cache_mem(clave, "seguro", embed, 0)
-            await guardar_metadatos_hash(f"file:{archivo.filename}:{archivo.size}", file_hash)
+            meta_clave = f"file:{archivo.filename}:{archivo.size}"
+            await guardar_metadatos_hash(meta_clave, file_hash)
+            dummy = discord.Embed(title="File Meta")
+            await set_cache_mem(meta_clave, json.dumps({"hash": file_hash}), dummy, 0)
         await update_stats(guild_id, "seguro")
         return "seguro", embed, 0
 
-async def _on_threat_found(tipo_str: str, valor: str, mal: int, guild_id: Optional[int], mensaje_original: Optional[discord.Message], vt_link: Optional[str] = None, results: Optional[dict] = None, guardar_cache: bool = True, elemento_id: Optional[str] = None) -> None:
-    if guild_id:
+async def _post_threat_side_effects(guild_id: int, tipo_str: str, valor: str, mal: int, mensaje_original: discord.Message, vt_link: Optional[str], eid: str) -> None:
+    try:
         await update_stats(guild_id, "malicioso")
-    if mensaje_original and guild_id:
-        if elemento_id:
-            eid = elemento_id
-        else:
-            eid = f"url:{valor}" if tipo_str in ("URL", "url") else f"hash:{valor}" if tipo_str == "hash" else f"ip:{valor}"
         await registrar_infraccion(guild_id, mensaje_original.author.id, eid)
         if vt_link:
             await enviar_log_guild(guild_id, tipo_str, valor, f"{mal} detecciones", mensaje_original.author, vt_link, elemento_id=eid)
@@ -454,8 +474,17 @@ async def _on_threat_found(tipo_str: str, valor: str, mal: int, guild_id: Option
         if config["strict_mode"]:
             try:
                 await mensaje_original.delete()
-            except Exception:
+            except (discord.errors.Forbidden, discord.errors.NotFound):
                 pass
+    except Exception as e:
+        log.error(f"Error en post-threat side effects: {e}")
+
+
+async def _on_threat_found(tipo_str: str, valor: str, mal: int, guild_id: Optional[int], mensaje_original: Optional[discord.Message], vt_link: Optional[str] = None, results: Optional[dict] = None, guardar_cache: bool = True, elemento_id: Optional[str] = None) -> None:
+    if guild_id and mensaje_original:
+        eid = elemento_id or (f"url:{valor}" if tipo_str in ("URL", "url") else f"hash:{valor}" if tipo_str == "hash" else f"ip:{valor}")
+        task = asyncio.create_task(_post_threat_side_effects(guild_id, tipo_str, valor, mal, mensaje_original, vt_link, eid))
+        task.add_done_callback(lambda t: log.error(f"Post-threat error: {t.exception()}", exc_info=t.exception()) if t.exception() else None)
 
 async def _finalizar_error(guild_id: Optional[int], tipo: str, valor: str) -> None:
     await update_stats(guild_id, "error")

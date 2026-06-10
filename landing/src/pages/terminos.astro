@@ -1,55 +1,63 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
 ---
 
-<BaseLayout title="Términos de Servicio — Threat">
-  <section class="mx-auto max-w-3xl px-6 pt-32 pb-24">
-    <h1 class="mb-8 text-4xl font-bold tracking-tight md:text-5xl">
-      Términos de <span class="gradient-text">Servicio</span>
-    </h1>
+<BaseLayout
+  title="Términos de Servicio — Threat"
+  description="Términos de servicio de Threat bot de Discord. Al usar Threat aceptas nuestras condiciones de uso y limitaciones de responsabilidad."
+  canonical="/terminos"
+>
+  <section class="section-scanline px-6 pt-28 pb-24 sm:py-36">
+    <div class="mx-auto max-w-3xl">
+      <a href="/" class="mb-6 inline-flex items-center gap-1.5 text-sm text-surface-400 transition-colors hover:text-surface-200">
+        <Icon name="arrow-left" size="1em" />
+        Volver
+      </a>
+      <h1 class="mb-8 text-4xl font-bold tracking-tight md:text-5xl">
+        Términos de <span class="text-shield">Servicio</span>
+      </h1>
 
-    <div class="space-y-6 text-surface-300 leading-relaxed">
-      <p><strong class="text-white">Última actualización:</strong> Mayo 2026</p>
+      <div class="space-y-6 text-surface-300 leading-relaxed">
+        <p><strong class="text-white">Última actualización:</strong> Mayo 2026</p>
 
-      <h2 class="text-xl font-semibold text-white">1. Aceptación de los términos</h2>
-      <p>Al invitar y utilizar Threat en tu servidor de Discord, aceptas estos términos de servicio en su totalidad. Si no estás de acuerdo con alguna parte, no debes utilizar el bot.</p>
+        <h2 class="text-xl font-semibold text-white">1. Aceptación de los términos</h2>
+        <p>Al invitar y utilizar Threat en tu servidor de Discord, aceptas estos términos de servicio en su totalidad. Si no estás de acuerdo con alguna parte, no debes utilizar el bot.</p>
 
-      <h2 class="text-xl font-semibold text-white">2. Descripción del servicio</h2>
-      <p>Threat es un bot de seguridad para Discord que proporciona:</p>
-      <ul class="list-disc pl-6 space-y-2">
-        <li>Análisis de URLs mediante VirusTotal.</li>
-        <li>Detección NSFW en imágenes mediante SightEngine.</li>
-        <li>Protección anti-spam con límites configurables.</li>
-        <li>Sistema de whitelist para dominios permitidos.</li>
-        <li>Registro de amenazas en canales de log configurables.</li>
-      </ul>
+        <h2 class="text-xl font-semibold text-white">2. Descripción del servicio</h2>
+        <p>Threat es un bot de seguridad para Discord que proporciona:</p>
+        <ul class="list-disc pl-6 space-y-2">
+          <li>Análisis de URLs mediante VirusTotal.</li>
+          <li>Detección NSFW en imágenes mediante SightEngine.</li>
+          <li>Protección anti-spam con límites configurables.</li>
+          <li>Sistema de whitelist para dominios permitidos.</li>
+          <li>Registro de amenazas en canales de log configurables.</li>
+        </ul>
 
-      <h2 class="text-xl font-semibold text-white">3. Uso responsable</h2>
-      <p>Como usuario de Threat, aceptas:</p>
-      <ul class="list-disc pl-6 space-y-2">
-        <li>No utilizar el bot para acosar, hostigar o violar los términos de servicio de Discord.</li>
-        <li>No intentar manipular, sabotear o realizar ingeniería inversa del bot.</li>
-        <li>No enviar intencionalmente contenido malicioso para probar el bot sin las debidas precauciones.</li>
-        <li>No utilizar el bot en servidores que promuevan contenido ilegal o dañino.</li>
-      </ul>
+        <h2 class="text-xl font-semibold text-white">3. Uso responsable</h2>
+        <p>Como usuario de Threat, aceptas:</p>
+        <ul class="list-disc pl-6 space-y-2">
+          <li>No utilizar el bot para acosar, hostigar o violar los términos de servicio de Discord.</li>
+          <li>No intentar manipular, sabotear o realizar ingeniería inversa del bot.</li>
+          <li>No enviar intencionalmente contenido malicioso para probar el bot sin las debidas precauciones.</li>
+          <li>No utilizar el bot en servidores que promuevan contenido ilegal o dañino.</li>
+        </ul>
 
-      <h2 class="text-xl font-semibold text-white">4. Limitación de responsabilidad</h2>
-      <p>Threat se proporciona "tal cual", sin garantías de ningún tipo. El equipo de Threat no se hace responsable por:</p>
-      <ul class="list-disc pl-6 space-y-2">
-        <li>Falsos positivos o negativos en la detección de amenazas.</li>
-        <li>Daños derivados del uso o la imposibilidad de uso del bot.</li>
-        <li>Contenido malicioso que no sea detectado por los servicios de análisis de terceros.</li>
-        <li>Interrupciones del servicio debido a límites de API, mantenimiento o fallos técnicos.</li>
-      </ul>
+        <h2 class="text-xl font-semibold text-white">4. Limitación de responsabilidad</h2>
+        <p>Threat se proporciona "tal cual", sin garantías de ningún tipo. El equipo de Threat no se hace responsable por:</p>
+        <ul class="list-disc pl-6 space-y-2">
+          <li>Falsos positivos o negativos en la detección de amenazas.</li>
+          <li>Daños derivados del uso o la imposibilidad de uso del bot.</li>
+          <li>Contenido malicioso que no sea detectado por los servicios de análisis de terceros.</li>
+          <li>Interrupciones del servicio debido a límites de API, mantenimiento o fallos técnicos.</li>
+        </ul>
 
-      <h2 class="text-xl font-semibold text-white">5. Modificaciones</h2>
-      <p>Nos reservamos el derecho de modificar estos términos en cualquier momento. Los cambios serán notificados a través del servidor de soporte o mediante una actualización del bot. El uso continuado del bot después de los cambios constituye la aceptación de los nuevos términos.</p>
+        <h2 class="text-xl font-semibold text-white">5. Terminación</h2>
+        <p>Nos reservamos el derecho de restringir o denegar el acceso a Threat a cualquier servidor o usuario que viole estos términos, sin previo aviso ni responsabilidad.</p>
 
-      <h2 class="text-xl font-semibold text-white">6. Terminación</h2>
-      <p>Nos reservamos el derecho de restringir o denegar el acceso a Threat a cualquier servidor o usuario que viole estos términos, sin previo aviso ni responsabilidad.</p>
-
-      <h2 class="text-xl font-semibold text-white">7. Contacto</h2>
-      <p>Para cualquier pregunta sobre estos términos, contacta a imsh4d0w_ a través de Discord.</p>
+        <h2 class="text-xl font-semibold text-white">6. Contacto</h2>
+        <p>Para cualquier pregunta sobre estos términos, contacta a imsh4d0w_ a través de Discord.</p>
+      </div>
     </div>
   </section>
 </BaseLayout>

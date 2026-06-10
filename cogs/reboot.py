@@ -47,8 +47,8 @@ class RebootCog(commands.Cog):
 
         try:
             await interaction.edit_original_response(
-                content="⚠️ **¿Estás seguro de que deseas reiniciar el bot?**\n"
-                "El bot se desconectará y el panel lo reiniciará automáticamente.",
+                content="⚠️ **¿Seguro que quieres reiniciar?**\n"
+                "El bot se desconecta y el panel lo arranca otra vez.",
                 view=view
             )
         except discord.errors.NotFound:

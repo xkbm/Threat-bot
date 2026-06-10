@@ -4,6 +4,7 @@ from discord import app_commands
 import time
 import traceback
 import logging
+from core.utils import maybe_send_review_prompt
 
 log = logging.getLogger("stats")
 
@@ -17,6 +18,8 @@ class EstadisticasCog(commands.Cog):
         for key in self.bot.vt_key_total_requests:
             total += len([t for t in self.bot.vt_key_usage.get(key, []) if ahora - t <= 60])
         limit = self.bot.vt_key_count * 4
+        if limit == 0:
+            return "```\nSin keys VT configuradas\n```"
         porcentaje = (total / limit) * 100
         barra = self.bot.barra_porcentaje(porcentaje, longitud=10)
         return f"{barra} **{porcentaje:.0f}%** ({total}/{limit})"
@@ -29,6 +32,8 @@ class EstadisticasCog(commands.Cog):
             if daily_data["date"] == hoy:
                 total += daily_data["count"]
         limit = self.bot.vt_key_count * 500
+        if limit == 0:
+            return "```\nSin keys VT configuradas\n```"
         porcentaje = (total / limit) * 100
         barra = self.bot.barra_porcentaje(porcentaje, longitud=10)
         return f"{barra} **{porcentaje:.1f}%** ({total}/{limit})"
@@ -41,6 +46,8 @@ class EstadisticasCog(commands.Cog):
             if daily_data["date"] == hoy:
                 total += daily_data["count"]
         limit = self.bot.se_key_count * 500
+        if limit == 0:
+            return "```\nSin keys SightEngine configuradas\n```"
         porcentaje = (total / limit) * 100
         barra = self.bot.barra_porcentaje(porcentaje, longitud=10)
         return f"{barra} **{porcentaje:.1f}%** ({total}/{limit})"
@@ -61,9 +68,10 @@ class EstadisticasCog(commands.Cog):
             embed.add_field(name=f"{self.bot.EMOJI_LUPA} Total análisis", value=f"**{total}**", inline=True)
             embed.add_field(name=f"{self.bot.EMOJI_CORRECTO} Seguros", value=f"**{stats['seguros']}**", inline=True)
             embed.add_field(name=f"{self.bot.EMOJI_WARNING} Maliciosos", value=f"**{stats['maliciosos']}**", inline=True)
+            embed.add_field(name=f"{self.bot.EMOJI_NSFW} NSFW", value=f"**{stats.get('nsfw', 0)}**", inline=True)
             embed.add_field(name=f"{self.bot.EMOJI_INCORRECTO} Errores", value=f"**{stats['errores']}**", inline=True)
             embed.add_field(
-                name=f"{self.bot.EMOJI_STATS} Proporción de amenazas",
+                name=f"{self.bot.EMOJI_STATS} Detecciones (%)",
                 value=f"`{self.bot.barra_porcentaje(porcentaje_maliciosos)}` **{porcentaje_maliciosos:.1f}%**",
                 inline=False
             )
@@ -90,12 +98,13 @@ class EstadisticasCog(commands.Cog):
             )
 
             await interaction.followup.send(embed=embed)
+            await maybe_send_review_prompt(self.bot, interaction.channel)
         except Exception as e:
             log.error(f"Error en comando stats: {e}\n{traceback.format_exc()}")
             if interaction.response.is_done():
-                await interaction.followup.send("Ocurrió un error al obtener las estadísticas.", ephemeral=True)
+                await interaction.followup.send("No se pudieron obtener las estadísticas.", ephemeral=True)
             else:
-                await interaction.response.send_message("Ocurrió un error al obtener las estadísticas.", ephemeral=True)
+                await interaction.response.send_message("No se pudieron obtener las estadísticas.", ephemeral=True)
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(EstadisticasCog(bot))

@@ -1,76 +1,77 @@
+<!--
+┌───────────────────────────────┐
+│  zzZ                          │
+│ (o.o)  Threat Bot             │
+│ /|__|\  shh... está durmiendo │
+│ github.com/xkbm               │
+└───────────────────────────────┘
+-->
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
 
 const features = [
   {
-    icon: 'las la-shield-alt',
+    icon: 'shield-alt',
     title: 'Análisis de URLs',
-    description: 'Escanea enlaces con VirusTotal. Expande acortadores y detecta malware, phishing y amenazas en tiempo real.',
+    description: 'Cada enlace se expande y verifica contra VirusTotal.',
+    featured: true,
   },
   {
-    icon: 'las la-eye',
+    icon: 'eye',
     title: 'Detección NSFW',
-    description: 'SightEngine multi-modelo: detecta desnudos, armas, alcohol y contenido ofensivo con alta precisión.',
+    description: 'SightEngine: desnudos, armas, alcohol y contenido ofensivo. Descarga segura sin exponer tu IP.',
   },
   {
-    icon: 'las la-ban',
-    title: 'Anti-Spam',
-    description: 'Límite de 30 URLs/hora por usuario, cooldown de 10s entre análisis. Protección proactiva contra abusos.',
+    icon: 'database',
+    title: 'Cache',
+    description: 'RAM + SQLite con expiración automática. URLs 7 días, archivos 30 días.',
   },
   {
-    icon: 'las la-sync-alt',
-    title: 'Balanceo Automático',
-    description: 'Distribución inteligente de solicitudes entre múltiples servicios. Sin interrupciones por límite de cuota.',
-  },
-  {
-    icon: 'las la-database',
-    title: 'Cache Inteligente',
-    description: 'RAM + SQLite con expiración automática. URLs 7 días, archivos 30 días. Sin análisis redundantes.',
-  },
-  {
-    icon: 'las la-check-double',
-    title: 'Whitelist Flexible',
-    description: 'Dominios protegidos no removibles. Control granular por servidor. Subdomain matching automático.',
+    icon: 'check-double',
+    title: 'Whitelist',
+    description: 'Dominios protegidos no removibles. Coincide dominio y subdominios automáticamente.',
+    closing: true,
   },
 ];
 
 const commands = [
-  { name: '/scan', desc: 'Analiza un archivo o URL', icon: 'las la-search' },
-  { name: '/silentmode', desc: 'Modo silencioso (sin alerts públicos)', icon: 'las la-volume-mute' },
-  { name: '/strictmode', desc: 'Elimina mensajes sospechosos', icon: 'las la-gavel' },
-  { name: '/setlogchannel', desc: 'Configura canal de logs', icon: 'las la-hashtag' },
-  { name: '/settings', desc: 'Ver configuración del servidor', icon: 'las la-cog' },
-  { name: '/whitelist', desc: 'Gestionar dominios permitidos', icon: 'las la-list' },
-  { name: '/stats', desc: 'Estadísticas del servidor', icon: 'las la-chart-bar' },
-  { name: '/help', desc: 'Lista completa de comandos', icon: 'las la-question-circle' },
+  { name: '/scan', desc: 'Analiza un archivo o URL', icon: 'search' },
+  { name: '/autoscan', desc: 'Activa/desactiva escaneo automático', icon: 'shield' },
+  { name: '/silentmode', desc: 'Modo silencioso (sin alerts públicos)', icon: 'volume-mute' },
+  { name: '/strictmode', desc: 'Elimina mensajes con amenazas', icon: 'gavel' },
+  { name: '/setlogchannel', desc: 'Configura canal de logs', icon: 'hashtag' },
+  { name: '/settings', desc: 'Ver configuración del servidor', icon: 'cog' },
+  { name: '/whitelist', desc: 'Gestionar dominios permitidos', icon: 'list' },
+  { name: '/stats', desc: 'Estadísticas globales', icon: 'chart-bar' },
+  { name: '/help', desc: 'Lista completa de comandos', icon: 'question-circle' },
 ];
 
 const steps = [
   {
-    icon: 'las la-envelope',
-    title: 'Mensaje activado',
-    desc: 'Cada mensaje nuevo o editado se analiza al instante. Detecta URLs, imágenes y archivos adjuntos. Máximo 5 archivos por mensaje.',
+    icon: 'envelope',
+    title: 'Llega un mensaje',
+    desc: 'Cada mensaje nuevo o editado se analiza al instante. URLs, imágenes y archivos adjuntos. Máximo 5 archivos por mensaje.',
   },
   {
-    icon: 'las la-expand-arrows-alt',
-    title: 'Pre-análisis',
-    desc: 'Whitelist omite dominios conocidos. Anti-spam: 30 URLs/hora con 10s de cooldown. Acortadores expandidos (hasta 5 saltos). Cache RAM + SQLite. Doble extensión y MIME mismatch detectados.',
+    icon: 'expand-arrows-alt',
+    title: 'Análisis',
+    desc: 'Whitelist ignora dominios de confianza. Anti-spam controla los límites. URLs acortadas se expanden automáticamente. Caché en memoria y base de datos evita repetir análisis.',
   },
   {
-    icon: 'las la-cloud-upload-alt',
+    icon: 'cloud-upload-alt',
     title: 'APIs externas',
-    desc: 'VirusTotal (3 claves rotativas) analiza URLs y archivos. SightEngine (4 modelos: nudity, weapon, alcohol, offensive) escanea imágenes con descarga segura SSRF.',
+    desc: 'VirusTotal analiza URLs y archivos. SightEngine escanea imágenes con 4 modelos: desnudos, armas, alcohol y ofensivo.',
   },
   {
-    icon: 'las la-bell',
+    icon: 'bell',
     title: 'Alerta y acción',
-    desc: 'Recibes una alerta clara con el resultado del análisis y puedes actuar directamente (Ban/Kick/Ignore).',
+    desc: 'Recibes el resultado y puedes actuar directamente: Ban, Kick o Ignorar.',
   },
 ];
 ---
-
 <BaseLayout>
-  <script type="application/ld+json" slot="faq">
+  <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "FAQPage",
@@ -80,7 +81,7 @@ const steps = [
         "name": "¿Qué tipo de amenazas detecta Threat?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Threat analiza URLs maliciosas (malware, phishing) mediante VirusTotal, detecta contenido NSFW (desnudos, armas, alcohol, ofensivo) con SightEngine, y previene spam con límites inteligentes por usuario."
+          "text": "Threat analiza URLs maliciosas (malware, phishing) mediante VirusTotal, detecta contenido NSFW (desnudos, armas, alcohol, ofensivo) con SightEngine, y previene spam con límites por usuario."
         }
       },
       {
@@ -96,7 +97,7 @@ const steps = [
         "name": "¿Threat guarda mis datos personales?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Solo almacenamos datos necesarios para el funcionamiento: configuración del servidor y caché temporal de análisis. No almacenamos mensajes completos, información personal ni contenido de conversaciones."
+          "text": "Solo se almacenan datos necesarios para el funcionamiento: configuración del servidor y caché temporal de análisis. No almacenamos mensajes completos, información personal ni contenido de conversaciones."
         }
       },
       {
@@ -104,7 +105,7 @@ const steps = [
         "name": "¿Cuánto cuesta usar Threat?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Threat es completamente gratuito. El mantenimiento se financia mediante optimización de caché y consumo eficiente de APIs gratuitas."
+          "text": "Threat es completamente gratuito. Sin costos, sin planes pagos."
         }
       },
       {
@@ -112,391 +113,496 @@ const steps = [
         "name": "¿Qué hago si el bot marca un falso positivo?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Puedes agregar el dominio a la whitelist con /whitelist add. Si consideras que es un error recurrente, contacta al desarrollador para revisar el caso."
+          "text": "Puedes agregar el dominio a la whitelist con /whitelist add."
         }
       }
     ]
   }
   </script>
-  <!-- HERO -->
-  <section class="hero-gradient relative flex min-h-screen items-center justify-center px-6 pt-20 sm:pt-24" style="background-size: 400% 400%; animation: gradient-shift 8s ease infinite;">
-    <div class="pointer-events-none absolute inset-0 overflow-hidden">
-      <div class="absolute left-1/4 top-1/4 h-72 w-72 rounded-full bg-discord opacity-[0.08] blur-[120px] animate-float"></div>
-      <div class="absolute right-1/4 bottom-1/4 h-96 w-96 rounded-full bg-discord opacity-[0.05] blur-[150px] animate-float-delayed"></div>
-    </div>
 
-    <div class="relative z-10 mx-auto max-w-6xl w-full pb-16 sm:pb-24">
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16 items-start lg:items-center">
-        <!-- Left column: title + description + CTA -->
-        <div class="text-left">
-          <h1 class="mb-6 text-5xl font-black leading-none tracking-tight text-white sm:text-6xl md:text-7xl lg:text-8xl">
-            Threat
-          </h1>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Threat",
+    "applicationCategory": "SecurityApplication",
+    "operatingSystem": "Discord",
+    "description": "Bot de seguridad para Discord con análisis de URLs, detección NSFW, anti-spam y más.",
+    "url": "https://threat-bot-discord.vercel.app",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    }
+  }
+  </script>
 
-          <p class="mb-8 max-w-xl text-base text-surface-400 sm:text-lg md:text-xl">
-            Seguridad inteligente para tu servidor de Discord.
-            Análisis de URLs, detección NSFW, anti-spam.
-          </p>
-
-          <div class="flex flex-col items-start gap-4 sm:flex-row animate-fade-up-delayed">
-            <a href="https://discord.com/api/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands" target="_blank" rel="noopener noreferrer" class="group inline-flex items-center gap-2 rounded-xl bg-discord px-8 py-3.5 font-semibold text-white transition-all duration-300 hover:bg-discord-light hover:scale-105 hover:shadow-[0_0_40px_rgba(88,101,242,0.4)]">
-              <i class="las la-plus text-lg" aria-hidden="true"></i>
-              Invitar al servidor
-            </a>
-          </div>
-        </div>
-
-        <!-- Right column: chat mockup -->
-        <div id="chat-mockup" class="w-full max-w-md mx-auto lg:mx-0 text-left">
-          <div class="rounded-2xl border border-surface-700 bg-surface-850 shadow-xl">
-            <div class="border-b border-surface-700 px-3 sm:px-5 py-3">
-              <div class="flex items-center gap-2 text-sm font-semibold text-surface-200">
-                <span class="text-surface-500">#</span> general
-              </div>
-            </div>
-
-            <div class="space-y-4 px-3 sm:px-5 pt-4 pb-0">
-              <div>
-                <span class="usuario-1 text-sm font-medium text-surface-200">Alex</span>
-                <span class="mx-1.5 text-surface-600">—</span>
-                <span class="msg-u1 text-sm text-surface-300">¿Alguien tiene el link del nuevo asset?</span>
-              </div>
-
-              <div>
-                <span class="usuario-2 text-sm font-medium text-surface-200">María</span>
-                <span class="mx-1.5 text-surface-600">—</span>
-                <span class="msg-u2 text-sm text-surface-300">creo que sí, te lo paso</span>
-              </div>
-
-              <div id="chat-sent" class="opacity-0">
-                <span class="usuario-mal text-sm font-medium">h4ck3r_1337</span>
-                <span class="mx-1.5 text-surface-600">—</span>
-                <span class="chat-url-text break-all text-sm text-surface-100">https://malware.com/steal-info</span>
-              </div>
-
-              <div id="chat-typing" class="opacity-0 transition-opacity duration-300">
-                <div class="flex items-center gap-1.5 text-sm text-surface-500">
-                  <span class="flex h-1 w-1 rounded-full bg-surface-500 animate-[typing-dot_1.4s_infinite]"></span>
-                  <span class="flex h-1 w-1 rounded-full bg-surface-500 animate-[typing-dot_1.4s_infinite_0.2s]"></span>
-                  <span class="flex h-1 w-1 rounded-full bg-surface-500 animate-[typing-dot_1.4s_infinite_0.4s]"></span>
-                  <span class="ml-1 text-xs">Threat está escribiendo</span>
-                </div>
-              </div>
-
-              <div id="chat-bot-response" class="opacity-0">
-                <div class="mb-1 flex items-center gap-2">
-                  <span class="text-sm font-medium text-white">Threat</span>
-                  <span class="rounded bg-discord px-1.5 py-[1px] text-[9px] font-semibold leading-normal text-white">BOT</span>
-                </div>
-
-                <div class="animate-threat-pulse rounded-lg border-l-4 bg-surface-800 p-3.5" style="border-left-color:#f59e0b">
-                  <div class="mb-1 flex items-center gap-1.5">
-                    <i class="las la-exclamation-triangle text-orange-400" aria-hidden="true"></i>
-                    <span class="text-sm font-semibold text-orange-400">URL Maliciosa Detectada</span>
-                  </div>
-                  <p class="mb-3 text-xs text-surface-300">
-                    Se encontraron <strong class="chat-detecciones text-surface-100">3</strong> detecciones
-                  </p>
-                  <div class="mb-2">
-                    <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-surface-500">URL</div>
-                    <code class="chat-url block truncate rounded bg-surface-700 px-2 py-1 font-mono text-xs text-surface-200">https://malware.com/steal-info</code>
-                  </div>
-                  <span class="inline-flex items-center gap-1 text-xs text-discord-light">
-                    <i class="las la-external-link-alt" aria-hidden="true"></i> Ver informe completo
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div class="mt-5 border-t border-surface-700 px-3 sm:px-5 py-3">
-              <div class="flex items-center gap-2 rounded-lg border border-surface-600 bg-surface-800 px-3 py-2 sm:px-4 sm:py-2.5 text-sm text-surface-500">
-                <span id="chat-input-text" class="flex-1 text-surface-500">Escribe un mensaje...</span>
-                <span id="chat-input-cursor" class="hidden inline-block h-[1.1em] w-[2px] bg-discord animate-composing-cursor"></span>
-                <i class="las la-paperclip text-base" aria-hidden="true"></i>
-              </div>
+  <section class="section-scanline relative overflow-hidden flex flex-col min-h-[100dvh] px-6 pt-6">
+    <div class="pointer-events-none absolute inset-0 z-0" style="background: radial-gradient(ellipse 800px 600px at 50% -100px, rgba(88,101,242,0.06), transparent);" aria-hidden="true"></div>
+    <div class="flex-1 flex items-center justify-center mx-auto max-w-6xl w-full relative z-10">
+      <div class="relative z-10 w-full">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-20 items-center lg:items-start">
+          <!-- Left column -->
+          <div class="text-center sm:text-left">
+            <h1 class="mb-3 text-6xl font-extrabold leading-[0.9] tracking-tight text-white sm:text-6xl md:text-7xl lg:text-8xl">
+              Threat
+              <span class="block mt-2 text-xl font-semibold leading-snug tracking-tight text-surface-300 sm:text-3xl">
+                Seguridad para tu servidor de Discord
+              </span>
+            </h1>
+            <p class="mb-6 max-w-lg text-sm sm:text-base text-surface-400 md:text-xl leading-relaxed">
+              URLs maliciosas, NSFW y phishing. Todo analizado en tiempo real.
+            </p>
+            <div class="flex flex-col items-center gap-4 sm:flex-row sm:items-start animate-fade-up-delayed">
+              <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer" class="group cta-primary inline-flex items-center gap-3 rounded-full bg-discord px-7 py-3.5 font-semibold text-white">
+                <Icon name="plus" />
+                Añadir a Discord
+                </span>
+              </a>
             </div>
           </div>
+          <div id="chat-mockup" class="w-full max-w-sm sm:max-w-md mx-auto lg:mx-0 text-left" aria-hidden="true">
+            <div class="card-outer">
+              <div class="card-inner-alt">
+                <div class="border-b border-surface-700/50 px-3 sm:px-5 py-3 flex items-center gap-2">
+                  <div class="flex items-center gap-1.5">
+                    <span class="h-2 w-2 rounded-full bg-round1"></span>
+                    <span class="h-2 w-2 rounded-full bg-round2"></span>
+                    <span class="h-2 w-2 rounded-full bg-round3"></span>
+                  </div>
+                  <span class="ml-auto font-mono text-[10px] uppercase tracking-wider text-surface-500"># general</span>
+                </div>
+                <div class="space-y-4 px-3 sm:px-5 pt-4 pb-0">
+                  <div class="chat-initial opacity-0">
+                    <span class="font-mono text-xs font-medium text-surface-200">Alex</span>
+                    <span class="mx-1.5 text-surface-600">—</span>
+                    <span class="text-sm text-surface-300">¿Alguien tiene el link del nuevo asset?</span>
+                  </div>
+                  <div class="chat-initial opacity-0">
+                    <span class="font-mono text-xs font-medium text-surface-200">María</span>
+                    <span class="mx-1.5 text-surface-600">—</span>
+                    <span class="text-sm text-surface-300">creo que sí, te lo paso</span>
+                  </div>
+                  <div id="chat-sent" class="opacity-0">
+                    <span class="font-mono text-xs font-medium text-surface-200">h4ck3r_1337</span>
+                    <span class="mx-1.5 text-surface-600">—</span>
+                    <span class="chat-url-text break-all text-sm text-surface-100"></span>
+                  </div>
+                  <div id="chat-typing" class="opacity-0 transition-opacity duration-300">
+                    <div class="flex items-center gap-1.5 text-sm text-surface-500">
+                      <span class="flex h-1 w-1 rounded-full bg-surface-500 animate-[typing-dot_1.4s_infinite]"></span>
+                      <span class="flex h-1 w-1 rounded-full bg-surface-500 animate-[typing-dot_1.4s_infinite_0.2s]"></span>
+                      <span class="flex h-1 w-1 rounded-full bg-surface-500 animate-[typing-dot_1.4s_infinite_0.4s]"></span>
+                      <span class="ml-1 text-xs">Threat está escribiendo</span>
+                    </div>
+                  </div>
+                  <div id="chat-bot-response" class="opacity-0 min-h-[120px]">
+                    <div class="mb-1 flex items-center gap-2">
+                      <span class="font-mono text-xs font-medium text-white">Threat</span>
+                      <span class="inline-flex items-center gap-0.5 rounded bg-discord px-1.5 py-[1px] text-[9px] font-semibold leading-normal text-white"><Icon name="check" class="text-white" size="9px" /> APP</span>
+                    </div>
+                    <div id="chat-response-card" class="border-l-4 bg-surface-800 p-3.5" style="border-left-color: rgb(230, 126, 34);">
+                      <div class="mb-1 flex items-center gap-1.5">
+                        <img id="chat-response-emoji" src="/emoji-warn.png" alt="" class="w-4 h-4" width="16" height="16" />
+                        <span id="chat-response-title" class="text-sm font-semibold text-threat-light">URL Maliciosa Detectada</span>
+                      </div>
+                      <p id="chat-response-desc" class="mb-2 text-xs text-surface-300">
+                        Se encontraron <strong class="text-surface-100">18</strong> detecciones
+                      </p>
+                      <div id="chat-response-url-section" class="mb-2">
+                        <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-surface-500">URL</div>
+                        <code class="chat-url block truncate rounded bg-surface-700 px-2 py-1 font-mono text-xs text-surface-200"></code>
+                      </div>
+                      <span id="chat-response-link" class="inline-flex items-center gap-1 text-xs text-shield-light">
+                        <Icon name="external-link-alt" /> Ver informe completo
+                      </span>
+                    </div>
+                    <div id="chat-response-text" class="hidden text-sm text-surface-300">
+                      <img src="/emoji-whitelist.png" alt="" class="inline w-4 h-4 mr-1" width="16" height="16" />
+                      <strong class="text-surface-100">Dominio(s) en whitelist.</strong> No se requiere análisis.
+                    </div>
+                  </div>
+                </div>
+                <div class="mt-5 border-t border-surface-700/50 px-3 sm:px-5 py-3">
+                  <div class="flex items-center gap-2 rounded-lg border border-surface-600 bg-surface-800 px-3 py-2 sm:px-4 sm:py-2.5 text-sm text-surface-500">
+                    <span id="chat-input-text" class="flex-1 text-surface-500">Escribe un mensaje...</span>
+                    <span id="chat-input-cursor" class="hidden inline-block h-[1.1em] w-[2px] bg-shield animate-composing-cursor"></span>
+                    <Icon name="paperclip" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+        <script type="module">
+          document.addEventListener('DOMContentLoaded', () => {
+            const usuarios = ['Alex', 'María', 'Carlos', 'Laura', 'Pedro', 'Sofía', 'Ana', 'Luis', 'Elena', 'Diego', 'Martín', 'Valentina', 'Joaquín', 'Camila', 'Rodrigo'];
 
-      <script type="module">
-        document.addEventListener('DOMContentLoaded', () => {
-          const usuarios = ['Alex', 'María', 'Carlos', 'Laura', 'Pedro', 'Sofía', 'Ana', 'Luis', 'Elena', 'Diego'];
-          const usuariosMal = ['h4ck3r_1337', 'xPhishMaster', 'malware_420', 'dark_stealer', 'virus_loader99', 'exploit_kiddie', 'phisher_01'];
-          const urls = [
-            'https://malware.com/steal-info',
-            'https://phishing-login.xyz/verify',
-            'https://drive-google.cf/archivo',
-            'https://steam-community.ru/free',
-            'https://dropbox-security.cc/login',
-            'https://free-nitro.download/claim',
-            'https://verify-discord.xyz/gift',
-            'https://secure-update.ga/package',
-            'https://free-bitcoin.tk/claim',
-          ];
-          const conversaciones = [
-            { u1: 'Mira lo que encontré',                u2: '¿qué es eso?',        tipo: 'u1' },
-            { u1: 'Oye, te paso un enlace',              u2: 'dale, mándalo',       tipo: 'u1' },
-            { u1: 'Mira esto que me llegó al DM',        u2: 'pásalo al general',   tipo: 'u1' },
-            { u1: '¿Alguien sabe si esto es seguro?',    u2: 'no sé, pásalo a ver', tipo: 'u1' },
-            { u1: 'Necesito ayuda con un archivo',       u2: 'tíralo aquí',         tipo: 'u1' },
-            { u1: 'Mira, nitro gratis',                  u2: '¿Donde?',             tipo: 'u1' },
-            { u1: 'Gana Robux fácil',                    u2: 'cómo?',               tipo: 'u1' },
-            { u1: 'Boost gratuito para tu server',       u2: 'me interesa',         tipo: 'u1' },
-            { u1: '¿Alguien tiene el link del nuevo asset?', u2: 'creo que sí, te lo paso', tipo: 'u2' },
-            { u1: 'Pasen el último diseño',                  u2: 'yo lo tengo',             tipo: 'u2' },
-            { u1: 'Alguien vio el partido ayer?',            u2: 'estuvo bueno',            tipo: 'intruso' },
-            { u1: 'Qué calor hoy',                           u2: 'no sabes',                tipo: 'intruso' },
-          ];
+            const escenarios = [
+              {
+                tipo: 'malicioso',
+                urls: [
+                  'https://free-nitro.download/claim',
+                  'https://phishing-login.xyz/verify',
+                  'https://steam-community.ru/free',
+                  'https://verify-discord.xyz/gift',
+                  'https://free-bitcoin.tk/claim',
+                  'https://secure-update.ga/package',
+                ],
+                titulo: 'URL Maliciosa Detectada',
+                emoji: '/emoji-warn.png',
+                borderColor: 'rgb(230, 126, 34)',
+                titleClass: 'text-surface-100',
+                conversaciones: [
+                  { u1: '¿Alguien tiene el link del nuevo asset?', u2: 'creo que sí, te lo paso', urlFrom: 'u2' },
+                  { u1: 'Me llegó un link raro', u2: '¿cuál es?', urlFrom: 'u1' },
+                  { u1: 'Oye, te paso un enlace', u2: 'dale, mándalo', urlFrom: 'u1' },
+                  { u1: 'Mira esto que me llegó al DM', u2: 'pásalo al general', urlFrom: 'u1' },
+                  { u1: '¿Es seguro este enlace?', u2: 'no sé, pásalo a ver', urlFrom: 'u1' },
+                  { u1: 'Necesito ayuda con un archivo', u2: 'tíralo aquí', urlFrom: 'u1' },
+                ],
+              },
+              {
+                tipo: 'seguro',
+                urls: [
+                  'https://github.com/discord.py/releases',
+                  'https://stackoverflow.com/questions/12345678/how-to-extend-url',
+                  'https://docs.python.org/3/tutorial/modules.html',
+                  'https://tailwindcss.com/docs/installation',
+                ],
+                titulo: 'URL Segura',
+                emoji: '/emoji-check.png',
+                borderColor: 'var(--color-secure)',
+                titleClass: 'text-surface-100',
+                conversaciones: [
+                  { u1: '¿Alguien ha usado esto?', u2: 'sí, es confiable', urlFrom: 'u1' },
+                  { u1: 'Mira el repo nuevo', u2: '¿qué hay?', urlFrom: 'u1' },
+                  { u1: '¿Alguien tiene el link?', u2: 'sí, aquí va', urlFrom: 'u2' },
+                  { u1: '¿Me pasan el enlace?', u2: 'claro, aquí va', urlFrom: 'u2' },
+                ],
+              },
+              {
+                tipo: 'whitelist',
+                urls: [
+                  'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+                  'https://www.twitch.tv/directory',
+                  'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M',
+                ],
+                titulo: '',
+                emoji: '/emoji-whitelist.png',
+                borderColor: 'var(--color-secure)',
+                titleClass: 'text-surface-100',
+                conversaciones: [
+                  { u1: 'Miren este video', u2: '¿de qué trata?', urlFrom: 'u1' },
+                  { u1: 'Pasen la playlist nueva', u2: 'aquí la tienes', urlFrom: 'u2' },
+                  { u1: '¿Alguien tiene el link del stream?', u2: 'sí, aquí va', urlFrom: 'u2' },
+                ],
+              },
+            ];
 
-          function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-          function randDifferent(arr, exclude) {
-            let v;
-            do { v = rand(arr); } while (v === exclude);
-            return v;
-          }
+            function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
-          const conv = rand(conversaciones);
-          const u1 = rand(usuarios);
-          const u2 = randDifferent(usuarios, u1);
-          const url = rand(urls);
-          const det = Math.floor(Math.random() * 22) + 3;
+            const roll = Math.random();
+            const escenario = roll < 0.5 ? escenarios[0] : roll < 0.8 ? escenarios[1] : escenarios[2];
+            const url = rand(escenario.urls);
+            const conv = rand(escenario.conversaciones);
 
-          document.querySelector('.usuario-1').textContent = u1;
-          document.querySelector('.usuario-2').textContent = u2;
-          document.querySelector('.msg-u1').textContent = conv.u1;
-          document.querySelector('.msg-u2').textContent = conv.u2;
+            const u1Name = rand(usuarios);
+            let u2Name;
+            do { u2Name = rand(usuarios); } while (u2Name === u1Name);
 
-          const malSpan = document.querySelector('.usuario-mal');
-          if (conv.tipo === 'intruso') {
-            malSpan.textContent = rand(usuariosMal);
-            malSpan.className = 'usuario-mal text-sm font-medium text-red-400';
-          } else {
-            malSpan.textContent = conv.tipo === 'u1' ? u1 : u2;
-            malSpan.className = 'usuario-mal text-sm font-medium text-surface-200';
-          }
-          document.querySelector('.chat-url-text').textContent = url;
-          document.querySelector('.chat-url').textContent = url;
-          document.querySelector('.chat-detecciones').textContent = det;
+            const urlSender = conv.urlFrom === 'u2' ? u2Name : u1Name;
 
-          const inputText = document.getElementById('chat-input-text');
-          const inputCursor = document.getElementById('chat-input-cursor');
-          const sentMsg = document.getElementById('chat-sent');
-          const typingInd = document.getElementById('chat-typing');
-          const botResponse = document.getElementById('chat-bot-response');
+            const responseCard = document.getElementById('chat-response-card');
+            const responseText = document.getElementById('chat-response-text');
+            const responseEmoji = document.getElementById('chat-response-emoji');
+            const responseTitle = document.getElementById('chat-response-title');
+            const responseDesc = document.getElementById('chat-response-desc');
+            const responseUrlSection = document.getElementById('chat-response-url-section');
+            const responseLink = document.getElementById('chat-response-link');
 
-          setTimeout(() => {
-            inputText.classList.remove('text-surface-500');
-            inputText.classList.add('text-surface-100');
-            inputText.textContent = '';
-            inputCursor.classList.remove('hidden');
+            if (escenario.tipo === 'whitelist') {
+              responseCard.classList.add('hidden');
+              responseText.classList.remove('hidden');
+            } else {
+              responseCard.classList.remove('hidden');
+              responseText.classList.add('hidden');
+              responseCard.style.borderLeftColor = escenario.borderColor;
+              responseEmoji.src = escenario.emoji;
+              responseTitle.textContent = escenario.titulo;
+              responseTitle.setAttribute('class', `text-sm font-semibold ${escenario.titleClass}`);
 
-            let i = 0;
-            const interval = setInterval(() => {
-              inputText.textContent = url.slice(0, i + 1);
-              i++;
-              if (i >= url.length) {
-                clearInterval(interval);
-                inputText.textContent = url;
-                inputCursor.classList.add('hidden');
-                inputText.classList.remove('text-surface-100');
-                inputText.classList.add('text-surface-500');
-                inputText.textContent = 'Escribe un mensaje...';
-
-                setTimeout(() => {
-                  sentMsg.classList.remove('opacity-0');
-                  sentMsg.classList.add('animate-slide-up');
-
-                  setTimeout(() => {
-                    typingInd.classList.remove('opacity-0');
-
-                    setTimeout(() => {
-                      typingInd.classList.add('opacity-0');
-                      botResponse.classList.remove('opacity-0');
-                      botResponse.classList.add('animate-slide-up');
-                    }, 800);
-                  }, 500);
-                }, 500);
+              if (escenario.tipo === 'malicioso') {
+                const det = Math.floor(Math.random() * 22) + 3;
+                responseDesc.innerHTML = `Se encontraron <strong class="text-surface-100">${det}</strong> detecciones`;
+                responseUrlSection.classList.remove('hidden');
+                responseLink.classList.remove('hidden');
+              } else {
+                responseDesc.textContent = 'No se detectaron amenazas';
+                responseUrlSection.classList.remove('hidden');
+                responseLink.classList.remove('hidden');
               }
-            }, 55);
-          }, 1000);
-        });
-      </script>
-    </div>
+            }
 
-    <div class="absolute bottom-16 left-1/2 -translate-x-1/2 animate-soft-bounce">
-      <a href="#features" class="text-surface-600 transition-colors hover:text-surface-400">
-        <i class="las la-chevron-down text-2xl" aria-hidden="true"></i>
+            const chatInitials = document.querySelectorAll('.chat-initial');
+            chatInitials[0].querySelector('.font-mono').textContent = u1Name;
+            chatInitials[0].querySelector('.text-surface-300').textContent = conv.u1;
+            chatInitials[1].querySelector('.font-mono').textContent = u2Name;
+            chatInitials[1].querySelector('.text-surface-300').textContent = conv.u2;
+
+            document.querySelectorAll('.chat-url-text, .chat-url').forEach((el) => el.textContent = url);
+            document.querySelector('#chat-sent .font-mono').textContent = urlSender;
+
+            const inputText = document.getElementById('chat-input-text');
+            const inputCursor = document.getElementById('chat-input-cursor');
+            const sentMsg = document.getElementById('chat-sent');
+            const typingInd = document.getElementById('chat-typing');
+            const botResponse = document.getElementById('chat-bot-response');
+            setTimeout(() => {
+              chatInitials.forEach((el, i) => {
+                setTimeout(() => {
+                  el.classList.remove('opacity-0');
+                  el.classList.add('animate-slide-up');
+                }, i * 200);
+              });
+              setTimeout(() => {
+                inputText.classList.remove('text-surface-500');
+                inputText.classList.add('text-surface-100');
+                inputText.textContent = '';
+                inputCursor.classList.remove('hidden');
+                let i = 0;
+                function typeChar() {
+                  inputText.textContent = url.slice(0, i + 1);
+                  i++;
+                  if (i < url.length) {
+                    setTimeout(typeChar, 55);
+                  } else {
+                    inputText.textContent = url;
+                    inputCursor.classList.add('hidden');
+                    inputText.classList.remove('text-surface-100');
+                    inputText.classList.add('text-surface-500');
+                    inputText.textContent = 'Escribe un mensaje...';
+                    setTimeout(() => {
+                      sentMsg.classList.remove('opacity-0');
+                      sentMsg.classList.add('animate-slide-up');
+                      setTimeout(() => {
+                        typingInd.classList.remove('opacity-0');
+                        setTimeout(() => {
+                          typingInd.classList.add('opacity-0');
+                          botResponse.classList.remove('opacity-0');
+                          botResponse.classList.add('animate-slide-up');
+                        }, 800);
+                      }, 500);
+                    }, 500);
+                  }
+                }
+                typeChar();
+              }, 600);
+            }, 500);
+          });
+        </script>
+      </div>
+    </div>
+    <div class="flex justify-center">
+      <a href="#features" class="text-surface-500 transition-colors duration-200 hover:text-surface-300">
+        <Icon name="chevron-down" size="1.25em" />
       </a>
     </div>
   </section>
 
-  <!-- FEATURES -->
-  <section id="features" class="scroll-reveal relative border-t border-surface-800 bg-surface-900 px-6 py-16 sm:py-24">
+  <section id="features" class="scroll-reveal relative border-t border-surface-800 bg-surface-900 px-6 py-20 sm:py-28" data-reveal="scale">
     <div class="mx-auto max-w-6xl">
       <div class="mb-16 text-center">
-        <h2 class="mb-4 text-4xl font-bold tracking-tight md:text-5xl">
-          ¿Por qué <span class="gradient-text">Threat</span>?
+        <h2 class="mb-4 text-4xl font-bold tracking-tight text-white md:text-5xl">
+          Características
         </h2>
-        <p class="mx-auto max-w-2xl text-surface-400">
-          Protección integral contra amenazas con análisis multicapa, caché inteligente y alta disponibilidad.
-        </p>
       </div>
 
-      <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {
-          features.map((f) => (
-            <div class="card-hover group rounded-2xl border border-surface-700 bg-surface-800/50 p-6 transition-all duration-300">
-              <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-discord/10 text-2xl text-discord transition-all duration-300 group-hover:bg-discord group-hover:text-white">
-                <i class={f.icon} aria-hidden="true"></i>
-              </div>
-              <h3 class="mb-2 text-lg font-semibold text-white">{f.title}</h3>
-              <p class="text-sm leading-relaxed text-surface-400">{f.description}</p>
-            </div>
-          ))
-        }
-      </div>
-    </div>
-  </section>
-
-  <!-- HOW IT WORKS -->
-  <section id="how-it-works" class="scroll-reveal relative border-t border-surface-800 bg-surface-850 px-6 py-16 sm:py-24">
-    <div class="mx-auto max-w-6xl">
-      <div class="mb-16 text-center">
-        <h2 class="mb-4 text-4xl font-bold tracking-tight md:text-5xl">
-          ¿Cómo <span class="gradient-text">funciona</span>?
-        </h2>
-        <p class="mx-auto max-w-2xl text-surface-400">
-          Pipeline de análisis automático en cada mensaje.
-        </p>
-      </div>
-
-      <div class="relative grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-        <div class="absolute left-0 right-0 top-[32px] z-0 hidden h-0.5 bg-gradient-to-r from-discord/0 via-discord/40 to-discord/0 pointer-events-none lg:block"></div>
-        {
-          steps.map((step, i) => (
-            <div class="relative flex flex-col items-center text-center">
-              <div class="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-surface-600 bg-surface-800 text-2xl text-discord shadow-lg shadow-discord/5">
-                <i class={step.icon} aria-hidden="true"></i>
-              </div>
-              <span class="mb-2 rounded-full bg-discord/10 px-3 py-0.5 text-xs font-semibold text-discord-light">Paso {i + 1}</span>
-              <h3 class="mb-2 text-lg font-semibold text-white">{step.title}</h3>
-              <p class="text-sm text-surface-400">{step.desc}</p>
-            </div>
-          ))
-        }
-      </div>
-    </div>
-  </section>
-
-  <!-- COMMANDS -->
-  <section id="commands" class="scroll-reveal relative border-t border-surface-800 bg-surface-900 px-6 py-16 sm:py-24">
-    <div class="mx-auto max-w-6xl">
-      <div class="mb-16 text-center">
-        <h2 class="mb-4 text-4xl font-bold tracking-tight md:text-5xl">
-          Comandos <span class="gradient-text">disponibles</span>
-        </h2>
-        <p class="mx-auto max-w-2xl text-surface-400">
-          Slash commands diseñados para una administración rápida e intuitiva.
-        </p>
-      </div>
-
-      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {
-          commands.map((cmd) => (
-            <div class="group rounded-xl border border-surface-700 bg-surface-800 p-4 transition-all duration-300 hover:border-discord/50 hover:shadow-lg hover:shadow-discord/5">
-              <div class="flex items-center gap-3">
-                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-700 text-surface-300 transition-all duration-300 group-hover:bg-discord/20 group-hover:text-discord-light">
-                  <i class={cmd.icon} aria-hidden="true"></i>
+      <div class="flex flex-col gap-6">
+        {features.filter(f => f.featured).map((f) => (
+          <div class="card-outer group">
+            <div class="card-inner-alt p-6 sm:p-8">
+              <div class="flex flex-col sm:flex-row items-start gap-6">
+                <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-shield/10 text-3xl text-shield transition-all duration-300 group-hover:bg-shield-light group-hover:text-white">
+                  <Icon name={f.icon} />
                 </div>
-                <div class="min-w-0">
-                  <code class="block truncate font-mono text-sm font-medium text-white">{cmd.name}</code>
-                  <span class="text-xs text-surface-500">{cmd.desc}</span>
+                <div class="flex-1 min-w-0">
+                  <h3 class="mb-2 text-xl font-semibold text-white">{f.title}</h3>
+                  <p class="text-sm leading-relaxed text-surface-400 max-w-2xl">{f.description}</p>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        ))}
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {features.filter(f => !f.featured && !f.closing).map((f, i) => (
+            <div class="card-outer group" style={`transition-delay: ${i * 80}ms`}>
+              <div class="card-inner p-6">
+                <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-shield/10 text-2xl text-shield transition-all duration-300 group-hover:bg-shield-light group-hover:text-white">
+                  <Icon name={f.icon} />
+                </div>
+                <h3 class="mb-2 text-lg font-semibold text-white">{f.title}</h3>
+                <p class="text-sm leading-relaxed text-surface-400">{f.description}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {features.filter(f => f.closing).map((f) => (
+          <div class="card-outer group">
+            <div class="card-inner-alt p-6 sm:p-8">
+              <div class="flex flex-col sm:flex-row items-start gap-6">
+                <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-shield/10 text-3xl text-shield transition-all duration-300 group-hover:bg-shield-light group-hover:text-white">
+                  <Icon name={f.icon} />
+                </div>
+                <div class="flex-1 min-w-0">
+                  <h3 class="mb-2 text-xl font-semibold text-white">{f.title}</h3>
+                  <p class="text-sm leading-relaxed text-surface-400 max-w-2xl">{f.description}</p>
                 </div>
               </div>
             </div>
-          ))
-        }
+          </div>
+        ))}
       </div>
     </div>
   </section>
 
-  <!-- FAQ -->
-  <section id="faq" class="scroll-reveal relative border-t border-surface-800 bg-surface-850 px-6 py-16 sm:py-24">
+  <section id="how-it-works" class="scroll-reveal section-scanline relative border-t border-surface-800 bg-surface-850 px-6 py-24 sm:py-32" data-reveal="none">
+    <div class="mx-auto max-w-6xl">
+      <div class="mb-16 text-center">
+        <h2 class="mb-4 text-4xl font-bold tracking-tight text-white md:text-5xl">
+          Así funciona Threat
+        </h2>
+        <p class="mx-auto max-w-2xl text-surface-400">
+          Cuatro etapas desde que llega un mensaje hasta que recibes la alerta.
+        </p>
+      </div>
+      <div class="relative mx-auto max-w-3xl">
+        <div class="hidden sm:block absolute left-8 lg:left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-shield/40 via-surface-700 to-surface-700 lg:-translate-x-px"></div>
+
+        {steps.map((step, i) => (
+          <div class={`relative flex flex-col sm:flex-row items-start sm:items-center gap-6 pb-16 last:pb-0 ${i % 2 === 0 ? '' : 'lg:flex-row-reverse'}`}>
+            <div class="relative z-10 flex items-center gap-4 sm:flex-col sm:w-16 lg:w-1/2 shrink-0">
+              <span class="relative grid h-10 w-10 sm:h-12 sm:w-12 place-items-center rounded-full bg-surface-850 ring-2 ring-surface-700 font-mono text-xs sm:text-sm font-bold text-shield">
+                {String(i + 1).padStart(2, '0')}
+              </span>
+            </div>
+
+            <div class="flex-1 min-w-0 card-outer group">
+              <div class="card-inner p-5 sm:p-6">
+                <div class="flex items-start gap-4">
+                  <div class="hidden sm:flex mt-0.5 h-10 w-10 shrink-0 items-center justify-center rounded-full bg-shield/10 text-xl text-shield transition-all duration-300 group-hover:bg-shield-light group-hover:text-white">
+                    <Icon name={step.icon} />
+                  </div>
+                  <div class="min-w-0">
+                    <h3 class="mb-1.5 text-lg font-semibold text-white">{step.title}</h3>
+                    <p class="text-sm leading-relaxed text-surface-400">{step.desc}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section id="commands" class="scroll-reveal relative border-t border-surface-800 bg-surface-900 px-6 py-20 sm:py-28" data-reveal="subtle">
+    <div class="mx-auto max-w-6xl">
+      <div class="mb-16 text-center">
+        <h2 class="mb-4 text-4xl font-bold tracking-tight text-white md:text-5xl">
+          Comandos
+        </h2>
+        <p class="mx-auto max-w-2xl text-surface-400">
+          9 comandos para gestionar la seguridad de tu servidor.
+        </p>
+      </div>
+      <div class="card-outer">
+        <div class="card-inner-alt divide-y divide-surface-700/50 overflow-hidden">
+          {commands.map((cmd, i) => (
+            <div class="group flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-3.5 sm:py-4 transition-colors duration-200 hover:bg-surface-800/50">
+              <div class="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-full bg-surface-700 text-surface-400 transition-all duration-300 group-hover:bg-shield-light/20 group-hover:text-shield-light">
+                <Icon name={cmd.icon} size="0.875em" />
+              </div>
+              <div class="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-3">
+                <div class="flex items-center gap-1.5">
+                  <code class="font-mono text-sm font-medium text-white truncate">{cmd.name}</code>
+                </div>
+                <span class="text-xs text-surface-500 truncate">{cmd.desc}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="faq" class="scroll-reveal section-scanline relative border-t border-surface-800 bg-surface-850 px-6 py-16 sm:py-24" data-reveal="none">
     <div class="mx-auto max-w-3xl">
-      <div class="mb-12 text-center">
-        <h2 class="mb-4 text-4xl font-bold tracking-tight md:text-5xl">
-          Preguntas <span class="gradient-text">frecuentes</span>
+      <div class="mb-12">
+        <h2 class="mb-4 text-4xl font-bold tracking-tight text-white md:text-5xl">
+          FAQ
         </h2>
       </div>
-
       <details class="faq-details">
         <summary>
           ¿Qué tipo de amenazas detecta Threat?
-          <i class="las la-plus" aria-hidden="true"></i>
+          <Icon name="plus" size="0.875em" />
         </summary>
         <div class="faq-answer">
-          Threat analiza URLs maliciosas (malware, phishing) mediante VirusTotal, detecta contenido NSFW (desnudos, armas, alcohol, ofensivo) con SightEngine, y previene spam con límites inteligentes por usuario.
+          Threat analiza URLs maliciosas (malware, phishing) mediante VirusTotal, detecta contenido NSFW (desnudos, armas, alcohol, ofensivo) con SightEngine, y previene spam con límites por usuario.
         </div>
       </details>
-
       <details class="faq-details">
         <summary>
           ¿Cómo configuro el bot en mi servidor?
-          <i class="las la-plus" aria-hidden="true"></i>
+          <Icon name="plus" size="0.875em" />
         </summary>
         <div class="faq-answer">
-          Invita al bot con el enlace de arriba, usa <code class="font-mono text-discord-light">/setlogchannel</code> para configurar el canal de logs, y opcionalmente <code class="font-mono text-discord-light">/silentmode</code> o <code class="font-mono text-discord-light">/strictmode</code> según tus necesidades.
+          Invita al bot con el enlace de arriba, usa <code class="font-mono text-shield-light">/setlogchannel</code> para configurar el canal de logs, y opcionalmente <code class="font-mono text-shield-light">/silentmode</code> o <code class="font-mono text-shield-light">/strictmode</code> según tus necesidades.
         </div>
       </details>
-
       <details class="faq-details">
         <summary>
           ¿Threat guarda mis datos personales?
-          <i class="las la-plus" aria-hidden="true"></i>
+          <Icon name="plus" size="0.875em" />
         </summary>
         <div class="faq-answer">
-          Solo almacenamos datos necesarios para el funcionamiento: configuración del servidor y caché temporal de análisis. No almacenamos mensajes completos, información personal ni contenido de conversaciones. Consulta nuestra <a href="/privacidad" class="text-discord-light hover:underline">Política de Privacidad</a> para más detalles.
+          Solo se almacenan datos necesarios para el funcionamiento: configuración del servidor y caché temporal de análisis. No almacenamos mensajes completos, información personal ni contenido de conversaciones. Consulta nuestra <a href="/privacidad" class="text-shield-light hover:underline">Política de Privacidad</a> para más detalles.
         </div>
       </details>
-
       <details class="faq-details">
         <summary>
           ¿Cuánto cuesta usar Threat?
-          <i class="las la-plus" aria-hidden="true"></i>
+          <Icon name="plus" size="0.875em" />
         </summary>
         <div class="faq-answer">
-          Threat es completamente gratuito. El mantenimiento se financia mediante optimización de caché y consumo eficiente de APIs gratuitas.
+          Threat es completamente gratuito. Sin costos, sin planes pagos.
         </div>
       </details>
-
       <details class="faq-details">
         <summary>
           ¿Qué hago si el bot marca un falso positivo?
-          <i class="las la-plus" aria-hidden="true"></i>
+          <Icon name="plus" size="0.875em" />
         </summary>
         <div class="faq-answer">
-          Puedes agregar el dominio a la whitelist con <code class="font-mono text-discord-light">/whitelist add</code>. Si consideras que es un error recurrente, contacta a <strong class="text-surface-100">imsh4d0w_</strong> para revisar el caso.
+          Puedes agregar el dominio a la whitelist con <code class="font-mono text-shield-light">/whitelist add</code>.
         </div>
       </details>
     </div>
   </section>
 
-  <!-- CTA -->
-  <section class="scroll-reveal relative overflow-hidden border-t border-surface-800 bg-surface-900 px-6 py-16 sm:py-24">
-    <div class="pointer-events-none absolute inset-0">
-      <div class="absolute left-1/2 top-1/2 h-80 w-80 -translate-x-1/2 -translate-y-1/2 rounded-full bg-discord opacity-[0.06] blur-[120px]"></div>
-    </div>
+  <section class="scroll-reveal section-scanline relative overflow-hidden border-t border-surface-800 bg-surface-900 px-6 py-24 sm:py-32" data-reveal="fade">
     <div class="relative z-10 mx-auto max-w-3xl text-center">
-      <h2 class="mb-6 text-4xl font-bold tracking-tight md:text-5xl">
-        Protege tu servidor <span class="gradient-text">ahora</span>
+      <h2 class="mb-6 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+        ¿Listo para proteger tu servidor?
       </h2>
-      <p class="mb-10 text-surface-400">
-        Amenazas en tiempo real. Análisis multicapa. Configuración simple.
-      </p>
-      <a href="https://discord.com/api/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands" target="_blank" rel="noopener noreferrer" class="animate-glow inline-flex items-center gap-2 rounded-xl bg-discord px-10 py-4 text-lg font-semibold text-white transition-all duration-300 hover:bg-discord-light hover:scale-105">
-        <i class="las la-plus" aria-hidden="true"></i>
+      <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer" class="group cta-primary inline-flex items-center gap-3 rounded-full bg-discord px-10 py-4 text-lg font-semibold text-white">
+        <Icon name="plus" />
         Añadir a Discord
+        </span>
       </a>
     </div>
   </section>
@@ -515,7 +621,6 @@ const steps = [
       },
       { threshold: 0.1 }
     );
-
     document.querySelectorAll('.scroll-reveal').forEach((el) => {
       observer.observe(el);
     });

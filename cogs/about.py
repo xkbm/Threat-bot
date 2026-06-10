@@ -54,7 +54,7 @@ class InfoCog(commands.Cog):
         except discord.errors.NotFound:
             pass
 
-    @app_commands.command(name="about", description="Información detallada sobre las capacidades y funcionamiento del bot de seguridad Threat")
+    @app_commands.command(name="about", description="Sobre Threat")
     async def about(self, interaction: discord.Interaction) -> None:
         log.debug(f"ABOUT → usuario={interaction.user.id} guild={interaction.guild.id if interaction.guild else None}")
         await interaction.response.defer()
@@ -62,48 +62,32 @@ class InfoCog(commands.Cog):
         embed = discord.Embed(
             title=f"{self.bot.EMOJI_SHIELD} Acerca de Threat",
             description=(
-                "Analiza URLs, IPs, hashes y archivos con VirusTotal "
-                "y detecta contenido NSFW con Sightengine.\n"
-                "Incluye caché inteligente, sistema de infracciones y logs con botones."
+                "Threat fue desarrollado para mantener las comunidades más seguras.\n"
+                "Protege tu servidor automáticamente usando VirusTotal y Sightengine, evitando malware, phishing y NSFW."
             ),
-            color=discord.Color.blue()
+            color=discord.Color(0x36393F)
         )
 
-        embed.add_field(
-            name=f"{self.bot.EMOJI_LUPA} Análisis",
-            value=(
-                "• Escaneo automático de enlaces, archivos e imágenes\n"
-                "• Mensajes editados y URLs acortadas\n"
-                "• Doble extensión y verificación MIME\n"
-                "• **`/scan`** — análisis manual de URL, IP, hash o archivo"
-            ),
-            inline=False
+        embed.set_footer(
+            text="El proyecto actualmente es de código cerrado, pero puede que en un futuro se vuelva open source. Si quieres apoyar el proyecto puedes compartirlo con otros."
         )
 
-        embed.add_field(
-            name=f"{self.bot.EMOJI_GUARDIAN} Moderación",
-            value=(
-                "• **`/silentmode`** — Solo reacciones, sin mensajes\n"
-                "• **`/strictmode`** — Elimina mensajes peligrosos\n"
-                "• **`/whitelist`** — Dominios de confianza\n"
-                "• **`/setlogchannel`** — Canal de logs con botones\n"
-                "• **`/usercheck`** — Infracciones de un usuario"
-            ),
-            inline=False
-        )
-
-        embed.add_field(
-            name=f"{self.bot.EMOJI_STATS} Caché y límites",
-            value=(
-                "• **Caché**: 1h memoria + 7-30 días SQLite\n"
-                "• **API**: 3 keys VT (12/min) + 3 Sightengine\n"
-                "• **Límites**: 30 análisis/hora, 5 por mensaje"
-            ),
-            inline=False
-        )
+        view = discord.ui.View()
+        view.add_item(discord.ui.Button(
+            style=discord.ButtonStyle.link,
+            url="https://threat-bot-discord.vercel.app",
+            label="Sitio Web",
+            emoji=self.bot.EMOJI_LINK
+        ))
+        view.add_item(discord.ui.Button(
+            style=discord.ButtonStyle.link,
+            url="https://github.com/xkbm",
+            label="GitHub",
+            emoji=self.bot.EMOJI_GITHUB
+        ))
 
         try:
-            await interaction.edit_original_response(embed=embed)
+            await interaction.edit_original_response(embed=embed, view=view)
         except discord.errors.NotFound:
             pass
 

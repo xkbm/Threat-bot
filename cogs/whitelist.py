@@ -24,7 +24,7 @@ class WhitelistCog(commands.Cog):
         if guild_id not in state.bot.guilds_data:
             state.bot.guilds_data[guild_id] = {
                 "silent_mode": False, "strict_mode": False, "log_channel_id": None,
-                "whitelist": [], "stats": {"total_analisis": 0, "seguros": 0, "maliciosos": 0, "errores": 0},
+                "whitelist": [],
                 "infracciones": {}, "infracciones_registradas": {},
             }
         state.bot.guilds_data[guild_id]["whitelist"] = whitelist

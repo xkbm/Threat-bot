@@ -1,4 +1,5 @@
 import re
+import time
 import asyncio
 import socket
 import ipaddress
@@ -9,7 +10,7 @@ import urllib.parse
 import logging
 from collections import OrderedDict
 from discord.ext import commands
-from core.config import EMOJI_LOADING, ANTIVIRUS_CONOCIDOS, IMAGE_EXTENSIONS
+from core.config import EMOJI_LOADING, ANTIVIRUS_CONOCIDOS, IMAGE_EXTENSIONS, VT_MAX_ANALYSES_PER_MINUTE
 
 log = logging.getLogger("utils")
 _dns_cache: OrderedDict[str, tuple[float, str]] = OrderedDict()
@@ -129,6 +130,17 @@ async def es_url_segura(url: str) -> tuple[bool, str]:
     segura, _, _, err = await _resolve_url(url)
     return segura, err
 
+def normalizar_url(url: str) -> str:
+    parsed = urllib.parse.urlparse(url)
+    scheme = parsed.scheme.lower()
+    hostname = (parsed.netloc or "").lower()
+    if ":80" in hostname and scheme == "http":
+        hostname = hostname[:-3]
+    elif ":443" in hostname and scheme == "https":
+        hostname = hostname[:-4]
+    path = parsed.path.rstrip("/") or "/"
+    return urllib.parse.urlunparse((scheme, hostname, path, parsed.params, parsed.query, ""))
+
 async def expandir_url(bot: commands.Bot, url: str) -> str:
     try:
         for _ in range(5):
@@ -168,8 +180,12 @@ async def descargar_url_segura(bot: commands.Bot, url: str, max_size: Optional[i
                 return None, f"HTTP {resp.status}"
             if max_size:
                 cl = resp.headers.get('Content-Length')
-                if cl and int(cl) > max_size:
-                    return None, "too_large"
+                if cl:
+                    try:
+                        if int(cl) > max_size:
+                            return None, "too_large"
+                    except ValueError:
+                        pass  # Content-Length malformado, ignorar
                 data = await resp.read()
                 if len(data) > max_size:
                     return None, "too_large"
@@ -186,3 +202,33 @@ def es_hash_valido(valor: str) -> bool:
 def tiene_doble_extension(filename: str) -> bool:
     partes = filename.rsplit('.', 2)
     return len(partes) == 3 and partes[1].lower() in ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'pdf', 'doc', 'xls', 'exe', 'vbs', 'ps1', 'bat', 'cmd', 'msi', 'scr', 'lnk', 'com', 'gadget', 'docx', 'xlsx', 'ppt', 'pptx', 'jar', 'py']
+
+import random as _random
+
+REVIEW_PROMPT_URL = "https://top.gg/bot/1038186932456390726#reviews"
+REVIEW_PROMPT_CHANCE = 0.05
+
+async def maybe_send_review_prompt(bot, channel: discord.abc.Messageable) -> None:
+    if _random.random() >= REVIEW_PROMPT_CHANCE:
+        return
+    embed = discord.Embed(
+        description=(
+            "Si te gusta Threat, ¡considera [dejar una reseña en Top.gg]"
+            f"({REVIEW_PROMPT_URL})!"
+        ),
+        color=discord.Color(0xff3366)
+    )
+    try:
+        await channel.send(embed=embed)
+    except Exception:
+        pass
+
+async def check_vt_user_limit(user_id: int) -> bool:
+    from core import state
+    ahora = time.time()
+    history = state.bot.vt_user_requests.setdefault(user_id, [])
+    state.bot.vt_user_requests[user_id] = [t for t in history if ahora - t < 60]
+    if len(state.bot.vt_user_requests[user_id]) >= VT_MAX_ANALYSES_PER_MINUTE:
+        return False
+    state.bot.vt_user_requests[user_id].append(ahora)
+    return True

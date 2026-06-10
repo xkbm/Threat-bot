@@ -8,7 +8,8 @@ import discord
 import asyncio
 import logging
 from core import state
-from core.config import DB_FILE, DATA_FILE, EXPIRACION
+from core.cache import set_cache_mem
+from core.config import DB_FILE, DATA_FILE, EXPIRACION, DOMINIOS_PROTEGIDOS
 from discord.ext import commands
 
 log = logging.getLogger("db")
@@ -107,7 +108,17 @@ async def obtener_analisis_db(clave: str) -> tuple[Optional[str], Optional[disco
 
 
 async def limpiar_db_expirados() -> None:
-    await POOL.execute('DELETE FROM analisis WHERE expira < ?', (time.time(),))
+    ahora = time.time()
+    while True:
+        await POOL.execute(
+            'DELETE FROM analisis WHERE clave IN (SELECT clave FROM analisis WHERE expira < ? LIMIT 1000)',
+            (ahora,)
+        )
+        row = await POOL.fetchone(
+            'SELECT COUNT(*) FROM analisis WHERE expira < ?', (ahora,)
+        )
+        if not row or row[0] == 0:
+            break
 
 
 async def obtener_hash_desde_metadatos(clave_metadatos: str) -> Optional[str]:
@@ -120,7 +131,11 @@ async def obtener_hash_desde_metadatos(clave_metadatos: str) -> Optional[str]:
         if now < expira:
             try:
                 data = json.loads(resultado)
-                return data.get("hash")
+                hash_val = data.get("hash")
+                if hash_val:
+                    dummy = discord.Embed(title="Meta")
+                    await set_cache_mem(clave_metadatos, json.dumps({"hash": hash_val}), dummy, 0)
+                return hash_val
             except Exception:
                 pass
     return None
@@ -195,7 +210,11 @@ async def guardar_datos(inmediato: bool = False, include_runtime: bool = False) 
         _guardar_datos_task = asyncio.create_task(_debounced())
 
 async def cargar_datos() -> None:
-    _read_json = lambda: json.loads(open(DATA_FILE, "r", encoding="utf-8").read()) if os.path.exists(DATA_FILE) else {}
+    def _read_json():
+        if not os.path.exists(DATA_FILE):
+            return {}
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
+            return json.loads(f.read())
     try:
         data = await asyncio.to_thread(_read_json)
         api_usage = data.get("__api_usage__", {})
@@ -208,9 +227,22 @@ async def cargar_datos() -> None:
                 continue
             else:
                 try:
-                    state.bot.guilds_data[int(gid)] = val
+                    guild_id = int(gid)
                 except ValueError:
                     continue
+                if isinstance(val, dict):
+                    defaults = {
+                        "silent_mode": False,
+                        "strict_mode": False,
+                        "auto_scan_enabled": True,
+                        "log_channel_id": None,
+                        "whitelist": list(DOMINIOS_PROTEGIDOS),
+                        "infracciones": {},
+                        "infracciones_registradas": {},
+                    }
+                    for key, default_val in defaults.items():
+                        val.setdefault(key, default_val)
+                    state.bot.guilds_data[guild_id] = val
         state.bot.vt_key_total_requests = api_usage.get("total_requests", {})
         state.bot.vt_key_daily_usage = api_usage.get("daily_usage", {})
         if not hasattr(state.bot, 'vt_key_usage') or not state.bot.vt_key_usage:
@@ -238,4 +270,3 @@ async def cargar_datos() -> None:
         state.bot.antispam_scan = antispam_scan
     except Exception as e:
         log.error(f"Error al cargar datos: {e}")
-        state.bot.guilds_data = {}

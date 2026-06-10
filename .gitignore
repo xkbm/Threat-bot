@@ -1,29 +1,67 @@
-.env
+# Python
 __pycache__/
 *.pyc
 *.pyo
+*.egg-info/
+venv/
+.venv/
+instance/
+.python-version
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / Astro
+node_modules/
+.astro/
+*.tsbuildinfo
+.eslintcache
+.stylelintcache
+.parcel-cache/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# DB
 analisis.db
 data.json
 *.db
 *.log
+
+# Build
+dist/
+build/
+landing/dist/
+
+# Editor / IDE
 .vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.bak
+
+# OS
+Thumbs.db
+Desktop.ini
+$RECYCLE_BIN/
+.DS_Store
+
+# Tools & cache
 .cache
 .local
 opencode.jsonc
 .opencode/
-instance/
-venv/
-.venv/
-*.egg-info/
-dist/
-build/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-Thumbs.db
-Desktop.ini
-$RECYCLE_BIN/
-npx-cache/
-.python-version
 .agents/
+.mcp/
+npx-cache/
 skills-lock.json
+pnpm-debug.log*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Deploy
+.vercel

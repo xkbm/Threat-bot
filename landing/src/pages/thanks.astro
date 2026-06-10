@@ -1,0 +1,84 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
+
+const steps = [
+  {
+    icon: 'hashtag',
+    title: 'Canal de logs',
+    desc: 'Usa /setlogchannel para elegir dónde recibir alertas de seguridad.',
+  },
+  {
+    icon: 'gavel',
+    title: 'Modo estricto',
+    desc: 'Activa /strictmode para eliminar mensajes con amenazas.',
+  },
+  {
+    icon: 'cog',
+    title: 'Configuración',
+    desc: 'Puedes revisar tu configuración en cualquier momento con /settings.',
+  },
+  {
+    icon: 'question-circle',
+    title: 'Ayuda',
+    desc: 'Escribe /help para ver todos los comandos.',
+  },
+];
+---
+
+<BaseLayout
+  title="Threat añadido — Gracias por invitarlo"
+  description="Threat ya está en tu servidor. Usa /setlogchannel, /strictmode y /settings para configurarlo."
+  canonical="/thanks"
+>
+  <section class="section-scanline relative flex min-h-[100dvh] items-center justify-center px-6 pt-24 pb-16 sm:py-32">
+    <div class="relative z-10 mx-auto max-w-3xl w-full">
+      <div class="flex flex-col items-center text-center">
+        <div class="mb-8 flex h-20 w-20 items-center justify-center rounded-full bg-shield/10">
+          <Icon name="check-circle" class="text-4xl text-shield" />
+        </div>
+
+        <h1 class="mb-4 max-w-2xl text-5xl font-black leading-none tracking-tight sm:text-6xl md:text-7xl">
+          <span class="text-shield">Threat</span> añadido
+        </h1>
+
+        <p class="mb-12 max-w-xl text-base text-surface-400 sm:text-lg">
+          Ya puedes configurarlo con los comandos de abajo y empezar a recibir alertas.
+        </p>
+
+        <div class="mb-12 w-16 border-t border-surface-700"></div>
+
+        <div class="mb-12 grid gap-4 sm:grid-cols-2 w-full max-w-2xl">
+          {steps.map((s) => (
+            <div class="card-outer group">
+              <div class="card-inner p-5 text-left">
+                <div class="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-shield/10 text-xl text-shield transition-all duration-300 group-hover:bg-shield-light group-hover:text-white">
+                  <Icon name={s.icon} />
+                </div>
+                <h3 class="mb-1 text-sm font-semibold text-white">{s.title}</h3>
+                <p class="text-xs leading-relaxed text-surface-400">{s.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div class="flex flex-col items-center gap-4 sm:flex-row">
+          <a href="/" class="group inline-flex items-center gap-3 rounded-full bg-discord px-8 py-3.5 font-semibold text-white transition-transform duration-160 ease-out-expo hover:bg-discord-light active:scale-[0.97]">
+            <Icon name="arrow-left" size="1.125em" />
+            Volver al inicio
+          </a>
+          <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer" class="group inline-flex items-center gap-3 rounded-full border border-surface-600 px-8 py-3.5 font-semibold text-surface-300 transition-all duration-200 hover:border-surface-400 hover:text-white active:scale-[0.97]">
+            <Icon name="plus" size="1.125em" />
+            Invitar a otro servidor
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script type="module">
+    if (location.search.includes('code=')) {
+      history.replaceState(null, '', '/thanks');
+    }
+  </script>
+</BaseLayout>

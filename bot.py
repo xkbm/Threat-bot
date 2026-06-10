@@ -1,20 +1,39 @@
-# Commit: f567b8b
-# Prueba de commit
+# Commit: 24f246d
 import discord
 from discord.ext import commands
 import aiohttp
 import asyncio
 import os
+import time
 import logging
+import json as _json
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 
 MAX_ANALYSIS_TASKS = 100
 
 from core import state
-from core.config import TOKEN, VT_API_KEYS, SE_API_KEYS_PAIRS, OWNER_ID, ANTISPAM_URLS_PER_HOUR
+from core.config import TOKEN, VT_API_KEYS, SE_API_KEYS_PAIRS, OWNER_ID, ANTISPAM_ANALYSIS_PER_HOUR
 from core.database import init_db, cargar_datos, guardar_datos
 
-logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(name)s: %(message)s")
+class StructuredFormatter(logging.Formatter):
+    def format(self, record):
+        log_entry = {
+            "ts": datetime.fromtimestamp(record.created, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"),
+            "level": record.levelname,
+            "logger": record.name,
+            "msg": record.getMessage(),
+        }
+        return _json.dumps(log_entry, ensure_ascii=False)
+
+_log_format = os.getenv("LOG_FORMAT", "text")
+if _log_format == "json":
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(StructuredFormatter())
+    logging.root.handlers = [_handler]
+    logging.root.setLevel(logging.INFO)
+else:
+    logging.basicConfig(level=logging.INFO, format="[%(asctime)s] [%(levelname)s] %(name)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 logging.getLogger("cache").setLevel(logging.DEBUG)
 logging.getLogger("db").setLevel(logging.DEBUG)
 logging.getLogger("handler").setLevel(logging.DEBUG)
@@ -35,6 +54,7 @@ bot.guilds_data = {}
 
 bot.antispam_scan = {}
 bot.user_scan_history = {}
+bot.vt_user_requests = {}
 bot._ready_done = False
 bot._background_tasks: list[asyncio.Task] = []
 bot._analysis_sem = asyncio.Semaphore(MAX_ANALYSIS_TASKS)
@@ -86,13 +106,14 @@ bot.barra_porcentaje = barra_porcentaje
 bot.safe_send = safe_send
 
 from core.config import (
-    EMOJI_CORRECTO, EMOJI_INCORRECTO, EMOJI_WARNING, EMOJI_LINK, EMOJI_LUPA,
+    EMOJI_CORRECTO, EMOJI_INCORRECTO, EMOJI_ERROR, EMOJI_WARNING, EMOJI_LINK, EMOJI_LUPA,
     EMOJI_LOADING, EMOJI_FILE, EMOJI_SHIELD, EMOJI_FINGERPRINT, EMOJI_GUARDIAN,
     EMOJI_STATS, EMOJI_WHITELIST, EMOJI_COOLDOWN, EMOJI_REPLY, EMOJI_KEY,
-    EMOJI_KICK, EMOJI_BAN, EMOJI_CLEAN, MAX_FILE_SIZE, CACHE_DURATION, DATA_FILE, DB_FILE,
+    EMOJI_KICK, EMOJI_BAN, EMOJI_CLEAN, EMOJI_GITHUB, EMOJI_NSFW, MAX_FILE_SIZE, CACHE_DURATION, DATA_FILE, DB_FILE,
 )
 bot.EMOJI_CORRECTO = EMOJI_CORRECTO
 bot.EMOJI_INCORRECTO = EMOJI_INCORRECTO
+bot.EMOJI_ERROR = EMOJI_ERROR
 bot.EMOJI_WARNING = EMOJI_WARNING
 bot.EMOJI_LINK = EMOJI_LINK
 bot.EMOJI_LUPA = EMOJI_LUPA
@@ -109,8 +130,10 @@ bot.EMOJI_KEY = EMOJI_KEY
 bot.EMOJI_KICK = EMOJI_KICK
 bot.EMOJI_BAN = EMOJI_BAN
 bot.EMOJI_CLEAN = EMOJI_CLEAN
+bot.EMOJI_GITHUB = EMOJI_GITHUB
+bot.EMOJI_NSFW = EMOJI_NSFW
 bot.MAX_FILE_SIZE = MAX_FILE_SIZE
-bot.ANTISPAM_URLS_PER_HOUR = ANTISPAM_URLS_PER_HOUR
+bot.ANTISPAM_ANALYSIS_PER_HOUR = ANTISPAM_ANALYSIS_PER_HOUR
 bot.CACHE_DURATION = CACHE_DURATION
 bot.DATA_FILE = DATA_FILE
 bot.DB_FILE = DB_FILE
@@ -166,7 +189,17 @@ async def _limpiar_cron():
         await asyncio.sleep(3600)
         try:
             await limpiar_db_expirados()
-            log.debug("Caché expirada limpiada")
+            ahora = time.time()
+            expired_history = [k for k, v in bot.user_scan_history.items()
+                              if not v or ahora - v[-1] > 3600]
+            for k in expired_history:
+                del bot.user_scan_history[k]
+            expired_anti = [k for k, v in bot.antispam_scan.items()
+                           if ahora - v > 3600]
+            for k in expired_anti:
+                del bot.antispam_scan[k]
+            if expired_history or expired_anti:
+                log.debug(f"Cleanup: {len(expired_history)} history + {len(expired_anti)} antispam entries removed")
         except Exception as e:
             log.error(f"Error limpiando caché: {e}")
 
@@ -179,7 +212,8 @@ async def on_message(message):
     async def _analisis_con_sem():
         async with bot._analysis_sem:
             await procesar_analisis(bot, message)
-    asyncio.create_task(_analisis_con_sem())
+    task = asyncio.create_task(_analisis_con_sem())
+    task.add_done_callback(lambda t: log.error(f"Task error: {t.exception()}", exc_info=t.exception()) if t.exception() else None)
     await bot.process_commands(message)
 
 @bot.event
@@ -192,7 +226,33 @@ async def on_message_edit(before, after):
     async def _analisis_edit_con_sem():
         async with bot._analysis_sem:
             await procesar_analisis(bot, after)
-    asyncio.create_task(_analisis_edit_con_sem())
+    task = asyncio.create_task(_analisis_edit_con_sem())
+    task.add_done_callback(lambda t: log.error(f"Task error: {t.exception()}", exc_info=t.exception()) if t.exception() else None)
+
+async def _enviar_guild_log(guild: discord.Guild, accion: str, color: discord.Color):
+    canal = bot.get_channel(758876871173079060)
+    if not canal:
+        return
+    embed = discord.Embed(
+        title=f"{EMOJI_SHIELD} {accion}",
+        color=color
+    )
+    embed.add_field(name=f"{EMOJI_LINK} Servidor", value=guild.name, inline=True)
+    embed.add_field(name="ID", value=f"`{guild.id}`", inline=True)
+    embed.add_field(name="Miembros", value=f"**{guild.member_count}**", inline=True)
+    embed.add_field(name="Owner", value=str(guild.owner), inline=True)
+    embed.add_field(name="Total servidores", value=f"**{len(bot.guilds)}**", inline=True)
+    embed.set_footer(text=time.strftime('%Y-%m-%d %H:%M:%S'))
+    if guild.icon:
+        embed.set_thumbnail(url=guild.icon.url)
+    try:
+        await canal.send(embed=embed)
+    except Exception as e:
+        log.error(f"_enviar_guild_log: error enviando embed: {e}")
+
+@bot.event
+async def on_guild_join(guild):
+    await _enviar_guild_log(guild, "Añadido a un servidor", discord.Color.green())
 
 @bot.event
 async def on_guild_remove(guild):
@@ -201,6 +261,9 @@ async def on_guild_remove(guild):
         bot.guilds_data.pop(guild_id, None)
         await guardar_datos(inmediato=True)
         log.info(f"Guild {guild_id} ({guild.name}) eliminada — datos limpiados")
+    from core.guild_config import remove_guild_lock
+    await remove_guild_lock(guild_id)
+    await _enviar_guild_log(guild, "Eliminado de un servidor", discord.Color.red())
 
 async def shutdown():
     for task in bot._background_tasks:

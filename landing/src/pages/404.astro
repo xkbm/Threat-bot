@@ -1,0 +1,41 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
+---
+
+<BaseLayout
+  title="Página no encontrada — Threat"
+  description="La página que buscas no existe. Vuelve al inicio o invita a Threat a tu servidor de Discord."
+  canonical="/404"
+>
+  <meta name="robots" content="noindex, follow" />
+  <section class="section-scanline relative flex min-h-[100dvh] items-center justify-center px-6 pt-24 pb-16 sm:py-32">
+    <div class="relative z-10 mx-auto max-w-2xl w-full">
+      <div class="flex flex-col items-center text-center">
+        <h1 class="mb-4 text-8xl font-black leading-none tracking-tight sm:text-9xl md:text-[10rem]">
+          <span class="text-shield">404</span>
+        </h1>
+
+        <p class="mb-2 text-xl font-semibold text-white">
+          Página no encontrada
+        </p>
+
+        <p class="mb-12 max-w-md text-surface-400">
+          El enlace puede ser incorrecto o la página fue movida.
+          Revisa la URL o vuelve al inicio.
+        </p>
+
+        <div class="flex flex-col items-center gap-4 sm:flex-row">
+          <a href="/" class="group inline-flex items-center gap-3 rounded-full bg-discord px-8 py-3.5 font-semibold text-white transition-transform duration-160 ease-out-expo hover:bg-discord-light active:scale-[0.97]">
+            <Icon name="arrow-left" size="1.125em" />
+            Volver al inicio
+          </a>
+          <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer" class="group inline-flex items-center gap-3 rounded-full border border-surface-600 px-8 py-3.5 font-semibold text-surface-300 transition-all duration-200 hover:border-surface-400 hover:text-white active:scale-[0.97]">
+            <Icon name="plus" size="1.125em" />
+            Invitar a Threat
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

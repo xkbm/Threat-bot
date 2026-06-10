@@ -1,0 +1,88 @@
+---
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+export interface Props {
+  name: string;
+  size?: string;
+  class?: string;
+  [key: string]: unknown;
+}
+
+const { name, size = "1em", class: className = "", ...rest } = Astro.props;
+
+const ICON_CACHE: Record<string, string> = {};
+
+function getIconContent(iconName: string): string {
+  if (ICON_CACHE[iconName] !== undefined) return ICON_CACHE[iconName];
+  try {
+    const filePath = join(
+      process.cwd(),
+      "node_modules",
+      "lucide-static",
+      "icons",
+      `${iconName}.svg`,
+    );
+    const svg = readFileSync(filePath, "utf-8");
+    const match = svg.match(/<svg[^>]*>([\s\S]*?)<\/svg>/);
+    ICON_CACHE[iconName] = match ? match[1].trim() : "";
+  } catch {
+    ICON_CACHE[iconName] = "";
+  }
+  return ICON_CACHE[iconName];
+}
+
+const iconMap: Record<string, string> = {
+  "shield-alt": "shield",
+  eye: "eye",
+  ban: "ban",
+  "sync-alt": "refresh-cw",
+  database: "database",
+  "check-double": "check-check",
+  search: "search",
+  "volume-mute": "volume-x",
+  gavel: "gavel",
+  hashtag: "hash",
+  cog: "settings",
+  list: "list",
+  "chart-bar": "chart-column",
+  "question-circle": "circle-question-mark",
+  envelope: "mail",
+  "expand-arrows-alt": "maximize",
+  "cloud-upload-alt": "cloud-upload",
+  bell: "bell",
+  plus: "plus",
+  check: "check",
+  "exclamation-triangle": "triangle-alert",
+  "external-link-alt": "external-link",
+  paperclip: "paperclip",
+  "chevron-down": "chevron-down",
+  bars: "menu",
+  times: "x",
+  "arrow-left": "arrow-left",
+  "arrow-right": "arrow-right",
+  "check-circle": "circle-check-big",
+};
+
+const lucideName = iconMap[name] || name;
+const content = getIconContent(lucideName);
+---
+
+{content && (
+  <svg
+    class={className}
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+    style="display:inline-block;vertical-align:middle"
+    set:html={content}
+    {...rest}
+  />
+)}
