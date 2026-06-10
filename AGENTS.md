@@ -3,6 +3,16 @@
 ## Commit header
 `bot.py` line 1 must be `# Commit: <hash>` — actualizarlo al commit actual antes de modificar el archivo.
 
+## Emojis (core/config.py)
+- `EMOJI_CORRECTO` — análisis seguro
+- `EMOJI_INCORRECTO` — uso incorrecto de comandos
+- `EMOJI_ERROR` — errores de análisis (no confundir con WARNING)
+- `EMOJI_WARNING` — alertas de amenaza/malicioso
+- `EMOJI_NSFW` — detección NSFW
+- `EMOJI_LOADING` — análisis en progreso
+- `EMOJI_COOLDOWN` — rate limit / cooldown
+- `EMOJI_LINK`, `EMOJI_LUPA`, `EMOJI_FILE`, `EMOJI_SHIELD`, etc. — iconos de UI
+
 ## MCP first
 Usar herramientas MCP (GitHub, Jina) antes que bash, websearch o webfetch.
 
@@ -25,6 +35,9 @@ Optional multi-key: `VT_API_KEY_2/3`, `SIGHTENGINE_API_USER_2/3` + `SIGHTENGINE_
 ## Git
 - Use MCP GitHub tools for commits, merges, PRs, branches.
 - Bash git only for `push`, `fetch`, `pull`, `status`, `diff`, `log`, `add`.
+
+## License
+AGPL-3.0 — visible, but forks must stay open source. GitHub detects it natively.
 
 ## CI/CD
 `push dev` → GitHub Actions (`test-bot.yml`): `python -m compileall .` + `timeout 15s python bot.py` (dummy env) → if OK → `merge-to-main.yml`: merge dev→main → Pterodactyl git pull + restart.
@@ -79,8 +92,9 @@ Tests cover: `core/utils.py` (whitelist, hash validation, double extension, perc
 - Empty `image_bytes` returns `(False, 0.0, {}, False)` early without calling API.
 
 ## Anti-spam
-- 30 analyses/hour per user (`ANTISPAM_ANALYSIS_PER_HOUR`), 10s cooldown between scans. Tracks in `bot.user_scan_history` and `bot.antispam_scan`. In `/scan` applies to all types; in auto-analysis only gates URL processing — attachments bypass it.
-- Cache hits bypass cooldown entirely: pre-checks cache for all URLs before applying cooldown. If all cached, no cooldown applied and no API calls made.
+- 30 analyses/hour per user (`ANTISPAM_ANALYSIS_PER_HOUR`), 10s cooldown between scans (`ANTISPAM_COOLDOWN`). Tracks in `bot.user_scan_history` and `bot.antispam_scan`. **Always applies** — even on cache hits. In `/scan` applies to all types; in auto-analysis only gates URL processing — attachments bypass it.
+- **Cache behavior**: 30/h + 10s cooldown always enforced. Timestamp append (`bot.antispam_scan[spam_key]`) only happens on cache miss (when `todas_en_cache` is False). This means cache hits don't consume cooldown but still reject if user is rate-limited.
+- Per-user VT hard limit: `VT_MAX_ANALYSES_PER_MINUTE = 4` (`core/config.py:80`). Checked via `check_vt_user_limit()` in `core/utils.py:226`. Sliding 60s window. Only applies on cache miss (real VT calls). Cache hits bypass this limit by design.
 
 ## Whitelist
 - `dominio_en_whitelist(dominio, whitelist)` checks exact match or subdomain (`core/utils.py:45`).
