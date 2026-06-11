@@ -107,7 +107,7 @@ bot.safe_send = safe_send
 
 from core.config import (
     EMOJI_CORRECTO, EMOJI_INCORRECTO, EMOJI_ERROR, EMOJI_WARNING, EMOJI_LINK, EMOJI_LUPA,
-    EMOJI_LOADING, EMOJI_FILE, EMOJI_SHIELD, EMOJI_FINGERPRINT, EMOJI_GUARDIAN,
+    EMOJI_LOADING, EMOJI_LOADING_ERROR, EMOJI_FILE, EMOJI_SHIELD, EMOJI_FINGERPRINT, EMOJI_GUARDIAN,
     EMOJI_STATS, EMOJI_WHITELIST, EMOJI_COOLDOWN, EMOJI_REPLY, EMOJI_KEY,
     EMOJI_KICK, EMOJI_BAN, EMOJI_CLEAN, EMOJI_GITHUB, EMOJI_NSFW, MAX_FILE_SIZE, CACHE_DURATION, DATA_FILE, DB_FILE,
 )
@@ -118,6 +118,7 @@ bot.EMOJI_WARNING = EMOJI_WARNING
 bot.EMOJI_LINK = EMOJI_LINK
 bot.EMOJI_LUPA = EMOJI_LUPA
 bot.EMOJI_LOADING = EMOJI_LOADING
+bot.EMOJI_LOADING_ERROR = EMOJI_LOADING_ERROR
 bot.EMOJI_FILE = EMOJI_FILE
 bot.EMOJI_SHIELD = EMOJI_SHIELD
 bot.EMOJI_FINGERPRINT = EMOJI_FINGERPRINT
@@ -164,11 +165,7 @@ async def on_ready():
 async def _rotar_estado():
     """Rota el estado del bot cada 30 segundos."""
     estados = [
-        "Escaneando malware - /help",
-        "Protegiendo servidores - /help",
-        "Analizando enlaces - /help",
-        "Detectando amenazas - /help",
-        "Vigilando la red - /help",
+        "tbot-dc.vercel.app - /help",
     ]
     indice = 0
     while True:
