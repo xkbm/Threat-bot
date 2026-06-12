@@ -1,4 +1,4 @@
-# Commit: 8c414bb
+# Commit: 1a1c5bb
 import discord
 from discord.ext import commands
 import aiohttp
@@ -156,29 +156,14 @@ async def on_ready():
     await init_db()
     await cargar_datos()
     await bot.tree.sync()
-    task_estado = asyncio.create_task(_rotar_estado())
+    await bot.change_presence(
+        activity=discord.Activity(type=discord.ActivityType.watching, name="tbot-dc.vercel.app - /help"),
+        status=discord.Status.dnd
+    )
     task_cron = asyncio.create_task(_limpiar_cron())
-    bot._background_tasks = [task_estado, task_cron]
+    bot._background_tasks = [task_cron]
     log.info(f"Bot conectado como {bot.user}")
     log.info("Bot Ready - comandos slash sincronizados")
-
-async def _rotar_estado():
-    """Rota el estado del bot cada 30 segundos."""
-    estados = [
-        "tbot-dc.vercel.app - /help",
-    ]
-    indice = 0
-    while True:
-        try:
-            await bot.change_presence(
-                activity=discord.Activity(type=discord.ActivityType.watching, name=estados[indice]),
-                status=discord.Status.dnd
-            )
-            log.debug(f"Estado rotated: {estados[indice]}")
-            indice = (indice + 1) % len(estados)
-        except Exception:
-            log.exception("Error rotando estado")
-        await asyncio.sleep(30)
 
 async def _limpiar_cron():
     from core.database import limpiar_db_expirados
