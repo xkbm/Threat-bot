@@ -308,6 +308,36 @@ body::after {
   height: 100%;
 }
 
+/* ---- Spotlight hover effect ---- */
+
+.spotlight-item {
+  --mouse-x: 50%;
+  --mouse-y: 50%;
+}
+
+.spotlight-item::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.3s var(--ease-out-expo);
+  background: radial-gradient(600px circle at var(--mouse-x) var(--mouse-y), rgba(26, 89, 216, 0.06), transparent 40%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .spotlight-item:hover::before {
+    opacity: 1;
+  }
+}
+
+.spotlight-item > * {
+  position: relative;
+  z-index: 1;
+}
+
 /* ---- Eyebrow badge ---- */
 
 .eyebrow {

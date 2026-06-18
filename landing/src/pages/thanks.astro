@@ -48,16 +48,14 @@ const steps = [
 
         <div class="mb-12 w-16 border-t border-surface-700"></div>
 
-        <div class="mb-12 grid gap-4 sm:grid-cols-2 w-full max-w-2xl">
+        <div class="mb-12 grid gap-px sm:grid-cols-2 w-full max-w-2xl bg-surface-800">
           {steps.map((s) => (
-            <div class="card-outer group">
-              <div class="card-inner p-5 text-left">
-                <div class="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-shield/10 text-xl text-shield transition-all duration-300 group-hover:bg-shield-light group-hover:text-white">
-                  <Icon name={s.icon} />
-                </div>
-                <h3 class="mb-1 text-sm font-semibold text-white">{s.title}</h3>
-                <p class="text-xs leading-relaxed text-surface-400">{s.desc}</p>
+            <div class="spotlight-item relative bg-surface-900 p-5 text-left group/item">
+              <div class="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-shield/10 text-xl text-shield transition-all duration-300 group-hover/item:bg-shield-light group-hover/item:text-white">
+                <Icon name={s.icon} />
               </div>
+              <h3 class="mb-1 text-sm font-semibold text-white">{s.title}</h3>
+              <p class="text-xs leading-relaxed text-surface-400">{s.desc}</p>
             </div>
           ))}
         </div>
