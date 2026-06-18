@@ -10,64 +10,34 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Icon from '../components/Icon.astro';
 
-const features = [
+const threats = [
   {
-    icon: 'shield-alt',
-    title: 'Análisis de URLs',
-    description: 'Cada enlace se expande y verifica contra VirusTotal.',
-    featured: true,
+    icon: 'link',
+    title: 'Phishing',
+    desc: 'Un miembro comparte un link de "free-nitro.download". Parece legítimo. No lo es. En 5 minutos puede comprometer todas las cuentas que hagan clic.',
   },
   {
     icon: 'eye',
-    title: 'Detección NSFW',
-    description: 'SightEngine: desnudos, armas, alcohol y contenido ofensivo. Descarga segura sin exponer tu IP.',
+    title: 'Contenido NSFW',
+    desc: 'Alguien envía una imagen no deseada al canal general. Los menores de tu servidor la ven antes de que puedas actuar.',
   },
   {
-    icon: 'database',
-    title: 'Cache',
-    description: 'RAM + SQLite con expiración automática. URLs 7 días, archivos 30 días.',
-  },
-  {
-    icon: 'check-double',
-    title: 'Whitelist',
-    description: 'Dominios protegidos no removibles. Coincide dominio y subdominios automáticamente.',
-    closing: true,
+    icon: 'comment-slash',
+    title: 'Spam automatizado',
+    desc: 'Un bot floodea enlaces acortados. Tus miembros no distinguen el spam de contenido real. El canal se vuelve inutilizable.',
   },
 ];
 
-const commands = [
-  { name: '/scan', desc: 'Analiza un archivo o URL', icon: 'search' },
-  { name: '/autoscan', desc: 'Activa/desactiva escaneo automático', icon: 'shield' },
-  { name: '/silentmode', desc: 'Modo silencioso (sin alerts públicos)', icon: 'volume-mute' },
-  { name: '/strictmode', desc: 'Elimina mensajes con amenazas', icon: 'gavel' },
-  { name: '/setlogchannel', desc: 'Configura canal de logs', icon: 'hashtag' },
-  { name: '/settings', desc: 'Ver configuración del servidor', icon: 'cog' },
-  { name: '/whitelist', desc: 'Gestionar dominios permitidos', icon: 'list' },
-  { name: '/stats', desc: 'Estadísticas globales', icon: 'chart-bar' },
-  { name: '/help', desc: 'Lista completa de comandos', icon: 'question-circle' },
+const stack = [
+  { name: 'VirusTotal', desc: 'Análisis de URLs y archivos contra 70+ motores de antivirus' },
+  { name: 'SightEngine', desc: 'Detección NSFW con 4 modelos: desnudos, armas, alcohol, ofensivo' },
+  { name: 'Cache', desc: 'RAM + SQLite. URLs 7 días, archivos 30 días. Sin análisis repetidos' },
 ];
 
-const steps = [
-  {
-    icon: 'envelope',
-    title: 'Llega un mensaje',
-    desc: 'Cada mensaje nuevo o editado se analiza al instante. URLs, imágenes y archivos adjuntos. Máximo 5 archivos por mensaje.',
-  },
-  {
-    icon: 'expand-arrows-alt',
-    title: 'Análisis',
-    desc: 'Whitelist ignora dominios de confianza. Anti-spam controla los límites. URLs acortadas se expanden automáticamente. Caché en memoria y base de datos evita repetir análisis.',
-  },
-  {
-    icon: 'cloud-upload-alt',
-    title: 'APIs externas',
-    desc: 'VirusTotal analiza URLs y archivos. SightEngine escanea imágenes con 4 modelos: desnudos, armas, alcohol y ofensivo.',
-  },
-  {
-    icon: 'bell',
-    title: 'Alerta y acción',
-    desc: 'Recibes el resultado y puedes actuar directamente: Ban, Kick o Ignorar.',
-  },
+const keyCommands = [
+  { name: '/scan', desc: 'Analiza cualquier archivo o URL manualmente' },
+  { name: '/autoscan', desc: 'Activa el escaneo automático de mensajes' },
+  { name: '/setlogchannel', desc: 'Canal donde Threat envía las alertas' },
 ];
 ---
 <BaseLayout>
@@ -137,6 +107,7 @@ const steps = [
   }
   </script>
 
+  <!-- Hero -->
   <section class="section-scanline relative overflow-hidden flex flex-col min-h-[100dvh] px-6 pt-6">
     <div class="pointer-events-none absolute inset-0 z-0" style="background: radial-gradient(ellipse 800px 600px at 50% -100px, rgba(88,101,242,0.06), transparent);" aria-hidden="true"></div>
     <div class="flex-1 flex items-center justify-center mx-auto max-w-6xl w-full relative z-10">
@@ -161,6 +132,7 @@ const steps = [
               </a>
             </div>
           </div>
+          <!-- Chat mockup -->
           <div id="chat-mockup" class="w-full max-w-sm sm:max-w-md mx-auto lg:mx-0 text-left" aria-hidden="true">
             <div class="card-outer">
               <div class="card-inner-alt">
@@ -404,196 +376,328 @@ const steps = [
       </div>
     </div>
     <div class="flex justify-center">
-      <a href="#features" class="text-surface-500 transition-colors duration-200 hover:text-surface-300">
+      <a href="#threats" class="text-surface-500 transition-colors duration-200 hover:text-surface-300">
         <Icon name="chevron-down" size="1.25em" />
       </a>
     </div>
   </section>
 
-  <section id="features" class="scroll-reveal relative border-t border-surface-800 bg-surface-900 px-6 py-20 sm:py-28" data-reveal="scale">
+  <!-- Threats: Esto es lo que ve tu servidor cada día -->
+  <section id="threats" class="scroll-reveal relative border-t border-surface-800 bg-surface-900 px-6 py-20 sm:py-28" data-reveal="scale">
     <div class="mx-auto max-w-6xl">
       <div class="mb-16 text-center">
         <h2 class="mb-4 text-4xl font-bold tracking-tight text-white md:text-5xl">
-          Características
+          Esto es lo que ve tu servidor cada día
         </h2>
+        <p class="mx-auto max-w-2xl text-surface-400">
+          No son casos extremos. Son las amenazas más comunes en servidores de Discord.
+        </p>
       </div>
 
-      <div class="flex flex-col gap-6">
-        {features.filter(f => f.featured).map((f) => (
-          <div class="card-outer group">
-            <div class="card-inner-alt p-6 sm:p-8">
-              <div class="flex flex-col sm:flex-row items-start gap-6">
-                <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-shield/10 text-3xl text-shield transition-all duration-300 group-hover:bg-shield-light group-hover:text-white">
-                  <Icon name={f.icon} />
-                </div>
-                <div class="flex-1 min-w-0">
-                  <h3 class="mb-2 text-xl font-semibold text-white">{f.title}</h3>
-                  <p class="text-sm leading-relaxed text-surface-400 max-w-2xl">{f.description}</p>
-                </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-px bg-surface-800">
+        {threats.map((t) => (
+          <div class="spotlight-item relative bg-surface-900 p-6 sm:p-8">
+            <h3 class="mb-3 text-xl font-semibold text-white">{t.title}</h3>
+            <p class="text-sm leading-relaxed text-surface-400">{t.desc}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
 
+  <!-- Demo: Así reacciona Threat -->
+  <section id="demo" class="scroll-reveal section-scanline relative border-t border-surface-800 bg-surface-850 px-6 py-24 sm:py-32" data-reveal="none">
+    <div class="mx-auto max-w-6xl">
+      <div class="mb-16 text-center">
+        <h2 class="mb-4 text-4xl font-bold tracking-tight text-white md:text-5xl">
+          Así reacciona Threat
+        </h2>
+        <p class="mx-auto max-w-2xl text-surface-400">
+          Un mensaje llega. Threat analiza. Recibes la alerta. Todo en segundos.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
+        <!-- Escenarios -->
+        <div class="flex flex-col gap-6">
+          <div class="spotlight-item relative border border-surface-800 rounded-xl p-5 sm:p-6" id="scenario-phishing">
+            <div class="flex items-start gap-4">
+              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-threat/10 text-xl text-threat-light">
+                <Icon name="link" />
+              </div>
+              <div>
+                <h3 class="mb-1 text-lg font-semibold text-white">Phishing detectado</h3>
+                <p class="text-sm text-surface-400">Un miembro envía <code class="font-mono text-xs text-surface-200 bg-surface-800 px-1.5 py-0.5 rounded">free-nitro.download/claim</code>. Threat lo analiza contra 70+ motores de antivirus y alerta al canal de logs.</p>
               </div>
             </div>
           </div>
-        ))}
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {features.filter(f => !f.featured && !f.closing).map((f, i) => (
-            <div class="card-outer group" style={`transition-delay: ${i * 80}ms`}>
-              <div class="card-inner p-6">
-                <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-shield/10 text-2xl text-shield transition-all duration-300 group-hover:bg-shield-light group-hover:text-white">
-                  <Icon name={f.icon} />
-                </div>
-                <h3 class="mb-2 text-lg font-semibold text-white">{f.title}</h3>
-                <p class="text-sm leading-relaxed text-surface-400">{f.description}</p>
+          <div class="spotlight-item relative border border-surface-800 rounded-xl p-5 sm:p-6" id="scenario-nsfw">
+            <div class="flex items-start gap-4">
+              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-alert/10 text-xl text-alert-light">
+                <Icon name="eye" />
+              </div>
+              <div>
+                <h3 class="mb-1 text-lg font-semibold text-white">Contenido NSFW</h3>
+                <p class="text-sm text-surface-400">Una imagen no deseada llega al general. SightEngine evalúa 4 modelos simultáneamente y clasifica el contenido en segundos.</p>
               </div>
             </div>
-          ))}
+          </div>
+
+          <div class="spotlight-item relative border border-surface-800 rounded-xl p-5 sm:p-6" id="scenario-safe">
+            <div class="flex items-start gap-4">
+              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secure/10 text-xl text-secure-light">
+                <Icon name="check-double" />
+              </div>
+              <div>
+                <h3 class="mb-1 text-lg font-semibold text-white">Link seguro</h3>
+                <p class="text-sm text-surface-400">Alguien comparte un link de YouTube. La whitelist lo reconoce y lo ignora. Sin análisis innecesario, sin rate limits gastados.</p>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {features.filter(f => f.closing).map((f) => (
-          <div class="card-outer group">
-            <div class="card-inner-alt p-6 sm:p-8">
-              <div class="flex flex-col sm:flex-row items-start gap-6">
-                <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-shield/10 text-3xl text-shield transition-all duration-300 group-hover:bg-shield-light group-hover:text-white">
-                  <Icon name={f.icon} />
-                </div>
-                <div class="flex-1 min-w-0">
-                  <h3 class="mb-2 text-xl font-semibold text-white">{f.title}</h3>
-                  <p class="text-sm leading-relaxed text-surface-400 max-w-2xl">{f.description}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  </section>
-
-  <section id="how-it-works" class="scroll-reveal section-scanline relative border-t border-surface-800 bg-surface-850 px-6 py-24 sm:py-32" data-reveal="none">
-    <div class="mx-auto max-w-6xl">
-      <div class="mb-16 text-center">
-        <h2 class="mb-4 text-4xl font-bold tracking-tight text-white md:text-5xl">
-          Así funciona Threat
-        </h2>
-        <p class="mx-auto max-w-2xl text-surface-400">
-          Cuatro etapas desde que llega un mensaje hasta que recibes la alerta.
-        </p>
-      </div>
-      <div class="relative mx-auto max-w-3xl">
-        <div class="hidden sm:block absolute left-8 lg:left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-shield/40 via-surface-700 to-surface-700 lg:-translate-x-px"></div>
-
-        {steps.map((step, i) => (
-          <div class={`relative flex flex-col sm:flex-row items-start sm:items-center gap-6 pb-16 last:pb-0 ${i % 2 === 0 ? '' : 'lg:flex-row-reverse'}`}>
-            <div class="relative z-10 flex items-center gap-4 sm:flex-col sm:w-16 lg:w-1/2 shrink-0">
-              <span class="relative grid h-10 w-10 sm:h-12 sm:w-12 place-items-center rounded-full bg-surface-850 ring-2 ring-surface-700 font-mono text-xs sm:text-sm font-bold text-shield">
-                {String(i + 1).padStart(2, '0')}
-              </span>
-            </div>
-
-            <div class="flex-1 min-w-0 card-outer group">
-              <div class="card-inner p-5 sm:p-6">
-                <div class="flex items-start gap-4">
-                  <div class="hidden sm:flex mt-0.5 h-10 w-10 shrink-0 items-center justify-center rounded-full bg-shield/10 text-xl text-shield transition-all duration-300 group-hover:bg-shield-light group-hover:text-white">
-                    <Icon name={step.icon} />
-                  </div>
-                  <div class="min-w-0">
-                    <h3 class="mb-1.5 text-lg font-semibold text-white">{step.title}</h3>
-                    <p class="text-sm leading-relaxed text-surface-400">{step.desc}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  </section>
-
-  <section id="commands" class="scroll-reveal relative border-t border-surface-800 bg-surface-900 px-6 py-20 sm:py-28" data-reveal="subtle">
-    <div class="mx-auto max-w-6xl">
-      <div class="mb-16 text-center">
-        <h2 class="mb-4 text-4xl font-bold tracking-tight text-white md:text-5xl">
-          Comandos
-        </h2>
-        <p class="mx-auto max-w-2xl text-surface-400">
-          9 comandos para gestionar la seguridad de tu servidor.
-        </p>
-      </div>
-      <div class="card-outer">
-        <div class="card-inner-alt divide-y divide-surface-700/50 overflow-hidden">
-          {commands.map((cmd, i) => (
-            <div class="group flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-3.5 sm:py-4 transition-colors duration-200 hover:bg-surface-800/50">
-              <div class="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-full bg-surface-700 text-surface-400 transition-all duration-300 group-hover:bg-shield-light/20 group-hover:text-shield-light">
-                <Icon name={cmd.icon} size="0.875em" />
-              </div>
-              <div class="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-3">
+        <!-- Chat mockup central -->
+        <div class="w-full max-w-sm sm:max-w-md mx-auto lg:mx-0 text-left lg:sticky lg:top-24">
+          <div class="card-outer">
+            <div class="card-inner-alt">
+              <div class="border-b border-surface-700/50 px-3 sm:px-5 py-3 flex items-center gap-2">
                 <div class="flex items-center gap-1.5">
-                  <code class="font-mono text-sm font-medium text-white truncate">{cmd.name}</code>
+                  <span class="h-2 w-2 rounded-full bg-round1"></span>
+                  <span class="h-2 w-2 rounded-full bg-round2"></span>
+                  <span class="h-2 w-2 rounded-full bg-round3"></span>
                 </div>
-                <span class="text-xs text-surface-500 truncate">{cmd.desc}</span>
+                <span class="ml-auto font-mono text-[10px] uppercase tracking-wider text-surface-500"># general</span>
+              </div>
+              <div id="demo-chat-body" class="space-y-4 px-3 sm:px-5 pt-4 pb-0 min-h-[320px]">
+                <div id="demo-msg-1" class="opacity-0">
+                  <span class="font-mono text-xs font-medium text-surface-200">Carlos</span>
+                  <span class="mx-1.5 text-surface-600">—</span>
+                  <span class="text-sm text-surface-300">miren este link, es re copado</span>
+                </div>
+                <div id="demo-msg-2" class="opacity-0">
+                  <span class="font-mono text-xs font-medium text-surface-200">Laura</span>
+                  <span class="mx-1.5 text-surface-600">—</span>
+                  <span class="demo-chat-url break-all text-sm text-surface-100"></span>
+                </div>
+                <div id="demo-typing" class="opacity-0 transition-opacity duration-300">
+                  <div class="flex items-center gap-1.5 text-sm text-surface-500">
+                    <span class="flex h-1 w-1 rounded-full bg-surface-500 animate-[typing-dot_1.4s_infinite]"></span>
+                    <span class="flex h-1 w-1 rounded-full bg-surface-500 animate-[typing-dot_1.4s_infinite_0.2s]"></span>
+                    <span class="flex h-1 w-1 rounded-full bg-surface-500 animate-[typing-dot_1.4s_infinite_0.4s]"></span>
+                    <span class="ml-1 text-xs">Threat está escribiendo</span>
+                  </div>
+                </div>
+                <div id="demo-response" class="opacity-0">
+                  <div class="mb-1 flex items-center gap-2">
+                    <span class="font-mono text-xs font-medium text-white">Threat</span>
+                    <span class="inline-flex items-center gap-0.5 rounded bg-discord px-1.5 py-[1px] text-[9px] font-semibold leading-normal text-white"><Icon name="check" class="text-white" size="9px" /> APP</span>
+                  </div>
+                  <div id="demo-response-card" class="border-l-4 bg-surface-800 p-3.5" style="border-left-color: rgb(230, 126, 34);">
+                    <div class="mb-1 flex items-center gap-1.5">
+                      <img id="demo-response-emoji" src="/emoji-warn.png" alt="" class="w-4 h-4" width="16" height="16" />
+                      <span id="demo-response-title" class="text-sm font-semibold text-surface-100">URL Maliciosa Detectada</span>
+                    </div>
+                    <p id="demo-response-desc" class="mb-2 text-xs text-surface-300"></p>
+                    <div id="demo-response-url-section" class="mb-2">
+                      <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-surface-500">URL</div>
+                      <code id="demo-response-url" class="block truncate rounded bg-surface-700 px-2 py-1 font-mono text-xs text-surface-200"></code>
+                    </div>
+                    <span id="demo-response-link" class="inline-flex items-center gap-1 text-xs text-shield-light">
+                      <Icon name="external-link-alt" /> Ver informe completo
+                    </span>
+                  </div>
+                  <div id="demo-response-text" class="hidden text-sm text-surface-300">
+                    <img src="/emoji-whitelist.png" alt="" class="inline w-4 h-4 mr-1" width="16" height="16" />
+                    <strong class="text-surface-100">Dominio en whitelist.</strong> No se requiere análisis.
+                  </div>
+                </div>
+              </div>
+              <div class="mt-5 border-t border-surface-700/50 px-3 sm:px-5 py-3">
+                <div class="flex items-center gap-2 rounded-lg border border-surface-600 bg-surface-800 px-3 py-2 sm:px-4 sm:py-2.5 text-sm text-surface-500">
+                  <span class="flex-1 text-surface-500">Escribe un mensaje...</span>
+                  <Icon name="paperclip" />
+                </div>
               </div>
             </div>
-          ))}
+          </div>
         </div>
       </div>
+
+      <script type="module">
+        document.addEventListener('DOMContentLoaded', () => {
+          const demoScenarios = [
+            {
+              url: 'https://free-nitro.download/claim',
+              titulo: 'URL Maliciosa Detectada',
+              emoji: '/emoji-warn.png',
+              borderColor: 'rgb(230, 126, 34)',
+              desc: (det) => `Se encontraron <strong class="text-surface-100">${det}</strong> detecciones`,
+              showUrl: true,
+              showLink: true,
+              isWhitelist: false,
+              highlight: 'scenario-phishing',
+            },
+            {
+              url: 'https://i.imgur.com/NSFWimage.jpg',
+              titulo: 'Contenido Inapropiado Detectado',
+              emoji: '/emoji-warn.png',
+              borderColor: 'rgb(232, 197, 71)',
+              desc: () => `Desnudez <strong class="text-surface-100">72%</strong>, Armas <strong class="text-surface-100">55%</strong>`,
+              showUrl: true,
+              showLink: true,
+              isWhitelist: false,
+              highlight: 'scenario-nsfw',
+            },
+            {
+              url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+              titulo: '',
+              emoji: '/emoji-whitelist.png',
+              borderColor: 'var(--color-secure)',
+              desc: () => '',
+              showUrl: false,
+              showLink: false,
+              isWhitelist: true,
+              highlight: 'scenario-safe',
+            },
+          ];
+
+          function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+          const usuarios = ['Carlos', 'Laura', 'Pedro', 'Sofía', 'Ana', 'Luis'];
+
+          let current = 0;
+
+          function runDemo() {
+            const s = demoScenarios[current];
+            const msg1 = document.getElementById('demo-msg-1');
+            const msg2 = document.getElementById('demo-msg-2');
+            const typing = document.getElementById('demo-typing');
+            const response = document.getElementById('demo-response');
+            const card = document.getElementById('demo-response-card');
+            const text = document.getElementById('demo-response-text');
+            const emoji = document.getElementById('demo-response-emoji');
+            const title = document.getElementById('demo-response-title');
+            const desc = document.getElementById('demo-response-desc');
+            const urlSec = document.getElementById('demo-response-url-section');
+            const link = document.getElementById('demo-response-link');
+            const urlEl = document.getElementById('demo-response-url');
+
+            // Reset
+            [msg1, msg2, typing, response].forEach(el => {
+              el.classList.add('opacity-0');
+              el.classList.remove('animate-slide-up');
+            });
+
+            // Highlight active scenario
+            document.querySelectorAll('[id^="scenario-"]').forEach(el => {
+              el.style.borderColor = '';
+              el.classList.remove('ring-1', 'ring-shield/30');
+            });
+            const activeEl = document.getElementById(s.highlight);
+            if (activeEl) {
+              activeEl.classList.add('ring-1', 'ring-shield/30');
+            }
+
+            // Set conversation
+            const u1 = rand(usuarios);
+            let u2;
+            do { u2 = rand(usuarios); } while (u2 === u1);
+            msg1.querySelector('.font-mono').textContent = u1;
+            msg1.querySelector('.text-surface-300').textContent = s.isWhitelist ? 'Miren este video' : 'Alguien pasó un link raro';
+            msg2.querySelector('.font-mono').textContent = u2;
+            const urlTextEl = msg2.querySelector('.demo-chat-url');
+            urlTextEl.textContent = s.url;
+
+            // Set response
+            if (s.isWhitelist) {
+              card.classList.add('hidden');
+              text.classList.remove('hidden');
+            } else {
+              card.classList.remove('hidden');
+              text.classList.add('hidden');
+              card.style.borderLeftColor = s.borderColor;
+              emoji.src = s.emoji;
+              title.textContent = s.titulo;
+              const det = Math.floor(Math.random() * 22) + 3;
+              desc.innerHTML = s.desc(det);
+              if (s.showUrl) {
+                urlSec.classList.remove('hidden');
+                urlEl.textContent = s.url;
+              } else {
+                urlSec.classList.add('hidden');
+              }
+              if (s.showLink) {
+                link.classList.remove('hidden');
+              } else {
+                link.classList.add('hidden');
+              }
+            }
+
+            // Animate
+            setTimeout(() => {
+              msg1.classList.remove('opacity-0');
+              msg1.classList.add('animate-slide-up');
+            }, 200);
+            setTimeout(() => {
+              msg2.classList.remove('opacity-0');
+              msg2.classList.add('animate-slide-up');
+            }, 700);
+            setTimeout(() => {
+              typing.classList.remove('opacity-0');
+            }, 1200);
+            setTimeout(() => {
+              typing.classList.add('opacity-0');
+              response.classList.remove('opacity-0');
+              response.classList.add('animate-slide-up');
+            }, 2200);
+
+            current = (current + 1) % demoScenarios.length;
+          }
+
+          // Start after a short delay, then cycle
+          setTimeout(() => {
+            runDemo();
+            setInterval(runDemo, 7000);
+          }, 1000);
+        });
+      </script>
     </div>
   </section>
 
-  <section id="faq" class="scroll-reveal section-scanline relative border-t border-surface-800 bg-surface-850 px-6 py-16 sm:py-24" data-reveal="none">
-    <div class="mx-auto max-w-3xl">
-      <div class="mb-12">
+  <!-- Stack: Debajo del capó -->
+  <section id="stack" class="scroll-reveal relative border-t border-surface-800 bg-surface-900 px-6 py-20 sm:py-28" data-reveal="subtle">
+    <div class="mx-auto max-w-6xl">
+      <div class="mb-16 text-center">
         <h2 class="mb-4 text-4xl font-bold tracking-tight text-white md:text-5xl">
-          FAQ
+          Debajo del capó
         </h2>
+        <p class="mx-auto max-w-2xl text-surface-400">
+          VirusTotal, SightEngine y una infraestructura de caché diseñada para no repetir análisis.
+        </p>
       </div>
-      <details class="faq-details">
-        <summary>
-          ¿Qué tipo de amenazas detecta Threat?
-          <Icon name="plus" size="0.875em" />
-        </summary>
-        <div class="faq-answer">
-          Threat analiza URLs maliciosas (malware, phishing) mediante VirusTotal, detecta contenido NSFW (desnudos, armas, alcohol, ofensivo) con SightEngine, y previene spam con límites por usuario.
-        </div>
-      </details>
-      <details class="faq-details">
-        <summary>
-          ¿Cómo configuro el bot en mi servidor?
-          <Icon name="plus" size="0.875em" />
-        </summary>
-        <div class="faq-answer">
-          Invita al bot con el enlace de arriba, usa <code class="font-mono text-shield-light">/setlogchannel</code> para configurar el canal de logs, y opcionalmente <code class="font-mono text-shield-light">/silentmode</code> o <code class="font-mono text-shield-light">/strictmode</code> según tus necesidades.
-        </div>
-      </details>
-      <details class="faq-details">
-        <summary>
-          ¿Threat guarda mis datos personales?
-          <Icon name="plus" size="0.875em" />
-        </summary>
-        <div class="faq-answer">
-          Solo se almacenan datos necesarios para el funcionamiento: configuración del servidor y caché temporal de análisis. No almacenamos mensajes completos, información personal ni contenido de conversaciones. Consulta nuestra <a href="/privacidad" class="text-shield-light hover:underline">Política de Privacidad</a> para más detalles.
-        </div>
-      </details>
-      <details class="faq-details">
-        <summary>
-          ¿Cuánto cuesta usar Threat?
-          <Icon name="plus" size="0.875em" />
-        </summary>
-        <div class="faq-answer">
-          Threat es completamente gratuito. Sin costos, sin planes pagos.
-        </div>
-      </details>
-      <details class="faq-details">
-        <summary>
-          ¿Qué hago si el bot marca un falso positivo?
-          <Icon name="plus" size="0.875em" />
-        </summary>
-        <div class="faq-answer">
-          Puedes agregar el dominio a la whitelist con <code class="font-mono text-shield-light">/whitelist add</code>.
-        </div>
-      </details>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-px bg-surface-800">
+        {stack.map((s) => (
+          <div class="spotlight-item relative bg-surface-900 p-6">
+            <h3 class="mb-2 font-mono text-sm font-semibold text-white">{s.name}</h3>
+            <p class="text-sm leading-relaxed text-surface-400">{s.desc}</p>
+          </div>
+        ))}
+      </div>
+
+      <div class="mt-12 flex flex-wrap justify-center gap-x-8 gap-y-3">
+        {keyCommands.map((cmd) => (
+          <div class="flex items-center gap-2 text-sm text-surface-400">
+            <code class="font-mono font-medium text-shield-light">{cmd.name}</code>
+            <span class="text-surface-600">·</span>
+            <span>{cmd.desc}</span>
+          </div>
+        ))}
+      </div>
     </div>
   </section>
 
+  <!-- CTA final -->
   <section class="scroll-reveal section-scanline relative overflow-hidden border-t border-surface-800 bg-surface-900 px-6 py-24 sm:py-32" data-reveal="fade">
     <div class="relative z-10 mx-auto max-w-3xl text-center">
       <h2 class="mb-6 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
@@ -623,6 +727,14 @@ const steps = [
     );
     document.querySelectorAll('.scroll-reveal').forEach((el) => {
       observer.observe(el);
+    });
+
+    document.querySelectorAll('.spotlight-item').forEach((el) => {
+      el.addEventListener('mousemove', (e) => {
+        const r = el.getBoundingClientRect();
+        el.style.setProperty('--mouse-x', `${e.clientX - r.left}px`);
+        el.style.setProperty('--mouse-y', `${e.clientY - r.top}px`);
+      });
     });
   });
 </script>

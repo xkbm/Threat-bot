@@ -60,7 +60,17 @@ async def analizar_imagen_multimodelo(image_content_hash: str, image_bytes: byte
                 models: dict[str, float] = {}
                 for model_name in SIGHTENGINE_MODELS.split(','):
                     model_data = result.get(model_name, {})
-                    confidence = model_data.get('raw', 0.0)
+                    if model_name == 'nudity':
+                        confidence = model_data.get('raw', 0.0)
+                    elif model_name == 'weapon':
+                        classes = model_data.get('classes', {})
+                        confidence = max(classes.values()) if classes else 0.0
+                    elif model_name == 'alcohol':
+                        confidence = model_data.get('prob', 0.0)
+                    elif model_name == 'offensive':
+                        confidence = max(model_data.values()) if model_data else 0.0
+                    else:
+                        confidence = 0.0
                     models[model_name] = confidence
                 is_nsfw = (
                     models.get('nudity', 0.0) >= NSFW_CONFIDENCE_THRESHOLD
