@@ -41,6 +41,20 @@ class HelpCog(commands.Cog):
             inline=False
         )
 
+        embed.add_field(
+            name=f"{self.bot.EMOJI_LOADING} Reacciones",
+            value=(
+                f"{self.bot.EMOJI_CORRECTO} Seguro · "
+                f"{self.bot.EMOJI_WARNING} Amenaza · "
+                f"{self.bot.EMOJI_NSFW} NSFW\n"
+                f"{self.bot.EMOJI_ERROR} Error · "
+                f"{self.bot.EMOJI_LOADING} Cargando · "
+                f"{self.bot.EMOJI_COOLDOWN} Cooldown\n"
+                f"{self.bot.EMOJI_WHITELIST} Whitelist"
+            ),
+            inline=False
+        )
+
         embed.set_footer(
             text="Los comandos de moderación requieren permisos de administrador."
         )
