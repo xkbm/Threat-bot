@@ -371,7 +371,7 @@ async def analizar_archivo(archivo: discord.Attachment, file_bytes: Optional[byt
                 if resp.status != 200:
                     await update_stats(guild_id, "error")
                     return "error", discord.Embed(title="Error al descargar archivo", description=f"El servidor respondió con código {resp.status}", color=discord.Color.red()), 0
-                file_bytes = await resp.read(limit=MAX_FILE_SIZE + 1024)
+                file_bytes = await resp.read()
                 if len(file_bytes) > MAX_FILE_SIZE:
                     log.debug(f"VT FILE DEMASIADO GRANDE → {archivo.filename} bytes={len(file_bytes)} t={time.time()-_t0:.1f}s")
                     await update_stats(guild_id, "error")
