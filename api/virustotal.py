@@ -208,6 +208,26 @@ async def analizar_url(url: str, guild_id: Optional[int] = None, mensaje_origina
                                 return await _procesar_resultado_vt(analysis, "url", url, guild_id, mensaje_original, guardar_cache)
                             else:
                                 log.debug(f"VT URL STATUS → {status} intento={intento+1}/2")
+                log.debug(f"VT URL POST-POLL CHECK → {url} t={time.time()-_t0:.1f}s")
+                await registrar_uso_vt(key)
+                async with state.bot.session.get(
+                    f"https://www.virustotal.com/api/v3/urls/{url_id}",
+                    headers=headers, timeout=VT_TIMEOUT
+                ) as final_resp:
+                    if final_resp.status == 200:
+                        data = await final_resp.json()
+                        attrs = data["data"]["attributes"]
+                        if attrs.get("last_analysis_stats"):
+                            log.debug(f"VT URL POST-POLL CACHED → {url} t={time.time()-_t0:.1f}s")
+                            normalized = {
+                                "data": {
+                                    "attributes": {
+                                        "stats": attrs["last_analysis_stats"],
+                                        "results": attrs.get("last_analysis_results", {}),
+                                    }
+                                }
+                            }
+                            return await _procesar_resultado_vt(normalized, "url", url, guild_id, mensaje_original, guardar_cache)
                 log.debug(f"VT URL TIMEOUT → {url} t={time.time()-_t0:.1f}s")
                 await _finalizar_error(guild_id, "url", url)
                 return "error", discord.Embed(title="Error en análisis", description=f"El análisis no pudo completarse tras varios intentos. Intenta de nuevo.", color=discord.Color.red()), 0
@@ -421,6 +441,21 @@ async def analizar_archivo(archivo: discord.Attachment, file_bytes: Optional[byt
                                 return await _procesar_analisis_archivo(analysis, archivo, file_hash, guild_id, mensaje_original, guardar_cache)
                             elif status == "queued":
                                 log.debug(f"VT FILE QUEUED → intento={i+1}/2")
+                log.debug(f"VT FILE POST-POLL CHECK HASH → {archivo.filename} t={time.time()-_t0:.1f}s")
+                await registrar_uso_vt(key)
+                async with state.bot.session.get(
+                    f"https://www.virustotal.com/api/v3/files/{file_hash}",
+                    headers=headers, timeout=VT_TIMEOUT
+                ) as final_resp:
+                    if final_resp.status == 200:
+                        existing = await final_resp.json()
+                        if existing["data"]["attributes"].get("last_analysis_stats"):
+                            log.debug(f"VT FILE POST-POLL CACHED → {archivo.filename} t={time.time()-_t0:.1f}s")
+                            attrs = existing["data"]["attributes"]
+                            analysis_attrs = dict(attrs)
+                            analysis_attrs["stats"] = attrs["last_analysis_stats"]
+                            analysis = {"data": {"attributes": analysis_attrs}}
+                            return await _procesar_analisis_archivo(analysis, archivo, file_hash, guild_id, mensaje_original, guardar_cache)
                 log.error(f"VT FILE TIMEOUT → {archivo.filename} t={time.time()-_t0:.1f}s")
                 await update_stats(guild_id, "error")
                 return "error", discord.Embed(title="Error en análisis", description="El análisis tardó más de lo esperado. Intenta de nuevo.", color=discord.Color.red()), 0
