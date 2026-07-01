@@ -30,20 +30,6 @@ async def _procesar_imagen(
     log.debug(f"Imagen: {img.filename} ({img.size} bytes)")
     if img.size > MAX_IMAGE_SIZE:
         return (img.filename, "error", {"error": "too_large"}, "")
-    clave_meta = f"nsfw_filename:{img.filename}:{img.size}"
-    tipo_meta, embed_meta, _ = await get_from_cache_mem(clave_meta)
-    content_hash: Optional[str] = None
-    if embed_meta is not None:
-        try:
-            content_hash = json.loads(tipo_meta).get("hash")
-        except Exception:
-            pass
-    if not content_hash:
-        content_hash = await obtener_hash_desde_metadatos(clave_meta)
-    if content_hash:
-        is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(content_hash, b"")
-        if from_cache:
-            return (img.filename, "nsfw" if is_nsfw else "seguro", models, content_hash)
     try:
         async with bot._download_sem:
             async with bot.session.get(img.url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
@@ -56,12 +42,9 @@ async def _procesar_imagen(
             async with ANALYSIS_SEMAPHORE:
                 is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(content_hash, img_data)
             if not models.get("error"):
-                        await update_stats(guild_id, "nsfw" if is_nsfw else "seguro")
+                await update_stats(guild_id, "nsfw" if is_nsfw else "seguro")
             if is_nsfw and guild_id:
                 await registrar_infraccion(guild_id, message.author.id, f"nsfw:{content_hash}")
-            dummy = discord.Embed(title="NSFW Meta")
-            await set_cache_mem(clave_meta, json.dumps({"hash": content_hash}), dummy, 0)
-            await guardar_metadatos_hash(clave_meta, content_hash)
             return (img.filename, "nsfw" if is_nsfw else "seguro", models, content_hash)
     except Exception:
         return (img.filename, "error", {}, "")
@@ -79,26 +62,6 @@ async def _procesar_archivo(
         await safe_add_reaction(message, EMOJI_WARNING)
     if archivo.size > MAX_FILE_SIZE:
         return (archivo.filename, "error", 0, "", "")
-    clave_meta = f"file:{archivo.filename}:{archivo.size}"
-    tipo_meta, embed_meta, _ = await get_from_cache_mem(clave_meta)
-    file_hash: Optional[str] = None
-    if embed_meta is not None:
-        try:
-            file_hash = json.loads(tipo_meta).get("hash")
-        except Exception:
-            pass
-    if not file_hash:
-        file_hash = await obtener_hash_desde_metadatos(clave_meta)
-    if file_hash:
-        tipo, embed, mal = await get_from_cache_mem(f"filehash:{file_hash}")
-        if embed is None:
-            tipo, embed, mal = await obtener_analisis_db(f"filehash:{file_hash}")
-            if embed is not None:
-                await set_cache_mem(f"filehash:{file_hash}", tipo, embed, mal)
-        if embed is not None:
-            if tipo == "malicioso":
-                await registrar_infraccion(guild_id, message.author.id, f"filehash:{file_hash}")
-            return (archivo.filename, tipo, mal, file_hash, wm)
     try:
         async with bot._download_sem:
             async with bot.session.get(archivo.url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
@@ -116,6 +79,15 @@ async def _procesar_archivo(
                 wm = f"Extensión .png pero tipo real {content_type}"
     except Exception:
         return (archivo.filename, "error", 0, "", "")
+    tipo, embed, mal = await get_from_cache_mem(f"filehash:{file_hash}")
+    if embed is None:
+        tipo, embed, mal = await obtener_analisis_db(f"filehash:{file_hash}")
+        if embed is not None:
+            await set_cache_mem(f"filehash:{file_hash}", tipo, embed, mal)
+    if embed is not None:
+        if tipo == "malicioso":
+            await registrar_infraccion(guild_id, message.author.id, f"filehash:{file_hash}")
+        return (archivo.filename, tipo, mal, file_hash, wm)
     async with ANALYSIS_SEMAPHORE:
         tipo, embed, mal = await analizar_archivo(archivo, file_bytes=file_data, file_hash=file_hash, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
     return (archivo.filename, tipo, mal, file_hash, wm)
