@@ -101,9 +101,11 @@ async def _procesar_adjuntos(
     log_channel_id: Optional[int],
 ) -> None:
     adjuntos = message.attachments[:5]
+    omitidos = len(message.attachments) - 5
     imagenes = [a for a in adjuntos if es_imagen(a)]
     otros = [a for a in adjuntos if not es_imagen(a)]
-    log.debug(f"Adjuntos: {len(imagenes)} imágenes, {len(otros)} archivos")
+    omit_msg = f", {omitidos} omitidos" if omitidos else ""
+    log.debug(f"Adjuntos: {len(imagenes)} imágenes, {len(otros)} archivos{omit_msg}")
 
     await safe_add_reaction(message, EMOJI_LOADING)
     try:
@@ -152,6 +154,8 @@ async def _procesar_adjuntos(
     if maliciosos:
         descripcion += f"{EMOJI_WARNING} Maliciosos: **{maliciosos}**\n"
     descripcion += f"{EMOJI_ERROR} Errores: **{errores}**"
+    if omitidos:
+        descripcion += f"\n{EMOJI_COOLDOWN} **{omitidos}** archivo(s) omitido(s) (límite 5 por mensaje)"
     embed_resumen = discord.Embed(title=titulo, description=descripcion, color=color)
 
     campo = ""
