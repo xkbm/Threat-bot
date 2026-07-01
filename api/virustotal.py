@@ -511,20 +511,12 @@ async def _procesar_analisis_archivo(analysis: dict, archivo: discord.Attachment
         if guardar_cache:
             await guardar_analisis_db(clave, "file", "malicioso", embed, mal)
             await set_cache_mem(clave, "malicioso", embed, mal)
-            meta_clave = f"file:{archivo.filename}:{archivo.size}"
-            await guardar_metadatos_hash(meta_clave, file_hash)
-            dummy = discord.Embed(title="File Meta")
-            await set_cache_mem(meta_clave, json.dumps({"hash": file_hash}), dummy, 0)
         return "malicioso", embed, mal
     else:
         embed = discord.Embed(title=f"{EMOJI_CORRECTO} Archivo Seguro", description=f"{EMOJI_FILE} `{archivo.filename}` parece limpio (0 detecciones)", color=discord.Color.green())
         if guardar_cache:
             await guardar_analisis_db(clave, "file", "seguro", embed, 0)
             await set_cache_mem(clave, "seguro", embed, 0)
-            meta_clave = f"file:{archivo.filename}:{archivo.size}"
-            await guardar_metadatos_hash(meta_clave, file_hash)
-            dummy = discord.Embed(title="File Meta")
-            await set_cache_mem(meta_clave, json.dumps({"hash": file_hash}), dummy, 0)
         await update_stats(guild_id, "seguro")
         return "seguro", embed, 0
 
