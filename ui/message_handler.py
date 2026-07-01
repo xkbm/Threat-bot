@@ -191,7 +191,7 @@ async def _procesar_adjuntos(
             if tipo == "malicioso" and file_hash:
                 await enviar_log_guild(guild_id, "Archivo (múltiples)", filename, f"{mal} detecciones", message.author, elemento_id=f"filehash:{file_hash}")
 
-    if maliciosos or nsfw or not silent_mode:
+    if maliciosos or nsfw or omitidos or not silent_mode:
         await safe_send(message, embed_resumen, reference=message)
 
     if maliciosos:
