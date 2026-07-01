@@ -189,7 +189,7 @@ async def analizar_url(url: str, guild_id: Optional[int] = None, mensaje_origina
                 log.debug(f"VT URL SCAN ID → {scan_id} t={time.time()-_t0:.1f}s")
                 for intento in range(3):
                     if intento > 0:
-                        await asyncio.sleep(10)
+                        await asyncio.sleep(20)
                     await registrar_uso_vt(key)
                     _t2 = time.time()
                     async with state.bot.session.get(f"https://www.virustotal.com/api/v3/analyses/{scan_id}", headers=headers, timeout=VT_TIMEOUT) as resp2:
@@ -398,7 +398,7 @@ async def analizar_archivo(archivo: discord.Attachment, file_bytes: Optional[byt
                 log.debug(f"VT FILE SCAN ID → {scan_id} t={time.time()-_t0:.1f}s")
                 for i in range(3):
                     if i > 0:
-                        await asyncio.sleep(10)
+                        await asyncio.sleep(20)
                     await registrar_uso_vt(key)
                     _t3 = time.time()
                     async with state.bot.session.get(f"https://www.virustotal.com/api/v3/analyses/{scan_id}", headers=headers, timeout=VT_TIMEOUT) as resp2:
