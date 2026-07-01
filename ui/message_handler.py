@@ -104,7 +104,7 @@ async def _procesar_archivo(
             async with bot.session.get(archivo.url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
                 if resp.status != 200:
                     return (archivo.filename, "error", 0, "", "")
-                file_data = await resp.read(limit=MAX_FILE_SIZE + 1024)
+                file_data = await resp.content.read(MAX_FILE_SIZE + 1024)
                 if len(file_data) > MAX_FILE_SIZE:
                     return (archivo.filename, "error", 0, "", "")
             file_hash = hashlib.sha256(file_data).hexdigest()
