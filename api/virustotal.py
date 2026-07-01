@@ -164,6 +164,7 @@ async def analizar_url(url: str, guild_id: Optional[int] = None, mensaje_origina
 
     url_id = base64.urlsafe_b64encode(url.encode()).decode().rstrip("=")
     _t = time.time()
+    await registrar_uso_vt(key)
     async with state.bot.session.get(
         f"https://www.virustotal.com/api/v3/urls/{url_id}",
         headers=headers, timeout=VT_TIMEOUT
@@ -173,7 +174,6 @@ async def analizar_url(url: str, guild_id: Optional[int] = None, mensaje_origina
             data = await resp.json()
             attrs = data["data"]["attributes"]
             if attrs.get("last_analysis_stats"):
-                await registrar_uso_vt(key)
                 normalized = {
                     "data": {
                         "attributes": {
@@ -186,15 +186,16 @@ async def analizar_url(url: str, guild_id: Optional[int] = None, mensaje_origina
 
     try:
         _t = time.time()
+        await registrar_uso_vt(key)
         async with state.bot.session.post("https://www.virustotal.com/api/v3/urls", headers=headers, data={"url": url}, timeout=VT_TIMEOUT) as resp:
             log.debug(f"VT URL POST → status={resp.status} t={time.time()-_t:.1f}s")
             if resp.status == 200:
                 data = await resp.json()
                 scan_id = data["data"]["id"]
                 log.debug(f"VT URL SCAN ID → {scan_id} t={time.time()-_t0:.1f}s")
-                for intento in range(3):
+                for intento in range(2):
                     if intento > 0:
-                        await asyncio.sleep(20)
+                        await asyncio.sleep(30)
                     await registrar_uso_vt(key)
                     _t2 = time.time()
                     async with state.bot.session.get(f"https://www.virustotal.com/api/v3/analyses/{scan_id}", headers=headers, timeout=VT_TIMEOUT) as resp2:
@@ -375,6 +376,7 @@ async def analizar_archivo(archivo: discord.Attachment, file_bytes: Optional[byt
 
     try:
         _t = time.time()
+        await registrar_uso_vt(key)
         async with state.bot.session.get(
             f"https://www.virustotal.com/api/v3/files/{file_hash}",
             headers=headers,
@@ -391,6 +393,7 @@ async def analizar_archivo(archivo: discord.Attachment, file_bytes: Optional[byt
                     analysis = {"data": {"attributes": analysis_attrs}}
                     return await _procesar_analisis_archivo(analysis, archivo, file_hash, guild_id, mensaje_original, guardar_cache)
 
+        await registrar_uso_vt(key)
         log.debug(f"VT FILE SUBIENDO → {archivo.filename} size={len(file_bytes) if file_bytes else '?'} t={time.time()-_t0:.1f}s")
         data = aiohttp.FormData()
         data.add_field('file', file_bytes, filename=archivo.filename)
@@ -401,9 +404,9 @@ async def analizar_archivo(archivo: discord.Attachment, file_bytes: Optional[byt
                 result_json = await resp.json()
                 scan_id = result_json["data"]["id"]
                 log.debug(f"VT FILE SCAN ID → {scan_id} t={time.time()-_t0:.1f}s")
-                for i in range(3):
+                for i in range(2):
                     if i > 0:
-                        await asyncio.sleep(20)
+                        await asyncio.sleep(30)
                     await registrar_uso_vt(key)
                     _t3 = time.time()
                     async with state.bot.session.get(f"https://www.virustotal.com/api/v3/analyses/{scan_id}", headers=headers, timeout=VT_TIMEOUT) as resp2:
