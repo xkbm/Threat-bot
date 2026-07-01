@@ -1,4 +1,5 @@
 import re
+import aiohttp
 import time
 import asyncio
 import hashlib
@@ -45,7 +46,7 @@ async def _procesar_imagen(
             return (img.filename, "nsfw" if is_nsfw else "seguro", models, content_hash)
     try:
         async with bot._download_sem:
-            async with bot.session.get(img.url) as resp:
+            async with bot.session.get(img.url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
                 if resp.status != 200:
                     return (img.filename, "error", {}, "")
                 img_data = await resp.read()
@@ -100,7 +101,7 @@ async def _procesar_archivo(
             return (archivo.filename, tipo, mal, file_hash, wm)
     try:
         async with bot._download_sem:
-            async with bot.session.get(archivo.url) as resp:
+            async with bot.session.get(archivo.url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
                 if resp.status != 200:
                     return (archivo.filename, "error", 0, "", "")
                 file_data = await resp.read(limit=MAX_FILE_SIZE + 1024)
