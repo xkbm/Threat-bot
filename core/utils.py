@@ -175,7 +175,7 @@ async def descargar_url_segura(bot: commands.Bot, url: str, max_size: Optional[i
     url_ip = urllib.parse.urlunparse(parsed._replace(netloc=ip_netloc))
     headers = {"Host": hostname}
     try:
-        async with bot.session.get(url_ip, headers=headers) as resp:
+        async with bot.session.get(url_ip, headers=headers, timeout=aiohttp.ClientTimeout(total=30)) as resp:
             if resp.status != 200:
                 return None, f"HTTP {resp.status}"
             if max_size:

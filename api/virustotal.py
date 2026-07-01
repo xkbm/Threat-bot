@@ -72,6 +72,11 @@ async def obtener_siguiente_se_key() -> Optional[tuple[str, str]]:
                 log.debug(f"SE key rate-limited: {api_key[:8]}... ({len(state.bot.se_key_usage[api_key])} req in 60s)")
                 continue
 
+            state.bot.se_key_daily_usage.setdefault(api_key, {"count": 0, "date": hoy})
+            if state.bot.se_key_daily_usage[api_key]["count"] >= 500 and state.bot.se_key_daily_usage[api_key]["date"] == hoy:
+                log.debug(f"SE key daily limit: {api_key[:8]}... (500 req/day)")
+                continue
+
             return pair
 
         log.warning("Todas las keys de SightEngine están rate-limited")
@@ -370,21 +375,21 @@ async def analizar_archivo(archivo: discord.Attachment, file_bytes: Optional[byt
 
     try:
         _t = time.time()
-        check_resp = await state.bot.session.get(
+        async with state.bot.session.get(
             f"https://www.virustotal.com/api/v3/files/{file_hash}",
             headers=headers,
             timeout=VT_TIMEOUT
-        )
-        log.debug(f"VT FILE CHECK HASH → status={check_resp.status} t={time.time()-_t:.1f}s acum={time.time()-_t0:.1f}s")
-        if check_resp.status == 200:
-            existing = await check_resp.json()
-            if existing["data"]["attributes"].get("last_analysis_stats"):
-                log.debug(f"VT FILE CACHED VT → {archivo.filename} hash={file_hash} t={time.time()-_t0:.1f}s")
-                attrs = existing["data"]["attributes"]
-                analysis_attrs = dict(attrs)
-                analysis_attrs["stats"] = attrs["last_analysis_stats"]
-                analysis = {"data": {"attributes": analysis_attrs}}
-                return await _procesar_analisis_archivo(analysis, archivo, file_hash, guild_id, mensaje_original, guardar_cache)
+        ) as check_resp:
+            log.debug(f"VT FILE CHECK HASH → status={check_resp.status} t={time.time()-_t:.1f}s acum={time.time()-_t0:.1f}s")
+            if check_resp.status == 200:
+                existing = await check_resp.json()
+                if existing["data"]["attributes"].get("last_analysis_stats"):
+                    log.debug(f"VT FILE CACHED VT → {archivo.filename} hash={file_hash} t={time.time()-_t0:.1f}s")
+                    attrs = existing["data"]["attributes"]
+                    analysis_attrs = dict(attrs)
+                    analysis_attrs["stats"] = attrs["last_analysis_stats"]
+                    analysis = {"data": {"attributes": analysis_attrs}}
+                    return await _procesar_analisis_archivo(analysis, archivo, file_hash, guild_id, mensaje_original, guardar_cache)
 
         log.debug(f"VT FILE SUBIENDO → {archivo.filename} size={len(file_bytes) if file_bytes else '?'} t={time.time()-_t0:.1f}s")
         data = aiohttp.FormData()
