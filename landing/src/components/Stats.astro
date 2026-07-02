@@ -1,0 +1,101 @@
+---
+<section class="scroll-reveal section-scanline relative border-t border-surface-800 bg-surface-850 px-6 py-20 sm:py-28" data-reveal="up" id="stats">
+  <div class="mx-auto max-w-6xl">
+    <div class="mb-12 text-center">
+      <h2 class="mb-4 text-4xl font-bold tracking-tight text-white md:text-5xl">
+        Threat en números
+      </h2>
+      <p class="mx-auto max-w-2xl text-surface-400">
+        Datos reales de uso del bot. Actualizados cada 5 minutos.
+      </p>
+    </div>
+
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-10">
+      <div class="spotlight-item relative bg-surface-900 rounded-xl p-5 text-center border border-surface-800">
+        <div id="stat-total" class="text-3xl sm:text-4xl font-bold text-white font-mono">—</div>
+        <div class="mt-1 text-xs text-surface-400 uppercase tracking-wider">Análisis totales</div>
+      </div>
+      <div class="spotlight-item relative bg-surface-900 rounded-xl p-5 text-center border border-surface-800">
+        <div id="stat-seguros" class="text-3xl sm:text-4xl font-bold font-mono" style="color: var(--color-secure);">—</div>
+        <div class="mt-1 text-xs text-surface-400 uppercase tracking-wider">Seguros</div>
+      </div>
+      <div class="spotlight-item relative bg-surface-900 rounded-xl p-5 text-center border border-surface-800">
+        <div id="stat-maliciosos" class="text-3xl sm:text-4xl font-bold font-mono" style="color: var(--color-threat);">—</div>
+        <div class="mt-1 text-xs text-surface-400 uppercase tracking-wider">Maliciosos</div>
+      </div>
+      <div class="spotlight-item relative bg-surface-900 rounded-xl p-5 text-center border border-surface-800">
+        <div id="stat-nsfw" class="text-3xl sm:text-4xl font-bold font-mono" style="color: var(--color-alert);">—</div>
+        <div class="mt-1 text-xs text-surface-400 uppercase tracking-wider">NSFW</div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-px bg-surface-800 rounded-xl overflow-hidden">
+      <div class="bg-surface-900 p-5">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-semibold uppercase tracking-wider text-surface-400">VirusTotal /min</span>
+          <span id="vt-min-val" class="text-xs font-mono text-surface-300">—</span>
+        </div>
+        <div class="h-1.5 rounded-full bg-surface-700 overflow-hidden">
+          <div id="vt-min-bar" class="h-full rounded-full transition-all duration-500" style="width: 0%; background: var(--color-shield);"></div>
+        </div>
+      </div>
+      <div class="bg-surface-900 p-5">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-semibold uppercase tracking-wider text-surface-400">VirusTotal /día</span>
+          <span id="vt-daily-val" class="text-xs font-mono text-surface-300">—</span>
+        </div>
+        <div class="h-1.5 rounded-full bg-surface-700 overflow-hidden">
+          <div id="vt-daily-bar" class="h-full rounded-full transition-all duration-500" style="width: 0%; background: var(--color-shield);"></div>
+        </div>
+      </div>
+      <div class="bg-surface-900 p-5">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-semibold uppercase tracking-wider text-surface-400">SightEngine /día</span>
+          <span id="se-daily-val" class="text-xs font-mono text-surface-300">—</span>
+        </div>
+        <div class="h-1.5 rounded-full bg-surface-700 overflow-hidden">
+          <div id="se-daily-bar" class="h-full rounded-full transition-all duration-500" style="width: 0%; background: var(--color-alert);"></div>
+        </div>
+      </div>
+    </div>
+
+    <p id="stat-timestamp" class="mt-6 text-center text-xs text-surface-500"></p>
+  </div>
+
+  <script is:inline>
+    (function () {
+      function formatNum(n) {
+        return n >= 1000 ? n.toLocaleString('es-AR') : String(n);
+      }
+
+      function updateUI(data) {
+        document.getElementById('stat-total').textContent = formatNum(data.total);
+        document.getElementById('stat-seguros').textContent = formatNum(data.seguros);
+        document.getElementById('stat-maliciosos').textContent = formatNum(data.maliciosos);
+        document.getElementById('stat-nsfw').textContent = formatNum(data.nsfw);
+
+        document.getElementById('vt-min-val').textContent = data.vt_usage_minuto + '%';
+        document.getElementById('vt-min-bar').style.width = data.vt_usage_minuto + '%';
+        document.getElementById('vt-daily-val').textContent = data.vt_usage_diario + '%';
+        document.getElementById('vt-daily-bar').style.width = data.vt_usage_diario + '%';
+        document.getElementById('se-daily-val').textContent = data.se_usage_diario + '%';
+        document.getElementById('se-daily-bar').style.width = data.se_usage_diario + '%';
+
+        if (data.timestamp > 0) {
+          var d = new Date(data.timestamp * 1000);
+          document.getElementById('stat-timestamp').textContent = 'Última actualización: ' + d.toLocaleString('es-AR');
+        }
+      }
+
+      function fetchStats() {
+        fetch('/api/stats')
+          .then(function (r) { return r.json(); })
+          .then(function (data) { updateUI(data); })
+          .catch(function () {});
+      }
+
+      fetchStats();
+      setInterval(fetchStats, 300000);
+    })();
+  </script>
+</section>
