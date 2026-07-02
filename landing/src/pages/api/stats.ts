@@ -1,3 +1,5 @@
+import { put, get } from "@vercel/blob";
+
 export const prerender = false;
 
 interface StatsPayload {
@@ -24,11 +26,7 @@ const emptyPayload: StatsPayload = {
   timestamp: 0,
 };
 
-declare global {
-  // eslint-disable-next-line no-var
-  var __statsCache: StatsPayload | null;
-}
-globalThis.__statsCache ??= null;
+const BLOB_KEY = "stats.json";
 
 export async function POST({ request }: { request: Request }): Promise<Response> {
   const auth = request.headers.get("Authorization");
@@ -40,7 +38,7 @@ export async function POST({ request }: { request: Request }): Promise<Response>
 
   try {
     const body = await request.json();
-    globalThis.__statsCache = {
+    const payload: StatsPayload = {
       total: Number(body.total) || 0,
       seguros: Number(body.seguros) || 0,
       maliciosos: Number(body.maliciosos) || 0,
@@ -51,6 +49,13 @@ export async function POST({ request }: { request: Request }): Promise<Response>
       se_usage_diario: Number(body.se_usage_diario) || 0,
       timestamp: Number(body.timestamp) || Date.now() / 1000,
     };
+
+    await put(BLOB_KEY, JSON.stringify(payload), {
+      access: "private",
+      allowOverwrite: true,
+      contentType: "application/json",
+    });
+
     return new Response("OK", { status: 200 });
   } catch {
     return new Response("Bad Request", { status: 400 });
@@ -58,12 +63,26 @@ export async function POST({ request }: { request: Request }): Promise<Response>
 }
 
 export async function GET(): Promise<Response> {
-  return new Response(JSON.stringify(globalThis.__statsCache || emptyPayload), {
-    status: 200,
-    headers: {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-      "Cache-Control": "no-cache, no-store, must-revalidate",
-    },
-  });
+  try {
+    const blob = await get(BLOB_KEY, { access: "private" });
+    const text = await blob.text();
+    const data: StatsPayload = JSON.parse(text);
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+      },
+    });
+  } catch {
+    return new Response(JSON.stringify(emptyPayload), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+      },
+    });
+  }
 }
