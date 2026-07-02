@@ -1,4 +1,4 @@
-# Commit: 5862f4b8eeb031aaf12805605b0bde026ade5a26
+# Commit: 29e5a37
 import discord
 from discord.ext import commands
 import aiohttp
@@ -161,9 +161,14 @@ async def on_ready():
         status=discord.Status.dnd
     )
     task_cron = asyncio.create_task(_limpiar_cron())
-    bot._background_tasks = [task_cron]
+    task_stats = asyncio.create_task(_iniciar_stats_push())
+    bot._background_tasks = [task_cron, task_stats]
     log.info(f"Bot conectado como {bot.user}")
     log.info("Bot Ready - comandos slash sincronizados")
+
+async def _iniciar_stats_push():
+    from core.api_stats import enviar_stats_a_web
+    await enviar_stats_a_web()
 
 async def _limpiar_cron():
     from core.database import limpiar_db_expirados
