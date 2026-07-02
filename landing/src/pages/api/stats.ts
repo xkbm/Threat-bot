@@ -24,7 +24,11 @@ const emptyPayload: StatsPayload = {
   timestamp: 0,
 };
 
-let cached: StatsPayload | null = null;
+declare global {
+  // eslint-disable-next-line no-var
+  var __statsCache: StatsPayload | null;
+}
+globalThis.__statsCache ??= null;
 
 export async function POST({ request }: { request: Request }): Promise<Response> {
   const auth = request.headers.get("Authorization");
@@ -36,7 +40,7 @@ export async function POST({ request }: { request: Request }): Promise<Response>
 
   try {
     const body = await request.json();
-    cached = {
+    globalThis.__statsCache = {
       total: Number(body.total) || 0,
       seguros: Number(body.seguros) || 0,
       maliciosos: Number(body.maliciosos) || 0,
@@ -54,7 +58,7 @@ export async function POST({ request }: { request: Request }): Promise<Response>
 }
 
 export async function GET(): Promise<Response> {
-  return new Response(JSON.stringify(cached || emptyPayload), {
+  return new Response(JSON.stringify(globalThis.__statsCache || emptyPayload), {
     status: 200,
     headers: {
       "Content-Type": "application/json",
