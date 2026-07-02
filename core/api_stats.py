@@ -51,8 +51,10 @@ def _calcular_uso_se_diario() -> float:
 
 
 async def enviar_stats_a_web() -> None:
-    if not STATS_TOKEN:
-        log.debug("STATS_TOKEN no configurado — push de stats deshabilitado")
+    token_ok = bool(STATS_TOKEN and STATS_TOKEN.strip())
+    log.info(f"[STATS] Iniciando push task | STATS_TOKEN={'configurado' if token_ok else 'NO CONFIGURADO'} | URL={STATS_API_URL}")
+    if not token_ok:
+        log.warning("[STATS] STATS_TOKEN no configurado — push de stats deshabilitado")
         return
 
     while True:
@@ -70,17 +72,19 @@ async def enviar_stats_a_web() -> None:
                 "se_usage_diario": round(_calcular_uso_se_diario(), 1),
                 "timestamp": time.time(),
             }
+            log.info(f"[STATS] Push → total={payload['total']} seguros={payload['seguros']} maliciosos={payload['maliciosos']} nsfw={payload['nsfw']} errores={payload['errores']}")
             async with state.bot.session.post(
                 f"{STATS_API_URL}/api/stats",
                 json=payload,
                 headers={"Authorization": f"Bearer {STATS_TOKEN}"},
                 timeout=10,
             ) as resp:
+                body = await resp.text()
                 if resp.status == 200:
-                    log.debug("Stats push OK")
+                    log.info(f"[STATS] Push OK (status 200)")
                 else:
-                    log.warning(f"Stats push falló: status={resp.status}")
+                    log.warning(f"[STATS] Push falló: status={resp.status} body={body}")
         except asyncio.CancelledError:
             break
         except Exception as e:
-            log.warning(f"Stats push error: {e}")
+            log.warning(f"[STATS] Push error: {type(e).__name__}: {e}")
