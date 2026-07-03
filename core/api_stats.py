@@ -52,7 +52,7 @@ def _calcular_uso_se_diario() -> float:
 
 async def enviar_stats_a_web() -> None:
     if not STATS_TOKEN or not STATS_API_URL:
-        log.debug("Stats push deshabilitado — STATS_TOKEN o STATS_API_URL no configurados")
+        log.warning("Stats push deshabilitado — STATS_TOKEN o STATS_API_URL no configurados")
         return
 
     while True:

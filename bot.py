@@ -39,6 +39,7 @@ logging.getLogger("db").setLevel(logging.DEBUG)
 logging.getLogger("handler").setLevel(logging.DEBUG)
 logging.getLogger("virustotal").setLevel(logging.DEBUG)
 logging.getLogger("sightengine").setLevel(logging.DEBUG)
+logging.getLogger("api_stats").setLevel(logging.DEBUG)
 log = logging.getLogger("bot")
 
 load_dotenv()
