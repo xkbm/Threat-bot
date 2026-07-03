@@ -75,10 +75,11 @@ async def enviar_stats_a_web() -> None:
                 headers={"Authorization": f"Bearer {STATS_TOKEN}"},
                 timeout=10,
             ) as resp:
+                body_text = await resp.text()
                 if resp.status == 200:
                     log.debug("Stats push OK")
                 else:
-                    log.warning(f"Stats push falló: status={resp.status}")
+                    log.warning(f"Stats push falló: status={resp.status}, body={body_text}")
         except asyncio.CancelledError:
             break
         except Exception as e:

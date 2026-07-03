@@ -57,8 +57,10 @@ export async function POST({ request }: { request: Request }): Promise<Response>
     });
 
     return new Response("OK", { status: 200 });
-  } catch {
-    return new Response("Bad Request", { status: 400 });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("Stats POST error:", msg);
+    return new Response(msg, { status: 400 });
   }
 }
 
