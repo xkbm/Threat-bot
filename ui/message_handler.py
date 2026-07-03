@@ -101,7 +101,7 @@ async def _procesar_adjuntos(
     log_channel_id: Optional[int],
 ) -> None:
     adjuntos = message.attachments[:5]
-    omitidos = len(message.attachments) - 5
+    omitidos = max(0, len(message.attachments) - 5)
     imagenes = [a for a in adjuntos if es_imagen(a)]
     otros = [a for a in adjuntos if not es_imagen(a)]
     omit_msg = f", {omitidos} omitidos" if omitidos else ""
@@ -191,7 +191,7 @@ async def _procesar_adjuntos(
             if tipo == "malicioso" and file_hash:
                 await enviar_log_guild(guild_id, "Archivo (múltiples)", filename, f"{mal} detecciones", message.author, elemento_id=f"filehash:{file_hash}")
 
-    if maliciosos or nsfw or omitidos or not silent_mode:
+    if maliciosos or nsfw or omitidos:
         await safe_send(message, embed_resumen, reference=message)
 
     if maliciosos:
