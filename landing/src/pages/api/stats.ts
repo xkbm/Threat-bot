@@ -52,7 +52,7 @@ export async function POST({ request }: { request: Request }): Promise<Response>
 
     await put(BLOB_KEY, JSON.stringify(payload), {
       access: "private",
-      addRandomSuffix: false,
+      allowOverwrite: true,
       contentType: "application/json",
     });
 
