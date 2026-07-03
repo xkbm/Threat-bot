@@ -28,16 +28,7 @@
       </div>
     </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-px bg-surface-800 rounded-xl overflow-hidden">
-      <div class="bg-surface-900 p-5">
-        <div class="flex items-center justify-between mb-2">
-          <span class="text-xs font-semibold uppercase tracking-wider text-surface-400">VirusTotal /min</span>
-          <span id="vt-min-val" class="text-xs font-mono text-surface-300">—</span>
-        </div>
-        <div class="h-1.5 rounded-full bg-surface-700 overflow-hidden">
-          <div id="vt-min-bar" class="h-full rounded-full transition-all duration-500" style="width: 0%; background: var(--stat-bar-vt);"></div>
-        </div>
-      </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-px bg-surface-800 rounded-xl overflow-hidden">
       <div class="bg-surface-900 p-5">
         <div class="flex items-center justify-between mb-2">
           <span class="text-xs font-semibold uppercase tracking-wider text-surface-400">VirusTotal /día</span>
@@ -92,8 +83,6 @@
         document.getElementById('stat-maliciosos').textContent = formatNum(data.maliciosos);
         document.getElementById('stat-nsfw').textContent = formatNum(data.nsfw);
 
-        document.getElementById('vt-min-val').textContent = data.vt_usage_minuto + '%';
-        document.getElementById('vt-min-bar').style.width = data.vt_usage_minuto + '%';
         document.getElementById('vt-daily-val').textContent = data.vt_usage_diario + '%';
         document.getElementById('vt-daily-bar').style.width = data.vt_usage_diario + '%';
         document.getElementById('se-daily-val').textContent = data.se_usage_diario + '%';
