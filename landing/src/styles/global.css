@@ -18,6 +18,8 @@
   --color-secure-light: #6EE7A0;
   --color-threat: #DC2626;
   --color-threat-light: #EF4444;
+  --color-malicious: #F59E0B;
+  --color-nsfw: #DC2626;
   --color-topgg: #ff3366;
   --color-topgg-light: #ff5588;
   --color-shield: #1A5AD8;
@@ -58,6 +60,8 @@
     --color-secure-light: oklch(0.65 0.12 160);
     --color-threat: oklch(0.55 0.22 275);
     --color-threat-light: oklch(0.62 0.18 275);
+    --color-malicious: oklch(0.7 0.18 60);
+    --color-nsfw: oklch(0.55 0.2 25);
     --color-topgg: oklch(0.6 0.22 15);
     --color-topgg-light: oklch(0.65 0.2 15);
     --color-shield: oklch(0.52 0.18 260);
@@ -98,6 +102,8 @@
   --color-secure-light: #6EE7A0;
   --color-threat: #DC2626;
   --color-threat-light: #EF4444;
+  --color-malicious: #F59E0B;
+  --color-nsfw: #DC2626;
   --color-topgg: #ff3366;
   --color-topgg-light: #ff5588;
   --color-shield: #1A5AD8;
