@@ -1,0 +1,44 @@
+# Vercel Web Analytics Installation
+
+Successfully installed and configured Vercel Web Analytics for the Threat Bot landing page (Astro project).
+
+## Changes Made
+
+### 1. Package Installation
+- Installed `@vercel/analytics@2.0.1` package using pnpm
+- Updated `package.json` to include the new dependency
+- Updated `pnpm-lock.yaml` to reflect the new dependency tree
+
+### 2. Analytics Component Integration
+- Modified `src/layouts/BaseLayout.astro` to import and use the Analytics component
+- Added `import Analytics from '@vercel/analytics/astro';` to the frontmatter
+- Placed `<Analytics />` component in the `<head>` section, following the same pattern as the existing SpeedInsights component
+
+## Implementation Details
+
+According to the latest Vercel documentation (fetched on June 3, 2026), for Astro projects, the recommended approach is to:
+1. Install the `@vercel/analytics` package
+2. Import the Analytics component from `@vercel/analytics/astro`
+3. Add the component to the layout file
+
+The Analytics component is exported as a default export (not a named export), so the import uses:
+```astro
+import Analytics from '@vercel/analytics/astro';
+```
+
+## Verification
+
+- Build tested successfully with `pnpm run build`
+- Generated HTML includes the `<vercel-analytics>` custom element and associated tracking script
+- Analytics script is properly loaded and configured with framework-specific settings (framework: "astro")
+- The component follows the same pattern as the existing SpeedInsights integration
+
+## Next Steps
+
+To activate analytics tracking:
+1. Deploy the updated code to Vercel
+2. Navigate to the project's Analytics section in the Vercel dashboard
+3. Click "Enable" to activate the analytics routes (`/_vercel/insights/*`)
+4. Verify tracking by checking browser Network tab for requests to the analytics endpoints
+
+The analytics will automatically track page views across all pages that use the BaseLayout component (which includes the entire site).
