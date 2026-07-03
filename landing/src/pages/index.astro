@@ -9,7 +9,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Icon from '../components/Icon.astro';
-import Stats from '../components/Stats.astro';
 
 const threats = [
   {
@@ -129,6 +128,7 @@ const keyCommands = [
               <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer" class="group cta-primary inline-flex items-center gap-3 rounded-full bg-discord px-7 py-3.5 font-semibold text-white">
                 <Icon name="plus" />
                 Añadir a Discord
+                </span>
               </a>
             </div>
           </div>
@@ -697,9 +697,6 @@ const keyCommands = [
     </div>
   </section>
 
-  <!-- Stats: Threat en números -->
-  <Stats />
-
   <!-- CTA final -->
   <section class="scroll-reveal section-scanline relative overflow-hidden border-t border-surface-800 bg-surface-900 px-6 py-24 sm:py-32" data-reveal="fade">
     <div class="relative z-10 mx-auto max-w-3xl text-center">
@@ -709,6 +706,7 @@ const keyCommands = [
       <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer" class="group cta-primary inline-flex items-center gap-3 rounded-full bg-discord px-10 py-4 text-lg font-semibold text-white">
         <Icon name="plus" />
         Añadir a Discord
+        </span>
       </a>
     </div>
   </section>
