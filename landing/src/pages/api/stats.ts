@@ -60,14 +60,14 @@ export async function POST({ request }: { request: Request }): Promise<Response>
       timestamp: Number(body.timestamp) || Date.now() / 1000,
     };
 
-    await put(BLOB_KEY, JSON.stringify(payload), {
+    const blobResult = await put(BLOB_KEY, JSON.stringify(payload), {
       access: "private",
       contentType: "application/json",
       allowOverwrite: true,
       token: process.env.BLOB_READ_WRITE_TOKEN,
     });
 
-    return new Response("OK", { status: 200 });
+    return new Response(JSON.stringify({ status: "OK", url: blobResult.url }), { status: 200 });
   } catch (e) {
     console.error("[stats POST]", e);
     return new Response("Bad Request", { status: 400 });
@@ -86,7 +86,8 @@ export async function GET(): Promise<Response> {
     const text = await result.stream.text();
     const data: StatsPayload = JSON.parse(text);
     return jsonResponse(data);
-  } catch {
+  } catch (e) {
+    console.error("[stats GET]", e);
     return jsonResponse(emptyPayload);
   }
 }
