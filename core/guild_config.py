@@ -29,7 +29,6 @@ async def obtener_config_guild(guild_id: int) -> dict[str, Any]:
                 "auto_scan_enabled": True,
                 "log_channel_id": None,
                 "whitelist": list(DOMINIOS_PROTEGIDOS),
-                "stats": {"total_analisis": 0, "seguros": 0, "maliciosos": 0, "nsfw": 0, "errores": 0},
                 "infracciones": {},
                 "infracciones_registradas": {},
             }

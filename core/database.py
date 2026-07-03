@@ -242,6 +242,7 @@ async def cargar_datos() -> None:
                     }
                     for key, default_val in defaults.items():
                         val.setdefault(key, default_val)
+                    val.pop("stats", None)
                     state.bot.guilds_data[guild_id] = val
         state.bot.vt_key_total_requests = api_usage.get("total_requests", {})
         state.bot.vt_key_daily_usage = api_usage.get("daily_usage", {})
