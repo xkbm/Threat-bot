@@ -1,4 +1,4 @@
-<section class="scroll-reveal section-scanline relative border-t border-surface-800 bg-surface-850 px-6 py-20 sm:py-28" data-reveal="up" id="stats">
+<section class="scroll-reveal section-scanline stats-section relative border-t border-surface-800 bg-surface-850 px-6 py-20 sm:py-28" data-reveal="up" id="stats">
   <div class="mx-auto max-w-6xl">
     <div class="mb-12 text-center">
       <h2 class="mb-4 text-4xl font-bold tracking-tight text-white md:text-5xl">
@@ -15,15 +15,15 @@
         <div class="mt-1 text-xs text-surface-400 uppercase tracking-wider">Análisis totales</div>
       </div>
       <div class="spotlight-item relative bg-surface-900 rounded-xl p-5 text-center border border-surface-800">
-        <div id="stat-seguros" class="text-3xl sm:text-4xl font-bold font-mono" style="color: var(--color-secure);">—</div>
+        <div id="stat-seguros" class="text-3xl sm:text-4xl font-bold font-mono" style="color: var(--stat-secure);">—</div>
         <div class="mt-1 text-xs text-surface-400 uppercase tracking-wider">Seguros</div>
       </div>
       <div class="spotlight-item relative bg-surface-900 rounded-xl p-5 text-center border border-surface-800">
-        <div id="stat-maliciosos" class="text-3xl sm:text-4xl font-bold font-mono" style="color: var(--color-threat);">—</div>
+        <div id="stat-maliciosos" class="text-3xl sm:text-4xl font-bold font-mono" style="color: var(--stat-threat);">—</div>
         <div class="mt-1 text-xs text-surface-400 uppercase tracking-wider">Maliciosos</div>
       </div>
       <div class="spotlight-item relative bg-surface-900 rounded-xl p-5 text-center border border-surface-800">
-        <div id="stat-nsfw" class="text-3xl sm:text-4xl font-bold font-mono" style="color: var(--color-alert);">—</div>
+        <div id="stat-nsfw" class="text-3xl sm:text-4xl font-bold font-mono" style="color: var(--stat-nsfw);">—</div>
         <div class="mt-1 text-xs text-surface-400 uppercase tracking-wider">NSFW</div>
       </div>
     </div>
@@ -35,7 +35,7 @@
           <span id="vt-min-val" class="text-xs font-mono text-surface-300">—</span>
         </div>
         <div class="h-1.5 rounded-full bg-surface-700 overflow-hidden">
-          <div id="vt-min-bar" class="h-full rounded-full transition-all duration-500" style="width: 0%; background: var(--color-shield);"></div>
+          <div id="vt-min-bar" class="h-full rounded-full transition-all duration-500" style="width: 0%; background: var(--stat-bar-vt);"></div>
         </div>
       </div>
       <div class="bg-surface-900 p-5">
@@ -44,7 +44,7 @@
           <span id="vt-daily-val" class="text-xs font-mono text-surface-300">—</span>
         </div>
         <div class="h-1.5 rounded-full bg-surface-700 overflow-hidden">
-          <div id="vt-daily-bar" class="h-full rounded-full transition-all duration-500" style="width: 0%; background: var(--color-shield);"></div>
+          <div id="vt-daily-bar" class="h-full rounded-full transition-all duration-500" style="width: 0%; background: var(--stat-bar-vt);"></div>
         </div>
       </div>
       <div class="bg-surface-900 p-5">
@@ -53,13 +53,32 @@
           <span id="se-daily-val" class="text-xs font-mono text-surface-300">—</span>
         </div>
         <div class="h-1.5 rounded-full bg-surface-700 overflow-hidden">
-          <div id="se-daily-bar" class="h-full rounded-full transition-all duration-500" style="width: 0%; background: var(--color-alert);"></div>
+          <div id="se-daily-bar" class="h-full rounded-full transition-all duration-500" style="width: 0%; background: var(--stat-bar-se);"></div>
         </div>
       </div>
     </div>
 
     <p id="stat-timestamp" class="mt-6 text-center text-xs text-surface-500"></p>
   </div>
+
+  <style>
+    .stats-section {
+      --stat-secure: #22C55E;
+      --stat-threat: #EF4444;
+      --stat-nsfw: #F97316;
+      --stat-bar-vt: #3B82F6;
+      --stat-bar-se: #F97316;
+    }
+    @supports (color: oklch(...)) {
+      .stats-section {
+        --stat-secure: oklch(0.62 0.19 145);
+        --stat-threat: oklch(0.6 0.22 30);
+        --stat-nsfw: oklch(0.65 0.2 45);
+        --stat-bar-vt: oklch(0.55 0.18 265);
+        --stat-bar-se: oklch(0.65 0.2 45);
+      }
+    }
+  </style>
 
   <script is:inline>
     (function () {
