@@ -42,7 +42,7 @@ export async function POST({ request }: { request: Request }): Promise<Response>
   const auth = request.headers.get("Authorization");
   const token = auth?.startsWith("Bearer ") ? auth.slice(7) : null;
 
-  if (!token || token !== import.meta.env.STATS_TOKEN) {
+  if (!token || token !== process.env.STATS_TOKEN) {
     return new Response("Unauthorized", { status: 401 });
   }
 
@@ -64,7 +64,7 @@ export async function POST({ request }: { request: Request }): Promise<Response>
       access: "private",
       contentType: "application/json",
       allowOverwrite: true,
-      token: import.meta.env.BLOB_READ_WRITE_TOKEN,
+      token: process.env.BLOB_READ_WRITE_TOKEN,
     });
 
     return new Response("OK", { status: 200 });
@@ -78,7 +78,7 @@ export async function GET(): Promise<Response> {
   try {
     const result = await get(BLOB_KEY, {
       access: "private",
-      token: import.meta.env.BLOB_READ_WRITE_TOKEN,
+      token: process.env.BLOB_READ_WRITE_TOKEN,
     });
     if (!result || result.statusCode === 404) {
       return jsonResponse(emptyPayload);
