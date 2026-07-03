@@ -35,6 +35,7 @@ const jsonResponse = (data: StatsPayload) =>
       "Content-Type": "application/json",
       "Access-Control-Allow-Origin": "*",
       "Cache-Control": "no-cache, no-store, must-revalidate",
+      "Vercel-CDN-Cache-Control": "no-cache",
     },
   });
 

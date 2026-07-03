@@ -11,19 +11,19 @@
 
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-10">
       <div class="spotlight-item relative bg-surface-900 rounded-xl p-5 text-center border border-surface-800">
-        <div id="stat-total" class="text-3xl sm:text-4xl font-bold text-white font-mono">—</div>
+        <div id="stat-total" class="stat-value text-3xl sm:text-4xl font-bold text-white font-mono">—</div>
         <div class="mt-1 text-xs text-surface-400 uppercase tracking-wider">Análisis totales</div>
       </div>
       <div class="spotlight-item relative bg-surface-900 rounded-xl p-5 text-center border border-surface-800">
-        <div id="stat-seguros" class="text-3xl sm:text-4xl font-bold font-mono" style="color: var(--stat-secure);">—</div>
+        <div id="stat-seguros" class="stat-value text-3xl sm:text-4xl font-bold font-mono" style="color: var(--stat-secure);">—</div>
         <div class="mt-1 text-xs text-surface-400 uppercase tracking-wider">Seguros</div>
       </div>
       <div class="spotlight-item relative bg-surface-900 rounded-xl p-5 text-center border border-surface-800">
-        <div id="stat-maliciosos" class="text-3xl sm:text-4xl font-bold font-mono" style="color: var(--stat-threat);">—</div>
+        <div id="stat-maliciosos" class="stat-value text-3xl sm:text-4xl font-bold font-mono" style="color: var(--stat-threat);">—</div>
         <div class="mt-1 text-xs text-surface-400 uppercase tracking-wider">Maliciosos</div>
       </div>
       <div class="spotlight-item relative bg-surface-900 rounded-xl p-5 text-center border border-surface-800">
-        <div id="stat-nsfw" class="text-3xl sm:text-4xl font-bold font-mono" style="color: var(--stat-nsfw);">—</div>
+        <div id="stat-nsfw" class="stat-value text-3xl sm:text-4xl font-bold font-mono" style="color: var(--stat-nsfw);">—</div>
         <div class="mt-1 text-xs text-surface-400 uppercase tracking-wider">NSFW</div>
       </div>
     </div>
@@ -69,12 +69,38 @@
         --stat-bar-se: oklch(0.65 0.2 45);
       }
     }
+    .stat-value {
+      transition: opacity 0.4s ease, transform 0.4s ease;
+    }
+    .stat-value.fade {
+      opacity: 0.2;
+      transform: scale(0.95);
+    }
   </style>
 
   <script is:inline>
     (function () {
+      var statEls = [
+        'stat-total', 'stat-seguros', 'stat-maliciosos', 'stat-nsfw',
+        'vt-daily-val', 'se-daily-val',
+        'vt-daily-bar', 'se-daily-bar',
+      ].map(function (id) { return document.getElementById(id); });
+
       function formatNum(n) {
         return n >= 1000 ? n.toLocaleString('es-AR') : String(n);
+      }
+
+      function fadeIn() {
+        statEls.forEach(function (el) {
+          if (el) el.classList.remove('fade');
+        });
+      }
+
+      function fadeOut(cb) {
+        statEls.forEach(function (el) {
+          if (el) el.classList.add('fade');
+        });
+        setTimeout(cb, 400);
       }
 
       function updateUI(data) {
@@ -92,17 +118,21 @@
           var d = new Date(data.timestamp * 1000);
           document.getElementById('stat-timestamp').textContent = 'Última actualización: ' + d.toLocaleString('es-AR');
         }
+
+        fadeIn();
       }
 
       function fetchStats() {
-        fetch('/api/stats')
-          .then(function (r) { return r.json(); })
-          .then(function (data) { updateUI(data); })
-          .catch(function () {});
+        fadeOut(function () {
+          fetch('/api/stats?_=' + Date.now(), { headers: { 'Pragma': 'no-cache' } })
+            .then(function (r) { return r.json(); })
+            .then(function (data) { updateUI(data); })
+            .catch(function () { fadeIn(); });
+        });
       }
 
       fetchStats();
-      setInterval(fetchStats, 300000);
+      setInterval(fetchStats, 10000);
     })();
   </script>
 </section>
