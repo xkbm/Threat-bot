@@ -27,6 +27,7 @@ node_modules/
 # DB
 analisis.db
 data.json
+new.py
 *.db
 *.log
 
