@@ -11,19 +11,19 @@
 
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-10">
       <div class="spotlight-item relative bg-surface-900 rounded-xl p-5 text-center border border-surface-800">
-        <div id="stat-total" class="text-3xl sm:text-4xl font-bold text-white font-mono">—</div>
+        <div id="stat-total" class="stat-digit text-3xl sm:text-4xl font-bold text-white font-mono">—</div>
         <div class="mt-1 text-xs text-surface-400 uppercase tracking-wider">Análisis totales</div>
       </div>
       <div class="spotlight-item relative bg-surface-900 rounded-xl p-5 text-center border border-surface-800">
-        <div id="stat-seguros" class="text-3xl sm:text-4xl font-bold font-mono" style="color: var(--stat-secure);">—</div>
+        <div id="stat-seguros" class="stat-digit text-3xl sm:text-4xl font-bold font-mono" style="color: var(--stat-secure);">—</div>
         <div class="mt-1 text-xs text-surface-400 uppercase tracking-wider">Seguros</div>
       </div>
       <div class="spotlight-item relative bg-surface-900 rounded-xl p-5 text-center border border-surface-800">
-        <div id="stat-maliciosos" class="text-3xl sm:text-4xl font-bold font-mono" style="color: var(--stat-threat);">—</div>
+        <div id="stat-maliciosos" class="stat-digit text-3xl sm:text-4xl font-bold font-mono" style="color: var(--stat-threat);">—</div>
         <div class="mt-1 text-xs text-surface-400 uppercase tracking-wider">Maliciosos</div>
       </div>
       <div class="spotlight-item relative bg-surface-900 rounded-xl p-5 text-center border border-surface-800">
-        <div id="stat-nsfw" class="text-3xl sm:text-4xl font-bold font-mono" style="color: var(--stat-nsfw);">—</div>
+        <div id="stat-nsfw" class="stat-digit text-3xl sm:text-4xl font-bold font-mono" style="color: var(--stat-nsfw);">—</div>
         <div class="mt-1 text-xs text-surface-400 uppercase tracking-wider">NSFW</div>
       </div>
     </div>
@@ -69,6 +69,36 @@
         --stat-bar-se: oklch(0.65 0.2 45);
       }
     }
+
+    .stat-digit {
+      position: relative;
+      overflow: hidden;
+      line-height: 1.2;
+    }
+    .odometer-inner {
+      display: block;
+      transition: transform 350ms cubic-bezier(.2,.8,.3,1), opacity 350ms ease;
+    }
+    .odometer-exit {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      transform: translateY(0);
+      opacity: 1;
+    }
+    .odometer-exit.active {
+      transform: translateY(-100%);
+      opacity: 0;
+    }
+    .odometer-entry {
+      transform: translateY(100%);
+      opacity: 0;
+    }
+    .odometer-entry.active {
+      transform: translateY(0);
+      opacity: 1;
+    }
   </style>
 
   <script is:inline>
@@ -77,11 +107,46 @@
         return n >= 1000 ? n.toLocaleString('es-AR') : String(n);
       }
 
+      var wrappers = {};
+
+      function createWrapper(id) {
+        var el = document.getElementById(id);
+        var span = document.createElement('span');
+        span.className = 'odometer-inner';
+        span.textContent = el.textContent;
+        el.textContent = '';
+        el.appendChild(span);
+        wrappers[id] = el;
+      }
+
+      function animateValue(id, newText) {
+        var w = wrappers[id];
+        if (!w) return;
+        var oldSpan = w.querySelector('.odometer-inner');
+        if (!oldSpan || oldSpan.textContent === newText) return;
+
+        oldSpan.className = 'odometer-inner odometer-exit';
+
+        var newSpan = document.createElement('span');
+        newSpan.className = 'odometer-inner odometer-entry';
+        newSpan.textContent = newText;
+        w.appendChild(newSpan);
+
+        requestAnimationFrame(function () {
+          oldSpan.classList.add('active');
+          newSpan.classList.add('active');
+        });
+
+        setTimeout(function () {
+          if (oldSpan.parentNode) oldSpan.parentNode.removeChild(oldSpan);
+        }, 400);
+      }
+
       function updateUI(data) {
-        document.getElementById('stat-total').textContent = formatNum(data.total);
-        document.getElementById('stat-seguros').textContent = formatNum(data.seguros);
-        document.getElementById('stat-maliciosos').textContent = formatNum(data.maliciosos);
-        document.getElementById('stat-nsfw').textContent = formatNum(data.nsfw);
+        animateValue('stat-total', formatNum(data.total));
+        animateValue('stat-seguros', formatNum(data.seguros));
+        animateValue('stat-maliciosos', formatNum(data.maliciosos));
+        animateValue('stat-nsfw', formatNum(data.nsfw));
 
         document.getElementById('vt-daily-val').textContent = data.vt_usage_diario + '%';
         document.getElementById('vt-daily-bar').style.width = data.vt_usage_diario + '%';
@@ -95,14 +160,21 @@
       }
 
       function fetchStats() {
-        fetch('/api/stats')
+        fetch('/api/stats?_=' + Date.now(), {
+          headers: { 'Pragma': 'no-cache' }
+        })
           .then(function (r) { return r.json(); })
           .then(function (data) { updateUI(data); })
           .catch(function () {});
       }
 
+      createWrapper('stat-total');
+      createWrapper('stat-seguros');
+      createWrapper('stat-maliciosos');
+      createWrapper('stat-nsfw');
+
       fetchStats();
-      setInterval(fetchStats, 300000);
+      setInterval(fetchStats, 10000);
     })();
   </script>
 </section>
