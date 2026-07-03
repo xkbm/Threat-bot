@@ -1,5 +1,4 @@
 # Commit: 29e5a37
-# test
 import discord
 from discord.ext import commands
 import aiohttp
