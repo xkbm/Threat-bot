@@ -1,4 +1,4 @@
-# Commit: 0c6ab47
+# Commit: e1906a3
 import discord
 from discord.ext import commands
 import aiohttp

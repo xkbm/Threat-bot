@@ -51,8 +51,8 @@ export async function POST({ request }: { request: Request }): Promise<Response>
     };
 
     await put(BLOB_KEY, JSON.stringify(payload), {
-      access: "private",
-      allowOverwrite: true,
+      access: "public",
+      addRandomSuffix: false,
       contentType: "application/json",
     });
 
@@ -64,7 +64,7 @@ export async function POST({ request }: { request: Request }): Promise<Response>
 
 export async function GET(): Promise<Response> {
   try {
-    const blob = await get(BLOB_KEY, { access: "private" });
+    const blob = await get(BLOB_KEY);
     const text = await blob.text();
     const data: StatsPayload = JSON.parse(text);
     return new Response(JSON.stringify(data), {
