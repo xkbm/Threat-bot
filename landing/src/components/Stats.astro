@@ -69,66 +69,40 @@
         --stat-bar-se: oklch(0.65 0.2 45);
       }
     }
-    .stat-value {
-      transition: opacity 0.4s ease, transform 0.4s ease;
-    }
-    .stat-value.fade {
-      opacity: 0.2;
-      transform: scale(0.95);
-    }
   </style>
 
   <script is:inline>
     (function () {
-      var statEls = [
-        'stat-total', 'stat-seguros', 'stat-maliciosos', 'stat-nsfw',
-        'vt-daily-val', 'se-daily-val',
-        'vt-daily-bar', 'se-daily-bar',
-      ].map(function (id) { return document.getElementById(id); });
+      function q(id) { return document.getElementById(id); }
 
       function formatNum(n) {
         return n >= 1000 ? n.toLocaleString('es-AR') : String(n);
       }
 
-      function fadeIn() {
-        statEls.forEach(function (el) {
-          if (el) el.classList.remove('fade');
-        });
-      }
-
-      function fadeOut(cb) {
-        statEls.forEach(function (el) {
-          if (el) el.classList.add('fade');
-        });
-        setTimeout(cb, 400);
-      }
-
       function updateUI(data) {
-        document.getElementById('stat-total').textContent = formatNum(data.total);
-        document.getElementById('stat-seguros').textContent = formatNum(data.seguros);
-        document.getElementById('stat-maliciosos').textContent = formatNum(data.maliciosos);
-        document.getElementById('stat-nsfw').textContent = formatNum(data.nsfw);
+        var setText = function (id, v) { var el = q(id); if (el) el.textContent = v; };
+        var setWidth = function (id, v) { var el = q(id); if (el) el.style.width = v + '%'; };
 
-        document.getElementById('vt-daily-val').textContent = data.vt_usage_diario + '%';
-        document.getElementById('vt-daily-bar').style.width = data.vt_usage_diario + '%';
-        document.getElementById('se-daily-val').textContent = data.se_usage_diario + '%';
-        document.getElementById('se-daily-bar').style.width = data.se_usage_diario + '%';
+        setText('stat-total', formatNum(data.total));
+        setText('stat-seguros', formatNum(data.seguros));
+        setText('stat-maliciosos', formatNum(data.maliciosos));
+        setText('stat-nsfw', formatNum(data.nsfw));
+        setText('vt-daily-val', data.vt_usage_diario + '%');
+        setText('se-daily-val', data.se_usage_diario + '%');
+        setWidth('vt-daily-bar', data.vt_usage_diario);
+        setWidth('se-daily-bar', data.se_usage_diario);
 
-        if (data.timestamp > 0) {
-          var d = new Date(data.timestamp * 1000);
-          document.getElementById('stat-timestamp').textContent = 'Última actualización: ' + d.toLocaleString('es-AR');
+        var ts = q('stat-timestamp');
+        if (ts && data.timestamp > 0) {
+          ts.textContent = 'Última actualización: ' + new Date(data.timestamp * 1000).toLocaleString('es-AR');
         }
-
-        fadeIn();
       }
 
       function fetchStats() {
-        fadeOut(function () {
-          fetch('/api/stats?_=' + Date.now(), { headers: { 'Pragma': 'no-cache' } })
-            .then(function (r) { return r.json(); })
-            .then(function (data) { updateUI(data); })
-            .catch(function () { fadeIn(); });
-        });
+        fetch('/api/stats?_=' + Date.now(), { headers: { 'Pragma': 'no-cache' } })
+          .then(function (r) { return r.json(); })
+          .then(function (data) { updateUI(data); })
+          .catch(function () {});
       }
 
       fetchStats();
