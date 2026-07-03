@@ -67,7 +67,7 @@ export async function POST({ request }: { request: Request }): Promise<Response>
       token: process.env.BLOB_READ_WRITE_TOKEN,
     });
 
-    return new Response(JSON.stringify({ status: "OK", url: blobResult.url }), { status: 200 });
+    return new Response(JSON.stringify({ status: "OK" }), { status: 200 });
   } catch (e) {
     console.error("[stats POST]", e);
     return new Response("Bad Request", { status: 400 });
@@ -80,10 +80,10 @@ export async function GET(): Promise<Response> {
       access: "private",
       token: process.env.BLOB_READ_WRITE_TOKEN,
     });
-    if (!result || result.statusCode === 404) {
+    if (!result || result.statusCode !== 200 || !result.stream) {
       return jsonResponse(emptyPayload);
     }
-    const text = await result.stream.text();
+    const text = await new Response(result.stream).text();
     const data: StatsPayload = JSON.parse(text);
     return jsonResponse(data);
   } catch (e) {
