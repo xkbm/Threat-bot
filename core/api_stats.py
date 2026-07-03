@@ -9,7 +9,7 @@ from core.guild_config import obtener_stats_globales
 
 log = logging.getLogger("api_stats")
 
-STATS_API_URL: str = os.getenv("STATS_API_URL", "https://threat-bot-discord.vercel.app")
+STATS_API_URL: str = os.getenv("STATS_API_URL", "https://tbot-dc.vercel.app")
 STATS_TOKEN: Optional[str] = os.getenv("STATS_TOKEN")
 
 
@@ -58,7 +58,6 @@ async def enviar_stats_a_web() -> None:
         return
 
     while True:
-        await asyncio.sleep(300)
         try:
             stats = obtener_stats_globales()
             payload = {
@@ -88,3 +87,4 @@ async def enviar_stats_a_web() -> None:
             break
         except Exception as e:
             log.warning(f"[STATS] Push error: {type(e).__name__}: {e}")
+        await asyncio.sleep(300)
