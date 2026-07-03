@@ -51,7 +51,7 @@ export async function POST({ request }: { request: Request }): Promise<Response>
     };
 
     await put(BLOB_KEY, JSON.stringify(payload), {
-      access: "public",
+      access: "private",
       addRandomSuffix: false,
       contentType: "application/json",
     });
