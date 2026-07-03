@@ -65,26 +65,23 @@ export async function POST({ request }: { request: Request }): Promise<Response>
 }
 
 export async function GET(): Promise<Response> {
+  const headers = {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+    "Cache-Control": "no-cache, no-store, must-revalidate",
+  };
+
   try {
-    const blob = await get(BLOB_KEY);
-    const text = await blob.text();
+    const result = await get(BLOB_KEY, { access: "private" });
+    if (!result || result.statusCode !== 200) {
+      return new Response(JSON.stringify(emptyPayload), { status: 200, headers });
+    }
+    const text = await new Response(result.stream).text();
     const data: StatsPayload = JSON.parse(text);
-    return new Response(JSON.stringify(data), {
-      status: 200,
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-      },
-    });
-  } catch {
-    return new Response(JSON.stringify(emptyPayload), {
-      status: 200,
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-      },
-    });
+    return new Response(JSON.stringify(data), { status: 200, headers });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("Stats GET error:", msg);
+    return new Response(JSON.stringify(emptyPayload), { status: 200, headers });
   }
 }

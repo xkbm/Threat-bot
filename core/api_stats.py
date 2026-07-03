@@ -69,6 +69,7 @@ async def enviar_stats_a_web() -> None:
                 "se_usage_diario": round(_calcular_uso_se_diario(), 1),
                 "timestamp": time.time(),
             }
+            log.debug(f"Stats payload enviado: total={payload['total']}, seguros={payload['seguros']}, maliciosos={payload['maliciosos']}, nsfw={payload['nsfw']}")
             async with state.bot.session.post(
                 f"{STATS_API_URL}/api/stats",
                 json=payload,
