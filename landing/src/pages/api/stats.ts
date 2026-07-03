@@ -28,6 +28,16 @@ const emptyPayload: StatsPayload = {
 
 const BLOB_KEY = "stats.json";
 
+const jsonResponse = (data: StatsPayload) =>
+  new Response(JSON.stringify(data), {
+    status: 200,
+    headers: {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+      "Cache-Control": "no-cache, no-store, must-revalidate",
+    },
+  });
+
 export async function POST({ request }: { request: Request }): Promise<Response> {
   const auth = request.headers.get("Authorization");
   const token = auth?.startsWith("Bearer ") ? auth.slice(7) : null;
@@ -52,37 +62,26 @@ export async function POST({ request }: { request: Request }): Promise<Response>
 
     await put(BLOB_KEY, JSON.stringify(payload), {
       access: "private",
-      allowOverwrite: true,
       contentType: "application/json",
     });
 
     return new Response("OK", { status: 200 });
-  } catch {
+  } catch (e) {
+    console.error("[stats POST]", e);
     return new Response("Bad Request", { status: 400 });
   }
 }
 
 export async function GET(): Promise<Response> {
   try {
-    const blob = await get(BLOB_KEY, { access: "private" });
-    const text = await blob.text();
+    const result = await get(BLOB_KEY, { access: "private" });
+    if (!result || result.statusCode === 404) {
+      return jsonResponse(emptyPayload);
+    }
+    const text = await result.stream.text();
     const data: StatsPayload = JSON.parse(text);
-    return new Response(JSON.stringify(data), {
-      status: 200,
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-      },
-    });
+    return jsonResponse(data);
   } catch {
-    return new Response(JSON.stringify(emptyPayload), {
-      status: 200,
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-      },
-    });
+    return jsonResponse(emptyPayload);
   }
 }
