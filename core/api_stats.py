@@ -56,7 +56,6 @@ async def enviar_stats_a_web() -> None:
         return
 
     while True:
-        await asyncio.sleep(300)
         try:
             stats = obtener_stats_globales()
             payload = {
@@ -84,3 +83,4 @@ async def enviar_stats_a_web() -> None:
             break
         except Exception as e:
             log.warning(f"Stats push error: {e}")
+        await asyncio.sleep(300)
