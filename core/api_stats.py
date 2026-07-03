@@ -87,4 +87,4 @@ async def enviar_stats_a_web() -> None:
             break
         except Exception as e:
             log.warning(f"[STATS] Push error: {type(e).__name__}: {e}")
-        await asyncio.sleep(300)
+        await asyncio.sleep(10)  # testing: cada 10s
