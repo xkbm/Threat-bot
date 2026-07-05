@@ -101,7 +101,7 @@ async def _procesar_adjuntos(
     log_channel_id: Optional[int],
 ) -> None:
     adjuntos = message.attachments[:5]
-    omitidos = len(message.attachments) - 5
+    omitidos = max(0, len(message.attachments) - 5)
     imagenes = [a for a in adjuntos if es_imagen(a)]
     otros = [a for a in adjuntos if not es_imagen(a)]
     omit_msg = f", {omitidos} omitidos" if omitidos else ""
