@@ -93,8 +93,8 @@ class ConfiguracionCog(commands.Cog):
             await self._safe_followup(interaction, f"{self.bot.EMOJI_INCORRECTO} Este comando solo funciona en servidores.", ephemeral=True)
             return
         config = await self.bot.obtener_config_guild(interaction.guild.id)
-        silent = config.get("silent_mode", False)
-        strict = config.get("strict_mode", False)
+        silent = config.get("silent_mode", True)
+        strict = config.get("strict_mode", True)
         auto_scan = config.get("auto_scan_enabled", True)
         log_id = config.get("log_channel_id")
         log_channel = interaction.guild.get_channel(log_id) if log_id else None

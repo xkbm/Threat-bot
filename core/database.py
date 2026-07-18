@@ -232,8 +232,8 @@ async def cargar_datos() -> None:
                     continue
                 if isinstance(val, dict):
                     defaults = {
-                        "silent_mode": False,
-                        "strict_mode": False,
+                        "silent_mode": True,
+                        "strict_mode": True,
                         "auto_scan_enabled": True,
                         "log_channel_id": None,
                         "whitelist": list(DOMINIOS_PROTEGIDOS),

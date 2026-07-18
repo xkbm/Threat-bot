@@ -60,7 +60,7 @@ const keyCommands = [
         "name": "¿Cómo configuro el bot en mi servidor?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Invita al bot con el enlace en la página, usa /setlogchannel para configurar el canal de logs, y opcionalmente /silentmode o /strictmode según tus necesidades."
+          "text": "Invita al bot con el enlace en la página, usa /setlogchannel para configurar el canal de logs. El modo silencioso y el modo estricto vienen activados por defecto, pero puedes ajustarlos con /silentmode y /strictmode."
         }
       },
       {
@@ -126,7 +126,7 @@ const keyCommands = [
               URLs maliciosas, NSFW y phishing. Todo analizado en tiempo real.
             </p>
             <div class="flex flex-col items-center gap-4 sm:flex-row sm:items-start animate-fade-up-delayed">
-              <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer" class="group cta-primary inline-flex items-center gap-3 rounded-full bg-discord px-7 py-3.5 font-semibold text-white">
+              <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" rel="noopener noreferrer" class="group cta-primary inline-flex items-center gap-3 rounded-full bg-discord px-7 py-3.5 font-semibold text-white">
                 <Icon name="plus" />
                 Añadir a Discord
                 </span>
@@ -377,7 +377,7 @@ const keyCommands = [
       </div>
     </div>
     <div class="flex justify-center">
-      <a href="#threats" class="text-surface-500 transition-colors duration-200 hover:text-surface-300">
+      <a href="#threats" class="cursor-pointer text-surface-500 transition-colors duration-200 hover:text-surface-300">
         <Icon name="chevron-down" size="1.25em" />
       </a>
     </div>
@@ -706,13 +706,47 @@ const keyCommands = [
       <h2 class="mb-6 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
         ¿Listo para proteger tu servidor?
       </h2>
-      <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" target="_blank" rel="noopener noreferrer" class="group cta-primary inline-flex items-center gap-3 rounded-full bg-discord px-10 py-4 text-lg font-semibold text-white">
+      <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Fthreat-bot-discord.vercel.app%2Fthanks&response_type=code" rel="noopener noreferrer" class="group cta-primary inline-flex items-center gap-3 rounded-full bg-discord px-10 py-4 text-lg font-semibold text-white">
         <Icon name="plus" />
         Añadir a Discord
         </span>
       </a>
     </div>
   </section>
+
+  <!-- Back to top -->
+  <button
+    id="back-to-top"
+    class="fixed bottom-6 right-6 z-40 flex h-10 w-10 items-center justify-center rounded-full bg-surface-800 text-surface-400 shadow-lg border border-surface-700 opacity-0 translate-y-4 transition-all duration-300 ease-out-expo hover:bg-surface-700 hover:text-surface-200 focus-visible:outline-2 focus-visible:outline-shield"
+    aria-label="Volver arriba"
+    style="pointer-events: none;"
+  >
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="m18 15-6-6-6 6" />
+    </svg>
+  </button>
+
+  <script>
+    (function() {
+      const btn = document.getElementById('back-to-top');
+      if (!btn) return;
+
+      let visible = false;
+
+      window.addEventListener('scroll', () => {
+        const shouldShow = window.scrollY > window.innerHeight * 0.8;
+        if (shouldShow === visible) return;
+        visible = shouldShow;
+        btn.style.pointerEvents = shouldShow ? 'auto' : 'none';
+        btn.style.opacity = shouldShow ? '1' : '0';
+        btn.style.transform = shouldShow ? 'translateY(0)' : 'translateY(1rem)';
+      }, { passive: true });
+
+      btn.addEventListener('click', () => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    })();
+  </script>
 </BaseLayout>
 
 <script type="module">

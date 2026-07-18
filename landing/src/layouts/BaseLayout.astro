@@ -1,6 +1,7 @@
 ---
 import '../styles/global.css';
 import Icon from '../components/Icon.astro';
+import Nav from '../components/Nav.astro';
 
 export interface Props {
   title?: string;
@@ -52,8 +53,9 @@ const { title = 'Threat — Bot de Seguridad Gratis para Discord', description =
     <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
 
     <div class="fixed top-4 right-4 z-50 flex items-center gap-1">
+      <Nav />
       <a href="https://top.gg/bot/1038186932456390726" target="_blank" rel="noopener noreferrer"
-         class="inline-flex items-center justify-center rounded-full p-2.5 text-topgg hover:text-topgg-light nav-icon"
+         class="hidden md:inline-flex items-center justify-center rounded-full p-2.5 text-topgg hover:text-topgg-light nav-icon"
          aria-label="Top.gg">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
           <path d="M0 4.3785h7.6215V12H2.329A2.3212 2.3212 0 0 1 .0077 9.6788Zm24 0H8.757v15.243h3.1144a4.5071 4.5071 0 0 0 4.507-4.5071V12h3.1145A4.5073 4.5073 0 0 0 24 7.4929Z"/>
