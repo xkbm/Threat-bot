@@ -181,15 +181,15 @@ const keyCommands = [
                       </div>
                       <p id="chat-response-desc" class="mb-2 text-xs text-surface-300"></p>
                       <div id="chat-response-url-field" class="hidden mb-2">
-                        <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-surface-500">&#x1F517; URLs</div>
+                        <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-surface-500"><img src="/emoji-link.png" class="inline w-4 h-4" width="16" height="16" alt="" /> URLs</div>
                         <div id="chat-response-url-values" class="space-y-0.5"></div>
                       </div>
                       <div id="chat-response-nsfw-field" class="hidden mb-2">
-                        <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-alert-light">&#x1F51E; Imágenes (URL)</div>
+                        <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-alert-light"><img src="/emoji-nsfw.png" class="inline w-4 h-4" width="16" height="16" alt="" /> Imágenes (URL)</div>
                         <div id="chat-response-nsfw-values" class="space-y-0.5"></div>
                       </div>
                       <div id="chat-response-mal-field" class="hidden mb-2">
-                        <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-threat-light">&#x26A0;&#xFE0F; Enlaces maliciosos</div>
+                        <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-threat-light"><img src="/emoji-warn.png" class="inline w-4 h-4" width="16" height="16" alt="" /> Enlaces maliciosos</div>
                         <div id="chat-response-mal-values" class="space-y-0.5"></div>
                       </div>
                     </div>
@@ -231,7 +231,7 @@ const keyCommands = [
                 titleClass: 'text-threat-light',
                 tieneURL: true,
                 tieneNSFW: false,
-                desc: (det) => `Se analiz&#xF3; <strong class="text-surface-100">1</strong> elemento(s):<br/>${EMOJI_CHECK} Seguros: <strong class="text-surface-100">0</strong><br/>${EMOJI_WARN} Maliciosos: <strong class="text-surface-100">${det}</strong>`,
+                desc: (det) => `Se analizó <strong class="text-surface-100">1</strong> elemento(s):<br/>${EMOJI_CHECK} Seguros: <strong class="text-surface-100">0</strong><br/>${EMOJI_WARN} Maliciosos: <strong class="text-surface-100">${det}</strong>`,
                 conversaciones: [
                   { u1: '¿Alguien tiene el link del nuevo asset?', u2: 'creo que sí, te lo paso', urlFrom: 'u2' },
                   { u1: 'Me llegó un link raro', u2: '¿cuál es?', urlFrom: 'u1' },
@@ -255,7 +255,7 @@ const keyCommands = [
                 titleClass: 'text-secure-light',
                 tieneURL: true,
                 tieneNSFW: false,
-                desc: () => `Se analiz&#xF3; <strong class="text-surface-100">1</strong> elemento(s):<br/>${EMOJI_CHECK} Seguros: <strong class="text-surface-100">1</strong>`,
+                desc: () => `Se analizó <strong class="text-surface-100">1</strong> elemento(s):<br/>${EMOJI_CHECK} Seguros: <strong class="text-surface-100">1</strong>`,
                 conversaciones: [
                   { u1: '¿Alguien ha usado esto?', u2: 'sí, es confiable', urlFrom: 'u1' },
                   { u1: 'Mira el repo nuevo', u2: '¿qué hay?', urlFrom: 'u1' },
@@ -284,9 +284,9 @@ const keyCommands = [
                 ],
               },
             ];
-            const EMOJI_CHECK = '&#x2705;';
-            const EMOJI_WARN = '&#x26A0;&#xFE0F;';
-            const EMOJI_LINK_CHAIN = '&#x1F517;';
+            const EMOJI_CHECK = '<img src="/emoji-check.png" class="inline w-4 h-4" width="16" height="16" alt="" />';
+            const EMOJI_WARN = '<img src="/emoji-warn.png" class="inline w-4 h-4" width="16" height="16" alt="" />';
+            const EMOJI_LINK_CHAIN = '<img src="/emoji-link.png" class="inline w-4 h-4" width="16" height="16" alt="" />';
 
             function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
@@ -535,15 +535,15 @@ const keyCommands = [
                     </div>
                     <p id="demo-response-desc" class="mb-2 text-xs text-surface-300"></p>
                     <div id="demo-response-url-field" class="hidden mb-2">
-                      <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-surface-500">&#x1F517; URLs</div>
+                      <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-surface-500"><img src="/emoji-link.png" class="inline w-4 h-4" width="16" height="16" alt="" /> URLs</div>
                       <div id="demo-response-url-values" class="space-y-0.5"></div>
                     </div>
                     <div id="demo-response-nsfw-field" class="hidden mb-2">
-                      <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-alert-light">&#x1F51E; Imágenes (URL)</div>
+                      <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-alert-light"><img src="/emoji-nsfw.png" class="inline w-4 h-4" width="16" height="16" alt="" /> Imágenes (URL)</div>
                       <div id="demo-response-nsfw-values" class="space-y-0.5"></div>
                     </div>
                     <div id="demo-response-mal-field" class="hidden mb-2">
-                      <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-threat-light">&#x26A0;&#xFE0F; Enlaces maliciosos</div>
+                      <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-threat-light"><img src="/emoji-warn.png" class="inline w-4 h-4" width="16" height="16" alt="" /> Enlaces maliciosos</div>
                       <div id="demo-response-mal-values" class="space-y-0.5"></div>
                     </div>
                   </div>
@@ -574,7 +574,7 @@ const keyCommands = [
               borderColor: 'rgb(230, 126, 34)',
               titleClass: 'text-threat-light',
               tipo: 'url',
-              desc: (det) => `Se analiz&#xF3; <strong class="text-surface-100">1</strong> elemento(s):<br/>&#x2705; Seguros: <strong class="text-surface-100">0</strong><br/>&#x26A0;&#xFE0F; Maliciosos: <strong class="text-surface-100">${det}</strong>`,
+              desc: (det) => `Se analizó <strong class="text-surface-100">1</strong> elemento(s):<br/>${EMOJI_CHECK_D} Seguros: <strong class="text-surface-100">0</strong><br/>${EMOJI_WARN_D} Maliciosos: <strong class="text-surface-100">${det}</strong>`,
               highlight: 'scenario-phishing',
             },
             {
@@ -584,7 +584,7 @@ const keyCommands = [
               borderColor: 'rgb(232, 197, 71)',
               titleClass: 'text-alert-light',
               tipo: 'nsfw',
-              desc: () => `Se analiz&#xF3; <strong class="text-surface-100">1</strong> elemento(s):<br/>&#x2705; Seguros: <strong class="text-surface-100">0</strong><br/>&#x1F51E; NSFW: <strong class="text-surface-100">1</strong>`,
+              desc: () => `Se analizó <strong class="text-surface-100">1</strong> elemento(s):<br/>${EMOJI_CHECK_D} Seguros: <strong class="text-surface-100">0</strong><br/>${EMOJI_NSFW_D} NSFW: <strong class="text-surface-100">1</strong>`,
               highlight: 'scenario-nsfw',
             },
             {
@@ -598,10 +598,10 @@ const keyCommands = [
               highlight: 'scenario-safe',
             },
           ];
-          const EMOJI_CHECK_D = '&#x2705;';
-          const EMOJI_WARN_D = '&#x26A0;&#xFE0F;';
-          const EMOJI_NSFW_D = '&#x1F51E;';
-          const EMOJI_LINK_D = '&#x1F517;';
+          const EMOJI_CHECK_D = '<img src="/emoji-check.png" class="inline w-4 h-4" width="16" height="16" alt="" />';
+          const EMOJI_WARN_D = '<img src="/emoji-warn.png" class="inline w-4 h-4" width="16" height="16" alt="" />';
+          const EMOJI_NSFW_D = '<img src="/emoji-nsfw.png" class="inline w-4 h-4" width="16" height="16" alt="" />';
+          const EMOJI_LINK_D = '<img src="/emoji-link.png" class="inline w-4 h-4" width="16" height="16" alt="" />';
 
           function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
           const usuarios = ['Carlos', 'Laura', 'Pedro', 'Sofía', 'Ana', 'Luis'];
