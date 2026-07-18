@@ -209,7 +209,7 @@ async def _procesar_adjuntos(
         except (discord.errors.Forbidden, discord.errors.NotFound):
             pass
 
-    await maybe_send_modes_prompt(bot, message.channel, silent_mode, strict_mode)
+    await maybe_send_modes_prompt(bot, message.channel, guild_id, silent_mode, strict_mode)
 
 async def _procesar_adjuntos_si_hay(
     bot: commands.Bot,
@@ -593,8 +593,8 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
             except (discord.errors.Forbidden, discord.errors.NotFound):
                 pass
         await _procesar_adjuntos_si_hay(bot, message, guild_id, silent_mode, strict_mode, log_channel_id)
-        await maybe_send_modes_prompt(bot, message.channel, silent_mode, strict_mode)
+        await maybe_send_modes_prompt(bot, message.channel, guild_id, silent_mode, strict_mode)
         return
 
     await _procesar_adjuntos_si_hay(bot, message, guild_id, silent_mode, strict_mode, log_channel_id)
-    await maybe_send_modes_prompt(bot, message.channel, silent_mode, strict_mode)
+    await maybe_send_modes_prompt(bot, message.channel, guild_id, silent_mode, strict_mode)

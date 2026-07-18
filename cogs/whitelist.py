@@ -23,7 +23,7 @@ class WhitelistCog(commands.Cog):
         from core import state
         if guild_id not in state.bot.guilds_data:
             state.bot.guilds_data[guild_id] = {
-                "silent_mode": True, "strict_mode": True, "log_channel_id": None,
+                "silent_mode": True, "strict_mode": True, "modes_reminder_enabled": True, "log_channel_id": None,
                 "whitelist": [],
                 "infracciones": {}, "infracciones_registradas": {},
             }
