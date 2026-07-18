@@ -223,38 +223,6 @@ async def maybe_send_review_prompt(bot, channel: discord.abc.Messageable) -> Non
     except Exception:
         pass
 
-MODES_PROMPT_CHANCE = 0.10
-
-async def maybe_send_modes_prompt(
-    bot,
-    channel: discord.abc.Messageable,
-    guild_id: int,
-    silent_mode: bool,
-    strict_mode: bool,
-) -> None:
-    if _random.random() >= MODES_PROMPT_CHANCE:
-        return
-    from core.guild_config import obtener_config_guild
-    config = await obtener_config_guild(guild_id)
-    if not config.get("modes_reminder_enabled", True):
-        return
-    from ui.views import ModesReminderView
-    silent_estado = "Activado" if silent_mode else "Desactivado"
-    strict_estado = "Activado" if strict_mode else "Desactivado"
-    embed = discord.Embed(
-        description=(
-            "Personaliza la respuesta de Threat con `/silentmode` y `/strictmode`.\n"
-            f"• **Modo silencioso** ({silent_estado}): el bot solo responde si detecta amenazas.\n"
-            f"• **Modo estricto** ({strict_estado}): elimina automáticamente mensajes con amenazas."
-        ),
-        color=discord.Color(0x1A5AD8),
-    )
-    try:
-        view = ModesReminderView(guild_id)
-        view.message = await channel.send(embed=embed, view=view)
-    except Exception:
-        pass
-
 async def check_vt_user_limit(user_id: int) -> bool:
     from core import state
     ahora = time.time()

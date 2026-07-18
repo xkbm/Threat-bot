@@ -241,38 +241,3 @@ class WhitelistPaginatorView(discord.ui.View):
             self._update_buttons()
             await interaction.response.edit_message(embed=self.get_page_embed(), view=self)
 
-
-class ModesReminderView(discord.ui.View):
-    def __init__(self, guild_id: int) -> None:
-        super().__init__(timeout=300)
-        self.guild_id = guild_id
-        self.message: Optional[discord.Message] = None
-
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("Solo administradores pueden desactivar este recordatorio.", ephemeral=True)
-            return False
-        return True
-
-    @discord.ui.button(label="No volver a mostrar", style=discord.ButtonStyle.secondary)
-    async def dismiss_btn(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
-        config = await obtener_config_guild(self.guild_id)
-        config["modes_reminder_enabled"] = False
-        await guardar_datos(inmediato=True)
-        for child in self.children:
-            child.disabled = True
-        await interaction.response.edit_message(
-            content="Recordatorio desactivado. Puedes volver a ver esta información con `/settings`.",
-            embed=None,
-            view=self,
-        )
-
-    async def on_timeout(self) -> None:
-        if not self.message:
-            return
-        for child in self.children:
-            child.disabled = True
-        try:
-            await self.message.edit(view=self)
-        except Exception:
-            pass

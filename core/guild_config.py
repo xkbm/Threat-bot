@@ -27,7 +27,6 @@ async def obtener_config_guild(guild_id: int) -> dict[str, Any]:
                 "silent_mode": True,
                 "strict_mode": True,
                 "auto_scan_enabled": True,
-                "modes_reminder_enabled": True,
                 "log_channel_id": None,
                 "whitelist": list(DOMINIOS_PROTEGIDOS),
                 "infracciones": {},
@@ -61,7 +60,7 @@ async def registrar_infraccion(guild_id: int, user_id: int, elemento_id: str) ->
     async with await _get_guild_lock(guild_id):
         if guild_id not in state.bot.guilds_data:
             state.bot.guilds_data[guild_id] = {
-                "silent_mode": True, "strict_mode": True, "modes_reminder_enabled": True, "log_channel_id": None,
+                "silent_mode": True, "strict_mode": True, "log_channel_id": None,
                 "whitelist": list(DOMINIOS_PROTEGIDOS),
                 "infracciones": {}, "infracciones_registradas": {},
             }
