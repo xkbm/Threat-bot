@@ -177,7 +177,7 @@ const keyCommands = [
                     <div id="chat-response-card" class="hidden border-l-4 bg-surface-800 p-3.5">
                       <div class="mb-1 flex items-center gap-1.5">
                         <img id="chat-response-emoji" src="/emoji-warn.png" alt="" class="w-4 h-4" width="16" height="16" />
-                        <span id="chat-response-title" class="text-sm font-semibold text-threat-light">Amenazas detectadas</span>
+                        <span id="chat-response-title" class="text-sm font-semibold text-surface-100">Amenazas detectadas</span>
                       </div>
                       <p id="chat-response-desc" class="mb-2 text-xs text-surface-300"></p>
                       <div id="chat-response-url-field" class="hidden mb-2">
@@ -228,7 +228,7 @@ const keyCommands = [
                 titulo: 'Amenazas detectadas',
                 emoji: '/emoji-warn.png',
                 borderColor: 'rgb(230, 126, 34)',
-                titleClass: 'text-threat-light',
+                titleClass: 'text-surface-100',
                 tieneURL: true,
                 tieneNSFW: false,
                 desc: (det) => `Se analizó <strong class="text-surface-100">1</strong> elemento(s):<br/>${EMOJI_CHECK} Seguros: <strong class="text-surface-100">0</strong><br/>${EMOJI_WARN} Maliciosos: <strong class="text-surface-100">${det}</strong>`,
@@ -252,7 +252,7 @@ const keyCommands = [
                 titulo: 'Todos los elementos son seguros',
                 emoji: '/emoji-check.png',
                 borderColor: 'var(--color-secure)',
-                titleClass: 'text-secure-light',
+                titleClass: 'text-surface-100',
                 tieneURL: true,
                 tieneNSFW: false,
                 desc: () => `Se analizó <strong class="text-surface-100">1</strong> elemento(s):<br/>${EMOJI_CHECK} Seguros: <strong class="text-surface-100">1</strong>`,
@@ -572,7 +572,7 @@ const keyCommands = [
               titulo: 'Amenazas detectadas',
               emoji: '/emoji-warn.png',
               borderColor: 'rgb(230, 126, 34)',
-              titleClass: 'text-threat-light',
+              titleClass: 'text-surface-100',
               tipo: 'url',
               desc: (det) => `Se analizó <strong class="text-surface-100">1</strong> elemento(s):<br/>${EMOJI_CHECK_D} Seguros: <strong class="text-surface-100">0</strong><br/>${EMOJI_WARN_D} Maliciosos: <strong class="text-surface-100">${det}</strong>`,
               highlight: 'scenario-phishing',
@@ -582,7 +582,7 @@ const keyCommands = [
               titulo: 'Contenido NSFW detectado',
               emoji: '/emoji-warn.png',
               borderColor: 'rgb(232, 197, 71)',
-              titleClass: 'text-alert-light',
+              titleClass: 'text-surface-100',
               tipo: 'nsfw',
               desc: () => `Se analizó <strong class="text-surface-100">1</strong> elemento(s):<br/>${EMOJI_CHECK_D} Seguros: <strong class="text-surface-100">0</strong><br/>${EMOJI_NSFW_D} NSFW: <strong class="text-surface-100">1</strong>`,
               highlight: 'scenario-nsfw',
