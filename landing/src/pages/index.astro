@@ -214,6 +214,10 @@ const keyCommands = [
           document.addEventListener('DOMContentLoaded', () => {
             const usuarios = ['Alex', 'María', 'Carlos', 'Laura', 'Pedro', 'Sofía', 'Ana', 'Luis', 'Elena', 'Diego', 'Martín', 'Valentina', 'Joaquín', 'Camila', 'Rodrigo'];
 
+            const EMOJI_CHECK = '<img src="/emoji-check.png" class="inline w-4 h-4" width="16" height="16" alt="" />';
+            const EMOJI_WARN = '<img src="/emoji-warn.png" class="inline w-4 h-4" width="16" height="16" alt="" />';
+            const EMOJI_LINK_CHAIN = '<img src="/emoji-link.png" class="inline w-4 h-4" width="16" height="16" alt="" />';
+
             const escenarios = [
               {
                 tipo: 'malicioso',
@@ -284,9 +288,6 @@ const keyCommands = [
                 ],
               },
             ];
-            const EMOJI_CHECK = '<img src="/emoji-check.png" class="inline w-4 h-4" width="16" height="16" alt="" />';
-            const EMOJI_WARN = '<img src="/emoji-warn.png" class="inline w-4 h-4" width="16" height="16" alt="" />';
-            const EMOJI_LINK_CHAIN = '<img src="/emoji-link.png" class="inline w-4 h-4" width="16" height="16" alt="" />';
 
             function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
@@ -566,6 +567,11 @@ const keyCommands = [
 
       <script type="module">
         document.addEventListener('DOMContentLoaded', () => {
+          const EMOJI_CHECK_D = '<img src="/emoji-check.png" class="inline w-4 h-4" width="16" height="16" alt="" />';
+          const EMOJI_WARN_D = '<img src="/emoji-warn.png" class="inline w-4 h-4" width="16" height="16" alt="" />';
+          const EMOJI_NSFW_D = '<img src="/emoji-nsfw.png" class="inline w-4 h-4" width="16" height="16" alt="" />';
+          const EMOJI_LINK_D = '<img src="/emoji-link.png" class="inline w-4 h-4" width="16" height="16" alt="" />';
+
           const demoScenarios = [
             {
               url: 'https://free-nitro.download/claim',
@@ -598,10 +604,6 @@ const keyCommands = [
               highlight: 'scenario-safe',
             },
           ];
-          const EMOJI_CHECK_D = '<img src="/emoji-check.png" class="inline w-4 h-4" width="16" height="16" alt="" />';
-          const EMOJI_WARN_D = '<img src="/emoji-warn.png" class="inline w-4 h-4" width="16" height="16" alt="" />';
-          const EMOJI_NSFW_D = '<img src="/emoji-nsfw.png" class="inline w-4 h-4" width="16" height="16" alt="" />';
-          const EMOJI_LINK_D = '<img src="/emoji-link.png" class="inline w-4 h-4" width="16" height="16" alt="" />';
 
           function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
           const usuarios = ['Carlos', 'Laura', 'Pedro', 'Sofía', 'Ana', 'Luis'];
@@ -679,10 +681,8 @@ const keyCommands = [
                 const vtLink = `https://www.virustotal.com/gui/url/${urlId}`;
                 malValues.innerHTML = `<span class="text-xs text-surface-300">• <code class="font-mono text-xs text-surface-200 bg-surface-700 px-1 py-0.5 rounded">${s.url}</code> <a href="${vtLink}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-0.5 text-shield-light hover:underline">${EMOJI_LINK_D} Ver informe</a></span>`;
               } else if (s.tipo === 'nsfw') {
-                urlField.classList.remove('hidden');
-                urlValues.innerHTML = `${EMOJI_NSFW_D} <code class="font-mono text-xs text-surface-200 bg-surface-700 px-1 py-0.5 rounded">${s.url}</code>`;
                 nsfwField.classList.remove('hidden');
-                nsfwValues.innerHTML = `<span class="text-xs text-surface-300">Desnudez <strong class="text-surface-100">72%</strong>, Armas <strong class="text-surface-100">55%</strong></span>`;
+                nsfwValues.innerHTML = `${EMOJI_NSFW_D} <code class="font-mono text-xs text-surface-200 bg-surface-700 px-1 py-0.5 rounded">${s.url}</code> <span class="text-xs text-surface-300">Desnudez <strong class="text-surface-100">72%</strong>, Armas <strong class="text-surface-100">55%</strong></span>`;
               }
             }
 
