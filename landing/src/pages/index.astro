@@ -174,21 +174,24 @@ const keyCommands = [
                       <span class="font-mono text-xs font-medium text-white">Threat</span>
                       <span class="inline-flex items-center gap-0.5 rounded bg-discord px-1.5 py-[1px] text-[9px] font-semibold leading-normal text-white"><Icon name="check" class="text-white" size="9px" /> APP</span>
                     </div>
-                    <div id="chat-response-card" class="border-l-4 bg-surface-800 p-3.5" style="border-left-color: rgb(230, 126, 34);">
+                    <div id="chat-response-card" class="hidden border-l-4 bg-surface-800 p-3.5">
                       <div class="mb-1 flex items-center gap-1.5">
                         <img id="chat-response-emoji" src="/emoji-warn.png" alt="" class="w-4 h-4" width="16" height="16" />
-                        <span id="chat-response-title" class="text-sm font-semibold text-threat-light">URL Maliciosa Detectada</span>
+                        <span id="chat-response-title" class="text-sm font-semibold text-threat-light">Amenazas detectadas</span>
                       </div>
-                      <p id="chat-response-desc" class="mb-2 text-xs text-surface-300">
-                        Se encontraron <strong class="text-surface-100">18</strong> detecciones
-                      </p>
-                      <div id="chat-response-url-section" class="mb-2">
-                        <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-surface-500">URL</div>
-                        <code class="chat-url block truncate rounded bg-surface-700 px-2 py-1 font-mono text-xs text-surface-200"></code>
+                      <p id="chat-response-desc" class="mb-2 text-xs text-surface-300"></p>
+                      <div id="chat-response-url-field" class="hidden mb-2">
+                        <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-surface-500">&#x1F517; URLs</div>
+                        <div id="chat-response-url-values" class="space-y-0.5"></div>
                       </div>
-                      <span id="chat-response-link" class="inline-flex items-center gap-1 text-xs text-shield-light">
-                        <Icon name="external-link-alt" /> Ver informe completo
-                      </span>
+                      <div id="chat-response-nsfw-field" class="hidden mb-2">
+                        <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-alert-light">&#x1F51E; Imágenes (URL)</div>
+                        <div id="chat-response-nsfw-values" class="space-y-0.5"></div>
+                      </div>
+                      <div id="chat-response-mal-field" class="hidden mb-2">
+                        <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-threat-light">&#x26A0;&#xFE0F; Enlaces maliciosos</div>
+                        <div id="chat-response-mal-values" class="space-y-0.5"></div>
+                      </div>
                     </div>
                     <div id="chat-response-text" class="hidden text-sm text-surface-300">
                       <img src="/emoji-whitelist.png" alt="" class="inline w-4 h-4 mr-1" width="16" height="16" />
@@ -222,10 +225,13 @@ const keyCommands = [
                   'https://free-bitcoin.tk/claim',
                   'https://secure-update.ga/package',
                 ],
-                titulo: 'URL Maliciosa Detectada',
+                titulo: 'Amenazas detectadas',
                 emoji: '/emoji-warn.png',
                 borderColor: 'rgb(230, 126, 34)',
-                titleClass: 'text-surface-100',
+                titleClass: 'text-threat-light',
+                tieneURL: true,
+                tieneNSFW: false,
+                desc: (det) => `Se analiz&#xF3; <strong class="text-surface-100">1</strong> elemento(s):<br/>${EMOJI_CHECK} Seguros: <strong class="text-surface-100">0</strong><br/>${EMOJI_WARN} Maliciosos: <strong class="text-surface-100">${det}</strong>`,
                 conversaciones: [
                   { u1: '¿Alguien tiene el link del nuevo asset?', u2: 'creo que sí, te lo paso', urlFrom: 'u2' },
                   { u1: 'Me llegó un link raro', u2: '¿cuál es?', urlFrom: 'u1' },
@@ -243,10 +249,13 @@ const keyCommands = [
                   'https://docs.python.org/3/tutorial/modules.html',
                   'https://tailwindcss.com/docs/installation',
                 ],
-                titulo: 'URL Segura',
+                titulo: 'Todos los elementos son seguros',
                 emoji: '/emoji-check.png',
                 borderColor: 'var(--color-secure)',
-                titleClass: 'text-surface-100',
+                titleClass: 'text-secure-light',
+                tieneURL: true,
+                tieneNSFW: false,
+                desc: () => `Se analiz&#xF3; <strong class="text-surface-100">1</strong> elemento(s):<br/>${EMOJI_CHECK} Seguros: <strong class="text-surface-100">1</strong>`,
                 conversaciones: [
                   { u1: '¿Alguien ha usado esto?', u2: 'sí, es confiable', urlFrom: 'u1' },
                   { u1: 'Mira el repo nuevo', u2: '¿qué hay?', urlFrom: 'u1' },
@@ -265,6 +274,9 @@ const keyCommands = [
                 emoji: '/emoji-whitelist.png',
                 borderColor: 'var(--color-secure)',
                 titleClass: 'text-surface-100',
+                tieneURL: false,
+                tieneNSFW: false,
+                desc: () => '',
                 conversaciones: [
                   { u1: 'Miren este video', u2: '¿de qué trata?', urlFrom: 'u1' },
                   { u1: 'Pasen la playlist nueva', u2: 'aquí la tienes', urlFrom: 'u2' },
@@ -272,6 +284,9 @@ const keyCommands = [
                 ],
               },
             ];
+            const EMOJI_CHECK = '&#x2705;';
+            const EMOJI_WARN = '&#x26A0;&#xFE0F;';
+            const EMOJI_LINK_CHAIN = '&#x1F517;';
 
             function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
@@ -291,8 +306,12 @@ const keyCommands = [
             const responseEmoji = document.getElementById('chat-response-emoji');
             const responseTitle = document.getElementById('chat-response-title');
             const responseDesc = document.getElementById('chat-response-desc');
-            const responseUrlSection = document.getElementById('chat-response-url-section');
-            const responseLink = document.getElementById('chat-response-link');
+            const responseUrlField = document.getElementById('chat-response-url-field');
+            const responseUrlValues = document.getElementById('chat-response-url-values');
+            const responseNsfwField = document.getElementById('chat-response-nsfw-field');
+            const responseNsfwValues = document.getElementById('chat-response-nsfw-values');
+            const responseMalField = document.getElementById('chat-response-mal-field');
+            const responseMalValues = document.getElementById('chat-response-mal-values');
 
             if (escenario.tipo === 'whitelist') {
               responseCard.classList.add('hidden');
@@ -305,15 +324,30 @@ const keyCommands = [
               responseTitle.textContent = escenario.titulo;
               responseTitle.setAttribute('class', `text-sm font-semibold ${escenario.titleClass}`);
 
-              if (escenario.tipo === 'malicioso') {
-                const det = Math.floor(Math.random() * 22) + 3;
-                responseDesc.innerHTML = `Se encontraron <strong class="text-surface-100">${det}</strong> detecciones`;
-                responseUrlSection.classList.remove('hidden');
-                responseLink.classList.remove('hidden');
+              const det = Math.floor(Math.random() * 22) + 3;
+              responseDesc.innerHTML = escenario.desc(det);
+
+              // URL field
+              if (escenario.tieneURL) {
+                responseUrlField.classList.remove('hidden');
+                responseUrlValues.innerHTML = escenario.tipo === 'malicioso'
+                  ? `<span class="text-xs text-surface-300">${EMOJI_WARN} <code class="font-mono text-xs text-surface-200 bg-surface-700 px-1 py-0.5 rounded">${url}</code></span>`
+                  : `<span class="text-xs text-surface-300">${EMOJI_CHECK} <code class="font-mono text-xs text-surface-200 bg-surface-700 px-1 py-0.5 rounded">${url}</code></span>`;
               } else {
-                responseDesc.textContent = 'No se detectaron amenazas';
-                responseUrlSection.classList.remove('hidden');
-                responseLink.classList.remove('hidden');
+                responseUrlField.classList.add('hidden');
+              }
+
+              // NSFW field
+              responseNsfwField.classList.add('hidden');
+
+              // Malicious links field
+              if (escenario.tipo === 'malicioso') {
+                responseMalField.classList.remove('hidden');
+                const urlId = btoa(url).replace(/=+$/, '');
+                const vtLink = `https://www.virustotal.com/gui/url/${urlId}`;
+                responseMalValues.innerHTML = `<span class="text-xs text-surface-300">• <code class="font-mono text-xs text-surface-200 bg-surface-700 px-1 py-0.5 rounded">${url}</code> <a href="${vtLink}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-0.5 text-shield-light hover:underline">${EMOJI_LINK_CHAIN} Ver informe</a></span>`;
+              } else {
+                responseMalField.classList.add('hidden');
               }
             }
 
@@ -494,19 +528,24 @@ const keyCommands = [
                     <span class="font-mono text-xs font-medium text-white">Threat</span>
                     <span class="inline-flex items-center gap-0.5 rounded bg-discord px-1.5 py-[1px] text-[9px] font-semibold leading-normal text-white"><Icon name="check" class="text-white" size="9px" /> APP</span>
                   </div>
-                  <div id="demo-response-card" class="border-l-4 bg-surface-800 p-3.5" style="border-left-color: rgb(230, 126, 34);">
+                  <div id="demo-response-card" class="hidden border-l-4 bg-surface-800 p-3.5">
                     <div class="mb-1 flex items-center gap-1.5">
                       <img id="demo-response-emoji" src="/emoji-warn.png" alt="" class="w-4 h-4" width="16" height="16" />
-                      <span id="demo-response-title" class="text-sm font-semibold text-surface-100">URL Maliciosa Detectada</span>
+                      <span id="demo-response-title" class="text-sm font-semibold text-surface-100">Amenazas detectadas</span>
                     </div>
                     <p id="demo-response-desc" class="mb-2 text-xs text-surface-300"></p>
-                    <div id="demo-response-url-section" class="mb-2">
-                      <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-surface-500">URL</div>
-                      <code id="demo-response-url" class="block truncate rounded bg-surface-700 px-2 py-1 font-mono text-xs text-surface-200"></code>
+                    <div id="demo-response-url-field" class="hidden mb-2">
+                      <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-surface-500">&#x1F517; URLs</div>
+                      <div id="demo-response-url-values" class="space-y-0.5"></div>
                     </div>
-                    <span id="demo-response-link" class="inline-flex items-center gap-1 text-xs text-shield-light">
-                      <Icon name="external-link-alt" /> Ver informe completo
-                    </span>
+                    <div id="demo-response-nsfw-field" class="hidden mb-2">
+                      <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-alert-light">&#x1F51E; Imágenes (URL)</div>
+                      <div id="demo-response-nsfw-values" class="space-y-0.5"></div>
+                    </div>
+                    <div id="demo-response-mal-field" class="hidden mb-2">
+                      <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-threat-light">&#x26A0;&#xFE0F; Enlaces maliciosos</div>
+                      <div id="demo-response-mal-values" class="space-y-0.5"></div>
+                    </div>
                   </div>
                   <div id="demo-response-text" class="hidden text-sm text-surface-300">
                     <img src="/emoji-whitelist.png" alt="" class="inline w-4 h-4 mr-1" width="16" height="16" />
@@ -530,24 +569,22 @@ const keyCommands = [
           const demoScenarios = [
             {
               url: 'https://free-nitro.download/claim',
-              titulo: 'URL Maliciosa Detectada',
+              titulo: 'Amenazas detectadas',
               emoji: '/emoji-warn.png',
               borderColor: 'rgb(230, 126, 34)',
-              desc: (det) => `Se encontraron <strong class="text-surface-100">${det}</strong> detecciones`,
-              showUrl: true,
-              showLink: true,
-              isWhitelist: false,
+              titleClass: 'text-threat-light',
+              tipo: 'url',
+              desc: (det) => `Se analiz&#xF3; <strong class="text-surface-100">1</strong> elemento(s):<br/>&#x2705; Seguros: <strong class="text-surface-100">0</strong><br/>&#x26A0;&#xFE0F; Maliciosos: <strong class="text-surface-100">${det}</strong>`,
               highlight: 'scenario-phishing',
             },
             {
               url: 'https://i.imgur.com/NSFWimage.jpg',
-              titulo: 'Contenido Inapropiado Detectado',
+              titulo: 'Contenido NSFW detectado',
               emoji: '/emoji-warn.png',
               borderColor: 'rgb(232, 197, 71)',
-              desc: () => `Desnudez <strong class="text-surface-100">72%</strong>, Armas <strong class="text-surface-100">55%</strong>`,
-              showUrl: true,
-              showLink: true,
-              isWhitelist: false,
+              titleClass: 'text-alert-light',
+              tipo: 'nsfw',
+              desc: () => `Se analiz&#xF3; <strong class="text-surface-100">1</strong> elemento(s):<br/>&#x2705; Seguros: <strong class="text-surface-100">0</strong><br/>&#x1F51E; NSFW: <strong class="text-surface-100">1</strong>`,
               highlight: 'scenario-nsfw',
             },
             {
@@ -555,13 +592,16 @@ const keyCommands = [
               titulo: '',
               emoji: '/emoji-whitelist.png',
               borderColor: 'var(--color-secure)',
+              titleClass: 'text-surface-100',
+              tipo: 'whitelist',
               desc: () => '',
-              showUrl: false,
-              showLink: false,
-              isWhitelist: true,
               highlight: 'scenario-safe',
             },
           ];
+          const EMOJI_CHECK_D = '&#x2705;';
+          const EMOJI_WARN_D = '&#x26A0;&#xFE0F;';
+          const EMOJI_NSFW_D = '&#x1F51E;';
+          const EMOJI_LINK_D = '&#x1F517;';
 
           function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
           const usuarios = ['Carlos', 'Laura', 'Pedro', 'Sofía', 'Ana', 'Luis'];
@@ -579,9 +619,12 @@ const keyCommands = [
             const emoji = document.getElementById('demo-response-emoji');
             const title = document.getElementById('demo-response-title');
             const desc = document.getElementById('demo-response-desc');
-            const urlSec = document.getElementById('demo-response-url-section');
-            const link = document.getElementById('demo-response-link');
-            const urlEl = document.getElementById('demo-response-url');
+            const urlField = document.getElementById('demo-response-url-field');
+            const urlValues = document.getElementById('demo-response-url-values');
+            const nsfwField = document.getElementById('demo-response-nsfw-field');
+            const nsfwValues = document.getElementById('demo-response-nsfw-values');
+            const malField = document.getElementById('demo-response-mal-field');
+            const malValues = document.getElementById('demo-response-mal-values');
 
             // Reset
             [msg1, msg2, typing, response].forEach(el => {
@@ -604,13 +647,13 @@ const keyCommands = [
             let u2;
             do { u2 = rand(usuarios); } while (u2 === u1);
             msg1.querySelector('.font-mono').textContent = u1;
-            msg1.querySelector('.text-surface-300').textContent = s.isWhitelist ? 'Miren este video' : 'Alguien pasó un link raro';
+            msg1.querySelector('.text-surface-300').textContent = s.tipo === 'whitelist' ? 'Miren este video' : 'Alguien pasó un link raro';
             msg2.querySelector('.font-mono').textContent = u2;
             const urlTextEl = msg2.querySelector('.demo-chat-url');
             urlTextEl.textContent = s.url;
 
             // Set response
-            if (s.isWhitelist) {
+            if (s.tipo === 'whitelist') {
               card.classList.add('hidden');
               text.classList.remove('hidden');
             } else {
@@ -619,18 +662,27 @@ const keyCommands = [
               card.style.borderLeftColor = s.borderColor;
               emoji.src = s.emoji;
               title.textContent = s.titulo;
+              title.setAttribute('class', `text-sm font-semibold ${s.titleClass}`);
               const det = Math.floor(Math.random() * 22) + 3;
               desc.innerHTML = s.desc(det);
-              if (s.showUrl) {
-                urlSec.classList.remove('hidden');
-                urlEl.textContent = s.url;
-              } else {
-                urlSec.classList.add('hidden');
-              }
-              if (s.showLink) {
-                link.classList.remove('hidden');
-              } else {
-                link.classList.add('hidden');
+
+              // Hide all fields first
+              urlField.classList.add('hidden');
+              nsfwField.classList.add('hidden');
+              malField.classList.add('hidden');
+
+              if (s.tipo === 'url') {
+                urlField.classList.remove('hidden');
+                urlValues.innerHTML = `${EMOJI_WARN_D} <code class="font-mono text-xs text-surface-200 bg-surface-700 px-1 py-0.5 rounded">${s.url}</code>`;
+                malField.classList.remove('hidden');
+                const urlId = btoa(s.url).replace(/=+$/, '');
+                const vtLink = `https://www.virustotal.com/gui/url/${urlId}`;
+                malValues.innerHTML = `<span class="text-xs text-surface-300">• <code class="font-mono text-xs text-surface-200 bg-surface-700 px-1 py-0.5 rounded">${s.url}</code> <a href="${vtLink}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-0.5 text-shield-light hover:underline">${EMOJI_LINK_D} Ver informe</a></span>`;
+              } else if (s.tipo === 'nsfw') {
+                urlField.classList.remove('hidden');
+                urlValues.innerHTML = `${EMOJI_NSFW_D} <code class="font-mono text-xs text-surface-200 bg-surface-700 px-1 py-0.5 rounded">${s.url}</code>`;
+                nsfwField.classList.remove('hidden');
+                nsfwValues.innerHTML = `<span class="text-xs text-surface-300">Desnudez <strong class="text-surface-100">72%</strong>, Armas <strong class="text-surface-100">55%</strong></span>`;
               }
             }
 
