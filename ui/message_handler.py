@@ -49,17 +49,10 @@ async def _construir_embed_unificado(
     is_threat = has_malicious_url or has_nsfw_url or has_malicious_file or has_nsfw_img
     has_errors = has_errors_url or has_errors_img or has_errors_file
 
-    seguros = total - (
-        sum(1 for _, t, _, _ in url_results if t == "malicioso") +
-        sum(1 for _, t, _ in img_url_results if t != "seguro") +
-        sum(1 for _, t, _, _ in img_results if t != "seguro") +
-        sum(1 for _, t, _, _, _ in arch_results if t != "seguro") +
-        has_errors
-    )
-
     mal_count = sum(1 for _, t, _, _ in url_results if t == "malicioso") + sum(1 for _, t, _, _, _ in arch_results if t == "malicioso")
     nsfw_count = sum(1 for _, t, _ in img_url_results if t == "nsfw") + sum(1 for _, t, _, _ in img_results if t == "nsfw")
     err_count = sum(1 for _, t, _, _ in url_results if t == "error") + sum(1 for _, t, _ in img_url_results if t == "error") + sum(1 for _, t, _, _ in img_results if t == "error") + sum(1 for _, t, _, _, _ in arch_results if t == "error")
+    seguros = total - mal_count - nsfw_count - err_count
 
     # Determinar título y color
     if is_threat:
