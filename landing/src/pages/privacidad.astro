@@ -25,9 +25,11 @@ import Icon from '../components/Icon.astro';
         <p>Threat procesa los siguientes datos para proveer el servicio de seguridad:</p>
         <ul class="list-disc pl-6 space-y-2">
           <li><strong class="text-surface-200">URLs y enlaces</strong> enviados en mensajes, para análisis de amenazas vía VirusTotal.</li>
+          <li><strong class="text-surface-200">Direcciones IP</strong> extraídas de URLs, para análisis de reputación vía VirusTotal. Retención: 7 días.</li>
           <li><strong class="text-surface-200">Archivos adjuntos</strong> (imágenes, documentos) para detección NSFW y de malware.</li>
           <li><strong class="text-surface-200">ID de servidor, canales y usuarios</strong> necesarios para la configuración del bot.</li>
           <li><strong class="text-surface-200">Hashes SHA-256</strong> de archivos analizados, para caché y evitar reanálisis.</li>
+          <li><strong class="text-surface-200">Historial de actividad</strong> — marcas de tiempo de cada análisis solicitado por usuario, para control de anti-spam. Retención: 1 hora en RAM y persistido entre reinicios del bot.</li>
         </ul>
 
         <h2 class="text-xl font-semibold text-white">2. Almacenamiento</h2>
@@ -48,6 +50,7 @@ import Icon from '../components/Icon.astro';
 
         <h2 class="text-xl font-semibold text-white">4. Retención y eliminación</h2>
         <p>Los datos de caché expiran automáticamente según los plazos indicados. Al eliminar Threat de un servidor, la configuración de ese servidor se elimina inmediatamente. Los datos de análisis en caché permanecen hasta su expiración natural.</p>
+        <p>Cuando un usuario envía contenido que es detectado como amenaza, su ID de usuario queda vinculado permanentemente al URL o hash específico que generó la alerta (sistema de infracciones), almacenado en la configuración persistente del servidor. Esto permite a los administradores del servidor identificar reincidentes.</p>
 
         <h2 class="text-xl font-semibold text-white">5. Tus derechos</h2>
         <p>Como usuario, tienes derecho a:</p>
