@@ -85,4 +85,5 @@ async def enviar_stats_a_web() -> None:
             break
         except Exception as e:
             log.warning(f"Stats push error: {e}")
-        await asyncio.sleep(1800)
+        # 1 hora (3600 s): límite de Vercel Blob de 2000 ops/mes (~1440 ops/mes a este ritmo)
+        await asyncio.sleep(3600)
