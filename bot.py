@@ -39,7 +39,6 @@ logging.getLogger("db").setLevel(logging.DEBUG)
 logging.getLogger("handler").setLevel(logging.DEBUG)
 logging.getLogger("virustotal").setLevel(logging.DEBUG)
 logging.getLogger("sightengine").setLevel(logging.DEBUG)
-logging.getLogger("api_stats").setLevel(logging.DEBUG)
 log = logging.getLogger("bot")
 
 load_dotenv()
@@ -162,14 +161,9 @@ async def on_ready():
         status=discord.Status.dnd
     )
     task_cron = asyncio.create_task(_limpiar_cron())
-    task_stats = asyncio.create_task(_iniciar_stats_push())
-    bot._background_tasks = [task_cron, task_stats]
+    bot._background_tasks = [task_cron]
     log.info(f"Bot conectado como {bot.user}")
     log.info("Bot Ready - comandos slash sincronizados")
-
-async def _iniciar_stats_push():
-    from core.api_stats import enviar_stats_a_web
-    await enviar_stats_a_web()
 
 async def _limpiar_cron():
     from core.database import limpiar_db_expirados
