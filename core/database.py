@@ -337,7 +337,7 @@ async def cargar_datos() -> None:
         antispam_scan = _restaurar_claves_antispam(antispam_data.get("antispam_scan", {}))
         state.bot.antispam_scan = antispam_scan
         if "__global__" not in state.bot.guilds_data:
-            state.bot.guilds_data["__global__"] = {"total_analisis": 0, "seguros": 0, "maliciosos": 0, "nsfw": 0, "errores": 0}
+            state.bot.guilds_data["__global__"] = {"total_analisis": 0, "seguros": 0, "sospechosos": 0, "maliciosos": 0, "nsfw": 0, "errores": 0}
             await guardar_datos(inmediato=True)
     except Exception as e:
         log.error(f"Error al cargar datos: {e}")

@@ -22,7 +22,7 @@ from typing import Optional
 import discord
 
 from core.config import (
-    COLOR_NEUTRAL, COLOR_SEGURO, COLOR_MALICIOSO, COLOR_ERROR, COLOR_NSFW, COLOR_TOPGG,
+    COLOR_NEUTRAL, COLOR_SEGURO, COLOR_MALICIOSO, COLOR_SOSPECHOSO, COLOR_ERROR, COLOR_NSFW, COLOR_TOPGG,
     SEVERIDAD_COLOR,
     EMOJI_SHIELD, EMOJI_FILE, EMOJI_FINGERPRINT, EMOJI_GUARDIAN, EMOJI_LINK, EMOJI_NSFW,
 )
@@ -40,12 +40,16 @@ MARCA = "Threat"
 TITULOS: dict[str, str] = {
     # resultados
     "url_maliciosa": "URL maliciosa detectada",
+    "url_sospechosa": "URL sospechosa",
     "url_segura": "URL segura",
     "hash_malicioso": "Hash malicioso detectado",
+    "hash_sospechoso": "Hash sospechoso",
     "hash_seguro": "Hash seguro",
     "ip_maliciosa": "IP maliciosa detectada",
+    "ip_sospechosa": "IP sospechosa",
     "ip_segura": "IP segura",
     "archivo_malicioso": "Archivo malicioso detectado",
+    "archivo_sospechoso": "Archivo sospechoso",
     "archivo_seguro": "Archivo seguro",
     # errores (los tres únicos permitidos)
     "error_analisis": "Error de análisis",
@@ -134,14 +138,36 @@ _ETIQUETA_ELEMENTO = {"url": "URL", "hash": "Hash", "ip": "IP", "file": "Archivo
 
 _TITULO_RESULTADO = {
     ("url", "malicioso"): TITULOS["url_maliciosa"],
+    ("url", "sospechoso"): TITULOS["url_sospechosa"],
     ("url", "seguro"): TITULOS["url_segura"],
     ("hash", "malicioso"): TITULOS["hash_malicioso"],
+    ("hash", "sospechoso"): TITULOS["hash_sospechoso"],
     ("hash", "seguro"): TITULOS["hash_seguro"],
     ("ip", "malicioso"): TITULOS["ip_maliciosa"],
+    ("ip", "sospechoso"): TITULOS["ip_sospechosa"],
     ("ip", "seguro"): TITULOS["ip_segura"],
     ("file", "malicioso"): TITULOS["archivo_malicioso"],
+    ("file", "sospechoso"): TITULOS["archivo_sospechoso"],
     ("file", "seguro"): TITULOS["archivo_seguro"],
 }
+
+
+def _veredicto_de(datos: dict, mal: int) -> str:
+    """Veredicto del análisis: "malicioso" | "sospechoso" | "seguro".
+
+    Se lee de `datos` y no se deduce solo de `mal` porque un elemento con 0 detecciones
+    maliciosas y varias sospechosa sigue sin estar limpio, y ese matiz se pierde si solo
+    guardamos el número. Viaja dentro de `datos` —que es lo que se persiste y se
+    re-renderiza al leer— para que una entrada cacheada siga mostrando su veredicto
+    aunque el diseño cambie dentro de seis meses.
+
+    El `mal > 0` es el respaldo para las filas antiguas de SQLite, que se guardaron sin
+    `veredicto`, y para las entradas que nunca se han reanalizado.
+    """
+    veredicto = datos.get("veredicto")
+    if veredicto in ("malicioso", "sospechoso", "seguro"):
+        return veredicto
+    return "malicioso" if mal > 0 else "seguro"
 
 
 def resultado(tipo: str, datos: dict, mal: int) -> discord.Embed:
@@ -149,14 +175,21 @@ def resultado(tipo: str, datos: dict, mal: int) -> discord.Embed:
 
     `tipo` es "url" | "hash" | "ip" | "file". `datos` lleva lo mínimo para poder
     re-renderizar sin volver a llamar a la API:
-        valor    -> el elemento analizado (URL, hash, IP o nombre de archivo)
-        vt_link  -> enlace al informe de VirusTotal (opcional)
-        top_text -> antivirus que lo detectaron, ya formateado (opcional)
+        valor     -> el elemento analizado (URL, hash, IP o nombre de archivo)
+        vt_link   -> enlace al informe de VirusTotal (opcional)
+        top_text  -> antivirus que lo detectaron, ya formateado (opcional)
+        veredicto -> "malicioso" | "sospechoso" | "seguro" (opcional, ver arriba)
+        susp      -> cuántos engines lo marcan como sospechoso (opcional)
     """
-    veredicto = "malicioso" if mal > 0 else "seguro"
+    veredicto = _veredicto_de(datos, mal)
     texto = _TITULO_RESULTADO.get((tipo, veredicto), "Resultado del análisis")
     embed = _nuevo(texto, SEVERIDAD_COLOR.get(veredicto, COLOR_NEUTRAL))
-    embed.description = f"**{mal}** detecciones" if veredicto == "malicioso" else "Sin detecciones"
+    if veredicto == "malicioso":
+        embed.description = f"**{mal}** detecciones"
+    elif veredicto == "sospechoso":
+        embed.description = f"**{datos.get('susp', 0)}** engines lo marcan como sospechoso"
+    else:
+        embed.description = "Sin detecciones"
 
     valor = str(datos.get("valor", ""))
     etiqueta = _ETIQUETA_ELEMENTO.get(tipo, "Elemento")
@@ -273,6 +306,6 @@ __all__ = [
     "MARCA", "TITULOS", "TITULOS_PROHIBIDOS", "ACRONIMOS", "ETIQUETA_INFORME",
     "pie", "titulo", "resultado", "error", "error_analisis", "error_conexion",
     "error_cuota", "aviso", "nsfw", "amenaza", "topgg", "resultado_barra", "enlace_informe",
-    "COLOR_NEUTRAL", "COLOR_SEGURO", "COLOR_MALICIOSO", "COLOR_ERROR", "COLOR_NSFW",
+    "COLOR_NEUTRAL", "COLOR_SEGURO", "COLOR_MALICIOSO", "COLOR_SOSPECHOSO", "COLOR_ERROR", "COLOR_NSFW",
     "COLOR_TOPGG", "SEVERIDAD_COLOR",
 ]

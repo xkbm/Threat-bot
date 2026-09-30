@@ -9,7 +9,7 @@ import discord
 import pytest
 
 from core.config import (
-    COLOR_NEUTRAL, COLOR_SEGURO, COLOR_MALICIOSO, COLOR_ERROR, COLOR_NSFW, COLOR_TOPGG,
+    COLOR_NEUTRAL, COLOR_SEGURO, COLOR_MALICIOSO, COLOR_SOSPECHOSO, COLOR_ERROR, COLOR_NSFW, COLOR_TOPGG,
     EMOJI_SHIELD, EMOJI_LINK, EMOJI_GUARDIAN, EMOJI_FINGERPRINT,
 )
 from ui import embed as emb
@@ -112,6 +112,16 @@ class TestPaletaPorSeveridad:
         assert emb.resultado(tipo, datos, 4).color == discord.Color(COLOR_MALICIOSO)
         assert emb.resultado(tipo, datos, 0).color == discord.Color(COLOR_SEGURO)
 
+    @pytest.mark.parametrize("tipo", ["url", "hash", "ip", "file"])
+    def test_sospechoso_en_todos_los_tipos(self, tipo):
+        """El color de severidad tiene que distinguir sospechoso de malicioso: es la
+        barra lateral lo primero que se lee, y es la diferencia entre "borra esto" y
+        "mira esto"."""
+        datos = {"url": DATOS_URL, "hash": DATOS_HASH, "ip": DATOS_IP, "file": DATOS_FILE}[tipo]
+        e = emb.resultado(tipo, {**datos, "veredicto": "sospechoso", "susp": 2}, 0)
+        assert e.color == discord.Color(COLOR_SOSPECHOSO)
+        assert e.color != discord.Color(COLOR_MALICIOSO)
+
     @pytest.mark.parametrize("construir", [
         lambda: emb.error_analisis("x"),
         lambda: emb.error_conexion("x"),
@@ -149,6 +159,12 @@ class TestTitulos:
         ("ip", DATOS_IP, 0, TITULOS["ip_segura"]),
         ("file", DATOS_FILE, 5, TITULOS["archivo_malicioso"]),
         ("file", DATOS_FILE, 0, TITULOS["archivo_seguro"]),
+        # El veredicto viaja en `datos`, no se deduce de `mal`: con 0 detecciones
+        # maliciosas y varias sospechosa el elemento no está limpio.
+        ("url", {**DATOS_URL, "veredicto": "sospechoso", "susp": 3}, 0, TITULOS["url_sospechosa"]),
+        ("hash", {**DATOS_HASH, "veredicto": "sospechoso", "susp": 1}, 0, TITULOS["hash_sospechoso"]),
+        ("ip", {**DATOS_IP, "veredicto": "sospechoso", "susp": 2}, 0, TITULOS["ip_sospechosa"]),
+        ("file", {**DATOS_FILE, "veredicto": "sospechoso", "susp": 4}, 0, TITULOS["archivo_sospechoso"]),
     ])
     def test_titulo_correcto(self, tipo, datos, mal, esperado):
         assert emb.resultado(tipo, datos, mal).title == f"{EMOJI_SHIELD} {esperado}"

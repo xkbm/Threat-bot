@@ -73,23 +73,35 @@ async def quitar_dominio(guild_id: int, dominio: str) -> bool:
     log.debug(f"WHITELIST REMOVE → guild={guild_id} dominio={dominio}")
     return True
 
+def _stats_vacias() -> dict[str, int]:
+    return {"total_analisis": 0, "seguros": 0, "sospechosos": 0, "maliciosos": 0, "nsfw": 0, "errores": 0}
+
+
 def obtener_stats_globales() -> dict[str, int]:
     if "__global__" not in state.bot.guilds_data:
-        state.bot.guilds_data["__global__"] = {"total_analisis": 0, "seguros": 0, "maliciosos": 0, "nsfw": 0, "errores": 0}
+        state.bot.guilds_data["__global__"] = _stats_vacias()
     return state.bot.guilds_data["__global__"]
+
 
 async def update_stats(guild_id: Optional[int], tipo: str) -> None:
     async with _global_lock:
         if "__global__" not in state.bot.guilds_data:
-            state.bot.guilds_data["__global__"] = {"total_analisis": 0, "seguros": 0, "maliciosos": 0, "nsfw": 0, "errores": 0}
+            state.bot.guilds_data["__global__"] = _stats_vacias()
         global_stats = state.bot.guilds_data["__global__"]
+        # Un `data.json` escrito antes de que existiera el veredicto "sospechoso" no
+        # trae la clave. Sin este default, el primer análisis sospechoso lo guardaría
+        # pero `/stats` no lo vería hasta que un "seguro" la recreara.
+        for key, valor in _stats_vacias().items():
+            global_stats.setdefault(key, valor)
         global_stats["total_analisis"] += 1
         if tipo == "seguro":
             global_stats["seguros"] += 1
+        elif tipo == "sospechoso":
+            global_stats["sospechosos"] += 1
         elif tipo == "malicioso":
             global_stats["maliciosos"] += 1
         elif tipo == "nsfw":
-            global_stats["nsfw"] = global_stats.get("nsfw", 0) + 1
+            global_stats["nsfw"] += 1
         else:
             global_stats["errores"] += 1
     await guardar_datos()

@@ -12,9 +12,23 @@ class ReputacionCog(commands.Cog):
 
     @app_commands.command(name="usercheck", description="Muestra las infracciones de seguridad de un usuario")
     @app_commands.describe(usuario="Usuario a consultar")
+    @app_commands.default_permissions(manage_messages=True)
     async def usercheck(self, interaction: discord.Interaction, usuario: discord.Member) -> None:
+        # Sin guild no hay config que leer, y antes de esto se reventaba al leer
+        # interaction.guild.id. Se comprueba ANTES del defer para poder responder con
+        # la forma correcta.
+        if interaction.guild is None:
+            await interaction.response.send_message("Este comando solo funciona dentro de un servidor.", ephemeral=True)
+            return
+
+        # `default_permissions` solo oculta el comando en el cliente: no impide que se
+        # invoque. El expediente de seguridad de una persona no es público.
+        if not interaction.permissions.moderator:
+            await interaction.response.send_message("Necesitas ser moderador para usar este comando.", ephemeral=True)
+            return
+
         await interaction.response.defer(ephemeral=True)
-        
+
         guild_id = interaction.guild.id
         config = await self.bot.obtener_config_guild(guild_id)
         infracciones = config.get("infracciones", {})
@@ -38,7 +52,7 @@ class ReputacionCog(commands.Cog):
             icono=self.bot.EMOJI_GUARDIAN,
         )
 
-        log.debug(f"USERCHECK → guild={guild_id} usuario_consultado={usuario.id} infracciones={count} admin={interaction.user.id}")
+        log.debug(f"USERCHECK → guild={guild_id} usuario_consultado={usuario.id} infracciones={count} moderador={interaction.user.id}")
         try:
             await interaction.edit_original_response(embed=embed)
         except discord.errors.NotFound:

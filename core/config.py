@@ -36,6 +36,7 @@ DB_FILE: str = os.path.join(BASE_DIR, "analisis.db")
 COLOR_NEUTRAL: int = 0x36393F   # --color-surface-600: base de la UI oscura del sitio
 COLOR_SEGURO: int = 0x4ADE80    # --color-secure
 COLOR_MALICIOSO: int = 0xF59E0B  # --color-malicious: el objeto analizado es malo
+COLOR_SOSPECHOSO: int = 0xE8C547 # --color-alert: engines que lo marcan, ninguno lo confirma
 COLOR_ERROR: int = 0xDC2626     # --color-threat: requiere acción / algo falló
 COLOR_NSFW: int = 0xDC2626      # --color-nsfw
 COLOR_TOPGG: int = 0xFF3366     # --color-topgg: promoción puntual, nunca severidad
@@ -43,8 +44,10 @@ COLOR_TOPGG: int = 0xFF3366     # --color-topgg: promoción puntual, nunca sever
 # Modelo de color:
 #   ámbar  -> "esto es malo" (resultado de un análisis)
 #   rojo   -> "esto está pasando en tu servidor, actúa" (log de amenaza) o error
+#   alerta -> "algo no cuadra pero no está confirmado" (suspicious de VT)
 SEVERIDAD_COLOR: dict[str, int] = {
     "seguro": COLOR_SEGURO,
+    "sospechoso": COLOR_SOSPECHOSO,
     "malicioso": COLOR_MALICIOSO,
     "error": COLOR_ERROR,
     "nsfw": COLOR_NSFW,

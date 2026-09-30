@@ -13,6 +13,7 @@ from ui.message_handler import (
     _huella_mensaje,
     _marcar_procesado,
     _procesados,
+    debe_borrar,
     limpiar_cache_procesados,
 )
 
@@ -275,7 +276,7 @@ class TestEmbedUnificado:
             urls=[UrlResult("http://a", "seguro", 0, None, "u", False)],
             imgs_url=[ImgUrlResult("http://i", "nsfw", "Desnudez 80%", "nsfw:h")],
             imgs=[("f.png", "seguro", {}, "h")],
-            archs=[("x.exe", "malicioso", 7, "fh", "Extensión .png pero tipo real text/plain")],
+            archs=[("x.exe", "malicioso", 7, "fh", "Extensión .png pero tipo real text/plain", False)],
         )
         assert "Seguros: **2**" in e.description
         assert "Maliciosos: **1**" in e.description
@@ -298,3 +299,91 @@ class TestEmbedUnificado:
         e = await construir(urls=urls)
         for f in e.fields:
             assert len(f.value) <= 1024
+
+
+class TestSospechosoEnElEmbedUnificado:
+    @pytest.mark.asyncio
+    async def test_url_sospechosa(self):
+        e = await construir(urls=[UrlResult("http://a.com", "sospechoso", 0, "http://vt", "u", False)])
+        assert "sospechos" in e.title.lower()
+        assert e.color == discord.Color(emb.COLOR_SOSPECHOSO)
+        assert "Sospechosos: **1**" in e.description
+
+    @pytest.mark.asyncio
+    async def test_no_cuenta_como_seguro(self):
+        """El fallo original de leer solo `malicious`: un sospechoso salía como
+        'Sin detecciones' y con el contador de seguros a 1."""
+        e = await construir(urls=[UrlResult("http://a.com", "sospechoso", 0, "http://vt", "u", False)])
+        assert "Seguros: **0**" in e.description
+        assert "Sospechosos: **1**" in e.description
+
+    @pytest.mark.asyncio
+    async def test_el_malicioso_manda_en_el_titulo(self):
+        e = await construir(urls=[
+            UrlResult("http://a.com", "sospechoso", 0, "http://vt", "u1", False),
+            UrlResult("http://b.com", "malicioso", 3, "http://vt", "u2", False),
+        ])
+        assert "Amenazas detectadas" in e.title
+        assert e.color == discord.Color(emb.COLOR_MALICIOSO)
+        # Los dos contadores aparecen: el sospechoso no desaparece por estar junto a
+        # un malicioso.
+        assert "Maliciosos: **1**" in e.description
+        assert "Sospechosos: **1**" in e.description
+
+    @pytest.mark.asyncio
+    async def test_el_sospechoso_manda_al_error(self):
+        """Un sospechoso es un hallazgo; un error es "no se pudo comprobar". Si hay
+        ambos, el hallazgo manda: el moderador tiene algo que mirar aunque otro
+        elemento se quedara sin analizar."""
+        e = await construir(urls=[
+            UrlResult("http://a.com", "sospechoso", 0, "http://vt", "u1", False),
+            UrlResult("http://b.com", "error", 0, None, "u2", False),
+        ])
+        assert e.color == discord.Color(emb.COLOR_SOSPECHOSO)
+        # El error no desaparece: sigue contado.
+        assert "Errores: **1**" in e.description
+        assert "Sospechosos: **1**" in e.description
+
+
+class TestDobleExtensionYMime:
+    @pytest.mark.asyncio
+    async def test_doble_extension_aparece_en_el_embed(self):
+        e = await construir(archs=[("informe.pdf.exe", "seguro", 0, "fh", "", True)])
+        campo = next(f for f in e.fields if "Archivos" in f.name)
+        assert "Doble extensión" in campo.value
+
+    @pytest.mark.asyncio
+    async def test_mime_sigue_apareciendo(self):
+        e = await construir(archs=[("foto.png", "seguro", 0, "fh", "tipo real text/html", False)])
+        campo = next(f for f in e.fields if "Archivos" in f.name)
+        assert "text/html" in campo.value
+        assert "Doble extensión" not in campo.value
+
+    @pytest.mark.asyncio
+    async def test_las_dos_avisos_a_la_vez(self):
+        e = await construir(archs=[("foto.png.exe", "seguro", 0, "fh", "tipo real text/html", True)])
+        campo = next(f for f in e.fields if "Archivos" in f.name)
+        assert "Doble extensión" in campo.value
+        assert "text/html" in campo.value
+
+
+class TestDebeBorrar:
+    """El modo estricto leía el slot del MIMEMismatch creyendo que era el de la doble
+    extensión, así que borraba por el motivo equivocado y nunca por doble extensión.
+    """
+
+    @pytest.mark.parametrize("amenaza,doble_ext,mime,estricto,esperado", [
+        # Con el modo estricto apagado nunca se borra.
+        (True, True, True, False, False),
+        (True, False, False, False, False),
+        # Amenaza confirmada: siempre borra con el modo estricto puesto.
+        (True, False, False, True, True),
+        # Doble extensión real: este es el caso que antes NUNCA borraba.
+        (False, True, False, True, True),
+        # MIMEMismatch: el que sí borraba antes, y sigue borrando.
+        (False, False, True, True, True),
+        # Un archivo limpio no se toca.
+        (False, False, False, True, False),
+    ])
+    def test_todas_las_combinaciones(self, amenaza, doble_ext, mime, estricto, esperado):
+        assert debe_borrar(amenaza, doble_ext, mime, estricto) is esperado

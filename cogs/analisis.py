@@ -5,7 +5,7 @@ import hashlib
 import time
 from typing import Optional
 import logging
-from core.utils import expandir_url, comprobar_antispam, formatear_espera
+from core.utils import expandir_url, comprobar_antispam, formatear_espera, clave_analisis, vuelo
 from core.state import ANALYSIS_SEMAPHORE
 from ui import embed as emb
 
@@ -55,14 +55,14 @@ class AnalisisCog(commands.Cog):
                 log.error(f"SCAN URL EXPAND ERROR → {valor}: {e}")
                 expanded = None
             valor = expanded if expanded else valor
-            clave = f"url:{valor}"
+            clave = clave_analisis("url", valor)
             if expanded and expanded != url_original:
                 log.debug(f"SCAN URL expandida → {url_original} → {valor}")
         elif tipo.value == "ip":
-            clave = f"ip:{valor}"
+            clave = clave_analisis("ip", valor)
             log.debug(f"SCAN IP → {valor}")
         elif tipo.value == "hash":
-            clave = f"hash:{valor}"
+            clave = clave_analisis("hash", valor)
             log.debug(f"SCAN HASH → {valor}")
         elif tipo.value == "file":
             if archivo.size > self.bot.MAX_FILE_SIZE:
@@ -121,20 +121,22 @@ class AnalisisCog(commands.Cog):
                 await interaction.edit_original_response(content=None, embed=embed)
                 return
 
-            tipo_cache, embed_cache, mal_cache = await self.bot.get_from_cache_mem(f"filehash:{file_hash}")
+            clave_cache = clave_analisis("file", file_hash)
+            tipo_cache, embed_cache, mal_cache = await self.bot.get_from_cache_mem(clave_cache)
             if embed_cache is None:
-                tipo_cache, embed_cache, mal_cache = await self.bot.obtener_analisis_db(f"filehash:{file_hash}")
+                tipo_cache, embed_cache, mal_cache = await self.bot.obtener_analisis_db(clave_cache)
                 if embed_cache is not None:
-                    log.debug(f"SCAN ARCHIVO CACHE SQLITE HIT → filehash:{file_hash} tipo={tipo_cache}")
-                    await self.bot.set_cache_mem(f"filehash:{file_hash}", tipo_cache, embed_cache, mal_cache)
+                    log.debug(f"SCAN ARCHIVO CACHE SQLITE HIT → {clave_cache} tipo={tipo_cache}")
+                    await self.bot.set_cache_mem(clave_cache, tipo_cache, embed_cache, mal_cache)
                 else:
-                    log.debug(f"SCAN ARCHIVO CACHE MISS → filehash:{file_hash}")
+                    log.debug(f"SCAN ARCHIVO CACHE MISS → {clave_cache}")
             else:
-                log.debug(f"SCAN ARCHIVO CACHE RAM HIT → filehash:{file_hash} tipo={tipo_cache}")
+                log.debug(f"SCAN ARCHIVO CACHE RAM HIT → {clave_cache} tipo={tipo_cache}")
+
             if embed_cache is not None:
-                tipo_res = tipo_cache
                 embed = embed_cache.copy()
-                mal = mal_cache
+                # Sin infracción: en `/scan` no hay un mensaje al que atribuirla. Quien
+                # escanea está consultando, no publicando la amenaza.
                 if doble_ext:
                     embed.add_field(name=f"{self.bot.EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
                 if warning_mime:
@@ -142,13 +144,16 @@ class AnalisisCog(commands.Cog):
                 await interaction.edit_original_response(content=None, embed=embed)
                 return
 
-            try:
+            async def _analizar_archivo() -> tuple[str, discord.Embed, int]:
                 log.debug(f"SCAN ARCHIVO ANALIZANDO → {archivo.filename}")
                 async with ANALYSIS_SEMAPHORE:
-                    tipo_res, embed, mal = await self.bot.analizar_archivo(
+                    return await self.bot.analizar_archivo(
                         archivo, file_bytes=file_bytes, file_hash=file_hash,
-                        guild_id=guild_id, guardar_cache=True
+                        guild_id=guild_id, guardar_cache=True, registrar_para=interaction.user
                     )
+
+            try:
+                tipo_res, embed, mal = await vuelo(clave_cache, _analizar_archivo)
             except Exception as e:
                 log.error(f"SCAN ARCHIVO ERROR ANÁLISIS → {archivo.filename}: {e}")
                 embed = emb.error_analisis(
@@ -158,18 +163,9 @@ class AnalisisCog(commands.Cog):
                 await interaction.edit_original_response(content=None, embed=embed)
                 return
 
-            if tipo_res == "error":
-                log.debug(f"SCAN ARCHIVO RESULT ERROR → {archivo.filename}")
-                if doble_ext:
-                    if not any("Doble extensión" in f.name for f in embed.fields):
-                        embed.add_field(name=f"{self.bot.EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
-                await interaction.edit_original_response(content=None, embed=embed)
-                return
-
-            log.debug(f"SCAN ARCHIVO RESULT → tipo={tipo_res} mal={mal} archivo={archivo.filename} t={time.time()-_t0:.1f}s")
-            if doble_ext:
+            if doble_ext and not any("Doble extensión" in f.name for f in embed.fields):
                 embed.add_field(name=f"{self.bot.EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
-            if warning_mime:
+            if warning_mime and not any("Verificación MIME" in f.name for f in embed.fields):
                 embed.add_field(name=f"{self.bot.EMOJI_WARNING} Verificación MIME", value=warning_mime, inline=False)
 
             await interaction.edit_original_response(content=None, embed=embed)
@@ -178,20 +174,20 @@ class AnalisisCog(commands.Cog):
             clave = ""
 
         log.debug(f"SCAN CACHE → buscando clave={clave}")
-        tipo_res, embed, _ = await self.bot.get_from_cache_mem(clave)
+        tipo_cache, embed, mal = await self.bot.get_from_cache_mem(clave)
         if embed is None:
             try:
-                tipo_res, embed, mal_db = await self.bot.obtener_analisis_db(clave)
-                if embed is not None:
-                    log.debug(f"SCAN CACHE SQLITE HIT → clave={clave} tipo={tipo_res} mal={mal_db}")
-                    await self.bot.set_cache_mem(clave, tipo_res, embed, mal_db)
-                else:
-                    log.debug(f"SCAN CACHE MISS → clave={clave}")
+                tipo_cache, embed, mal = await self.bot.obtener_analisis_db(clave)
             except Exception as e:
                 log.error(f"SCAN CACHE DB ERROR → clave={clave}: {e}")
-                tipo_res, embed, mal_db = None, None, 0
+                tipo_cache, embed, mal = None, None, 0
+            if embed is not None:
+                log.debug(f"SCAN CACHE SQLITE HIT → clave={clave} tipo={tipo_cache} mal={mal}")
+                await self.bot.set_cache_mem(clave, tipo_cache, embed, mal)
+            else:
+                log.debug(f"SCAN CACHE MISS → clave={clave}")
         else:
-            log.debug(f"SCAN CACHE RAM HIT → clave={clave} tipo={tipo_res}")
+            log.debug(f"SCAN CACHE RAM HIT → clave={clave} tipo={tipo_cache}")
 
         if embed is not None:
             if tipo.value == "url" and expanded and expanded != url_original:
@@ -200,11 +196,11 @@ class AnalisisCog(commands.Cog):
                     value=f"Original: `{url_original}`\nExpandida: `{valor}`",
                     inline=False
                 )
-            embed = embed.copy()
-
-            await interaction.edit_original_response(content=None, embed=embed)
+            await interaction.edit_original_response(content=None, embed=embed.copy())
             return
 
+        # El antispam va antes de la API y por fuera del vuelo: el límite es personal
+        # y cada invocación consume el suyo, comparta o no el análisis.
         permitido, espera = await comprobar_antispam(self.bot, guild_id, interaction.user.id)
         if not permitido:
             await interaction.edit_original_response(
@@ -213,30 +209,26 @@ class AnalisisCog(commands.Cog):
             )
             return
 
-        _t0 = time.time()
-        try:
+        async def _llamar_api() -> tuple[str, discord.Embed, int]:
             if tipo.value == "url":
                 log.debug(f"SCAN URL ANALIZANDO → {valor}")
                 async with ANALYSIS_SEMAPHORE:
-                    tipo_res, embed, mal = await self.bot.analizar_url(valor, guild_id=guild_id, guardar_cache=True)
-                if expanded and expanded != url_original:
-                    embed.add_field(
-                        name=f"{self.bot.EMOJI_REPLY} Redirección",
-                        value=f"Original: `{url_original}`\nExpandida: `{valor}`",
-                        inline=False
-                    )
-                log.debug(f"SCAN URL RESULT → tipo={tipo_res} mal={mal} url={valor} t={time.time()-_t0:.1f}s")
-            elif tipo.value == "ip":
+                    return await self.bot.analizar_url(valor, guild_id=guild_id, guardar_cache=True, registrar_para=interaction.user)
+            if tipo.value == "ip":
                 log.debug(f"SCAN IP ANALIZANDO → {valor}")
                 async with ANALYSIS_SEMAPHORE:
-                    tipo_res, embed, mal = await self.bot.analizar_ip(valor, guild_id=guild_id, guardar_cache=True)
-                log.debug(f"SCAN IP RESULT → tipo={tipo_res} mal={mal} ip={valor} t={time.time()-_t0:.1f}s")
-            elif tipo.value == "hash":
-                log.debug(f"SCAN HASH ANALIZANDO → {valor}")
-                async with ANALYSIS_SEMAPHORE:
-                    tipo_res, embed, mal = await self.bot.analizar_hash(valor, guild_id=guild_id, guardar_cache=True)
-                log.debug(f"SCAN HASH RESULT → tipo={tipo_res} mal={mal} hash={valor} t={time.time()-_t0:.1f}s")
+                    return await self.bot.analizar_ip(valor, guild_id=guild_id, guardar_cache=True, registrar_para=interaction.user)
+            log.debug(f"SCAN HASH ANALIZANDO → {valor}")
+            async with ANALYSIS_SEMAPHORE:
+                return await self.bot.analizar_hash(valor, guild_id=guild_id, guardar_cache=True, registrar_para=interaction.user)
 
+        _t0 = time.time()
+        try:
+            # El vuelo deduplica solo la llamada a la API: si dos moderadores escanean
+            # lo mismo a la vez, el segundo recibe el resultado del primero sin gastar
+            # una segunda vez la cuota. Los efectos por invocación (antispam, embed con
+            # la redirección) quedan fuera a propósito.
+            tipo_res, embed, mal = await vuelo(clave, _llamar_api)
         except Exception as e:
             log.error(f"SCAN ERROR → tipo={tipo.value} valor={valor}: {e} t={time.time()-_t0:.1f}s")
             embed_error = emb.error_analisis(
@@ -249,8 +241,15 @@ class AnalisisCog(commands.Cog):
                 pass
             return
 
+        if tipo.value == "url" and expanded and expanded != url_original and tipo_res != "error":
+            embed.add_field(
+                name=f"{self.bot.EMOJI_REPLY} Redirección",
+                value=f"Original: `{url_original}`\nExpandida: `{valor}`",
+                inline=False
+            )
         log.debug(f"SCAN FINAL → tipo={tipo.value} resultado={tipo_res} mal={mal} t={time.time()-_t0:.1f}s")
         await interaction.edit_original_response(content=None, embed=embed)
+
 
     async def _safe_followup(self, interaction: discord.Interaction, *args, **kwargs) -> None:
         try:

@@ -11,8 +11,8 @@ from typing import NamedTuple, Optional
 import logging
 import discord
 from discord.ext import commands
-from core.config import MAX_IMAGE_SIZE, MAX_FILE_SIZE, EMOJI_CORRECTO, EMOJI_ERROR, EMOJI_WARNING, EMOJI_WHITELIST, EMOJI_LOADING, EMOJI_LINK, EMOJI_FILE, EMOJI_COOLDOWN, EMOJI_REPLY, EMOJI_NSFW
-from core.utils import safe_remove_loading, safe_add_reaction, safe_send, dominio_en_whitelist, url_es_imagen, es_imagen, expandir_url, tiene_doble_extension, descargar_url_segura, normalizar_url, comprobar_antispam, check_vt_user_limit
+from core.config import MAX_IMAGE_SIZE, MAX_FILE_SIZE, EMOJI_CORRECTO, EMOJI_ERROR, EMOJI_WARNING, EMOJI_WHITELIST, EMOJI_LOADING, EMOJI_LINK, EMOJI_FILE, EMOJI_COOLDOWN, EMOJI_REPLY, EMOJI_NSFW, EMOJI_GUARDIAN
+from core.utils import safe_remove_loading, safe_add_reaction, safe_send, dominio_en_whitelist, url_es_imagen, es_imagen, expandir_url, tiene_doble_extension, descargar_url_segura, clave_analisis, vuelo, SIN_RESPUESTA, comprobar_antispam, check_vt_user_limit
 from core.cache import get_from_cache_mem, set_cache_mem
 from core.database import obtener_analisis_db, guardar_metadatos_hash, obtener_hash_desde_metadatos
 from api.virustotal import analizar_url, analizar_archivo, enviar_log_guild
@@ -104,7 +104,7 @@ async def _construir_embed_unificado(
     url_results: list[UrlResult],
     img_url_results: list[ImgUrlResult],
     img_results: list[tuple],       # (filename, tipo, models, content_hash)
-    arch_results: list[tuple],      # (filename, tipo, mal, file_hash, wm)
+    arch_results: list[tuple],      # (filename, tipo, mal, file_hash, wm, doble_ext)
     omitidos: int,
 ) -> discord.Embed:
     """Construye UN embed con toda la información disponible (URLs + imágenes + archivos).
@@ -118,29 +118,37 @@ async def _construir_embed_unificado(
     total = total_urls + total_imgs + total_archs
 
     has_malicious_url = any(r.tipo == "malicioso" for r in url_results)
+    has_suspicious_url = any(r.tipo == "sospechoso" for r in url_results)
     has_nsfw_url = any(r.tipo == "nsfw" for r in img_url_results)
-    has_malicious_file = any(t == "malicioso" for _, t, _, _, _ in arch_results)
+    has_malicious_file = any(t == "malicioso" for _, t, _, _, _, _ in arch_results)
+    has_suspicious_file = any(t == "sospechoso" for _, t, _, _, _, _ in arch_results)
     has_nsfw_img = any(t == "nsfw" for _, t, _, _ in img_results)
     has_errors_url = any(r.tipo == "error" for r in url_results)
     has_errors_img = any(r.tipo == "error" for r in img_url_results) or any(t == "error" for _, t, _, _ in img_results)
-    has_errors_file = any(t == "error" for _, t, _, _, _ in arch_results)
+    has_errors_file = any(t == "error" for _, t, _, _, _, _ in arch_results)
 
     is_threat = has_malicious_url or has_nsfw_url or has_malicious_file or has_nsfw_img
+    # Un sospechoso no es una amenaza: se informa, pero no borra ni genera infracción.
+    is_suspicious = has_suspicious_url or has_suspicious_file
     has_errors = has_errors_url or has_errors_img or has_errors_file
 
-    mal_count = sum(1 for r in url_results if r.tipo == "malicioso") + sum(1 for _, t, _, _, _ in arch_results if t == "malicioso")
+    mal_count = sum(1 for r in url_results if r.tipo == "malicioso") + sum(1 for _, t, _, _, _, _ in arch_results if t == "malicioso")
+    susp_count = sum(1 for r in url_results if r.tipo == "sospechoso") + sum(1 for _, t, _, _, _, _ in arch_results if t == "sospechoso")
     nsfw_count = sum(1 for r in img_url_results if r.tipo == "nsfw") + sum(1 for _, t, _, _ in img_results if t == "nsfw")
     err_count = (sum(1 for r in url_results if r.tipo == "error")
                  + sum(1 for r in img_url_results if r.tipo == "error")
                  + sum(1 for _, t, _, _ in img_results if t == "error")
-                 + sum(1 for _, t, _, _, _ in arch_results if t == "error"))
-    seguros = total - mal_count - nsfw_count - err_count
+                 + sum(1 for _, t, _, _, _, _ in arch_results if t == "error"))
+    seguros = total - mal_count - susp_count - nsfw_count - err_count
 
     # Determinar título y color. El color sigue el mismo modelo que el resto de
     # embeds: ámbar/rojo si hay una amenaza, rojo si falló algo, verde si todo limpio.
     if is_threat:
         color = emb.COLOR_NSFW if has_nsfw_url or has_nsfw_img else emb.COLOR_MALICIOSO
         titulo_texto = "Contenido NSFW detectado" if not (has_malicious_url or has_malicious_file) else "Amenazas detectadas"
+    elif is_suspicious:
+        color = emb.COLOR_SOSPECHOSO
+        titulo_texto = "Elementos sospechosos"
     elif has_errors:
         color = emb.COLOR_ERROR
         titulo_texto = "Análisis completado con errores"
@@ -152,6 +160,8 @@ async def _construir_embed_unificado(
     # mensajes con resultados distintos se lean igual.
     desc = f"**{total}** elemento(s) analizado(s) en el mensaje de {message.author.mention}:\n"
     desc += f"{EMOJI_CORRECTO} Seguros: **{seguros}**\n"
+    if susp_count:
+        desc += f"{EMOJI_GUARDIAN} Sospechosos: **{susp_count}**\n"
     if mal_count:
         desc += f"{EMOJI_WARNING} Maliciosos: **{mal_count}**\n"
     if nsfw_count:
@@ -178,6 +188,10 @@ async def _construir_embed_unificado(
             return EMOJI_NSFW
         if tipo == "malicioso":
             return EMOJI_WARNING
+        # Sospechoso lleva el guardian y no el warning: el warning queda reservado a lo
+        # que está confirmado, y la barra lateral ya los separa por color.
+        if tipo == "sospechoso":
+            return EMOJI_GUARDIAN
         if tipo == "seguro":
             return EMOJI_CORRECTO
         return EMOJI_ERROR
@@ -220,13 +234,21 @@ async def _construir_embed_unificado(
     # --- Campo: Archivos ---
     if arch_results:
         lineas = []
-        for filename, tipo, mal, _, wm in arch_results:
-            extra = f"{mal} detecciones" if tipo == "malicioso" else ("limpio" if tipo == "seguro" else "error")
+        for filename, tipo, mal, _, wm, doble_ext in arch_results:
+            if tipo == "malicioso":
+                extra = f"{mal} detecciones"
+            elif tipo == "sospechoso":
+                extra = "sospechoso"
+            else:
+                extra = "limpio" if tipo == "seguro" else "error"
             linea = _linea(_icono_de_estado(tipo), filename, extra)
-            if wm:
+            if wm or doble_ext:
                 # Indentada y con el emoji de reply, para que se lea como aviso del
                 # archivo de arriba y no como un archivo más de la lista.
-                linea += f"\n   {EMOJI_REPLY} {wm}"
+                if doble_ext:
+                    linea += f"\n   {EMOJI_REPLY} Doble extensión: el nombre del archivo esconde la real"
+                if wm:
+                    linea += f"\n   {EMOJI_REPLY} {wm}"
             lineas.append(linea)
         embed.add_field(name=f"{EMOJI_FILE} Archivos", value="\n".join(lineas)[:1024], inline=False)
 
@@ -283,22 +305,30 @@ async def _procesar_archivo(
     message: discord.Message,
     archivo: discord.Attachment,
     guild_id: int,
-) -> tuple[str, str, int, str, str]:
+) -> tuple[str, str, int, str, str, bool]:
+    """Analiza un adjunto que no es imagen.
+
+    Devuelve (filename, tipo, mal, file_hash, wm, doble_ext). Los dos últimos van
+    separados porque el llamante los usa para cosas distintas: `wm` es el aviso de que
+    la extensión no cuadra con el tipo real y `doble_ext` es el patrón de scam
+    clásico. Estaban fundidos en un solo slot y el modo estricto acababa borrando por el
+    primero mientras el segundo se perdía.
+    """
     log.debug(f"Archivo: {archivo.filename} ({archivo.size} bytes)")
     doble_ext = tiene_doble_extension(archivo.filename)
     wm = ""
     if doble_ext:
         await safe_add_reaction(message, EMOJI_WARNING)
     if archivo.size > MAX_FILE_SIZE:
-        return (archivo.filename, "error", 0, "", "")
+        return (archivo.filename, "error", 0, "", "", doble_ext)
     try:
         async with bot._download_sem:
             async with bot.session.get(archivo.url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
                 if resp.status != 200:
-                    return (archivo.filename, "error", 0, "", "")
+                    return (archivo.filename, "error", 0, "", "", doble_ext)
                 file_data = await resp.read()
                 if len(file_data) > MAX_FILE_SIZE:
-                    return (archivo.filename, "error", 0, "", "")
+                    return (archivo.filename, "error", 0, "", "", doble_ext)
                 # Leer el Content-Type dentro del contexto: después de salir, aiohttp
                 # libera la conexión y no es un lugar fiable para consultar la respuesta.
                 content_type = resp.headers.get('Content-Type', '')
@@ -309,19 +339,24 @@ async def _procesar_archivo(
             elif archivo.filename.lower().endswith('.png') and ct_lower != 'image/png':
                 wm = f"Extensión .png pero tipo real {content_type}"
     except Exception:
-        return (archivo.filename, "error", 0, "", "")
-    tipo, embed, mal = await get_from_cache_mem(f"filehash:{file_hash}")
-    if embed is None:
-        tipo, embed, mal = await obtener_analisis_db(f"filehash:{file_hash}")
-        if embed is not None:
-            await set_cache_mem(f"filehash:{file_hash}", tipo, embed, mal)
-    if embed is not None:
-        if tipo == "malicioso":
-            await registrar_infraccion(guild_id, message.author.id, f"filehash:{file_hash}")
-        return (archivo.filename, tipo, mal, file_hash, wm)
-    async with ANALYSIS_SEMAPHORE:
-        tipo, embed, mal = await analizar_archivo(archivo, file_bytes=file_data, file_hash=file_hash, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
-    return (archivo.filename, tipo, mal, file_hash, wm)
+        return (archivo.filename, "error", 0, "", "", doble_ext)
+    clave = clave_analisis("file", file_hash)
+
+    async def _resolver() -> tuple[str, discord.Embed, int]:
+        tipo, e, m = await get_from_cache_mem(clave)
+        if e is None:
+            tipo, e, m = await obtener_analisis_db(clave)
+            if e is not None:
+                await set_cache_mem(clave, tipo, e, m)
+        if e is not None:
+            return tipo, e, m
+        async with ANALYSIS_SEMAPHORE:
+            return await analizar_archivo(archivo, file_bytes=file_data, file_hash=file_hash, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
+
+    tipo, embed, mal = await vuelo(clave, _resolver)
+    if tipo == "malicioso":
+        await registrar_infraccion(guild_id, message.author.id, f"filehash:{file_hash}")
+    return (archivo.filename, tipo, mal, file_hash, wm, doble_ext)
 
 async def _analizar_adjuntos(
     bot: commands.Bot,
@@ -372,6 +407,20 @@ def _limpiar_url(url: str) -> str:
     return url
 
 
+def debe_borrar(has_threat: bool, has_doble_ext: bool, has_mime_mismatch: bool, strict_mode: bool) -> bool:
+    """Si el modo estricto debe eliminar el mensaje.
+
+    Las tres señales son "esto no es lo que dice ser": una amenaza confirmada, una doble
+    extensión (`informe.pdf.exe`) o una extensión que no cuadra con el tipo que sirve el
+    servidor. Las dos últimas son el mismo patrón de scam visto por los dos lados.
+
+    Antes esta condición leía el aviso de MIMEMismatch del slot que la tupla de archivos
+    llevaba, así que el modo estricto borraba por el motivo equivocado y nunca borraba
+    por doble extensión, que es justo lo que el comando documenta que hace.
+    """
+    return strict_mode and (has_threat or has_doble_ext or has_mime_mismatch)
+
+
 async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None:
     if message.guild is None:
         return
@@ -402,7 +451,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
     url_results: list[UrlResult] = []             # ver UrlResult
     img_url_results: list[ImgUrlResult] = []      # ver ImgUrlResult
     img_results: list[tuple[str, str, dict, str]] = []          # (filename, tipo, models, content_hash)
-    arch_results: list[tuple[str, str, int, str, str]] = []     # (filename, tipo, mal, file_hash, wm)
+    arch_results: list[tuple[str, str, int, str, str, bool]] = []  # (filename, tipo, mal, file_hash, wm, doble_ext)
     omitidos = 0
 
     url_fue_expandida = False
@@ -438,7 +487,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
             va_a_consumir_api = bool(message.attachments)
             if not va_a_consumir_api:
                 for url in todas_urls:
-                    clave_check = f"url:{normalizar_url(url)}"
+                    clave_check = clave_analisis("url", url)
                     _, embed_check, _ = await get_from_cache_mem(clave_check)
                     if embed_check is None:
                         _, embed_check, _ = await obtener_analisis_db(clave_check)
@@ -558,50 +607,65 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                                 log.debug(f"URL expandida: {url_original_str} → {url}")
 
                         if not url_saltar_por_whitelist:
-                            # Check cache
-                            clave = f"url:{normalizar_url(url)}"
-                            tipo, embed, mal = await get_from_cache_mem(clave)
-                            if embed is not None:
-                                log.debug(f"Cache HIT (RAM) para URL → resultado={tipo}")
-                            else:
-                                tipo, embed, mal = await obtener_analisis_db(clave)
-                                if embed is not None:
-                                    log.debug(f"Cache HIT (SQLite) para URL → resultado={tipo}")
-                                    await set_cache_mem(clave, tipo, embed, mal)
-                                else:
-                                    log.debug("Cache MISS para URL → llamando VT")
+                            clave = clave_analisis("url", url)
 
-                            if embed is not None:
-                                # Resultado en cache (VT ya no envió log)
+                            async def _resolver_url() -> Optional[tuple[str, discord.Embed, int, bool]]:
+                                """Mira caché y, si no hay, llama a VT. Solo esto va en
+                                el vuelo: registrar la infracción o reaccionar depende
+                                del mensaje de cada uno, no del análisis.
+
+                                El cuarto valor dice si VT mandó ya el log de amenaza
+                                por ESTE mensaje. Solo lo es cuando la llamada es la que
+                                realmente ha ido a la API: quien espera el vuelo recibe
+                                el análisis de otro, así que su mensaje necesita log
+                                propio, igual que el que llegó a la caché.
+
+                                Devuelve None cuando a este usuario le toca su propio
+                                límite de VT: es una decisión suya, no de la clave, así
+                                que no se comparte y quien espere lo reintenta por su
+                                cuenta.
+                                """
+                                t, e, m = await get_from_cache_mem(clave)
+                                if e is not None:
+                                    log.debug(f"Cache HIT (RAM) para URL → resultado={t}")
+                                    return t, e, m, False
+                                t, e, m = await obtener_analisis_db(clave)
+                                if e is not None:
+                                    log.debug(f"Cache HIT (SQLite) para URL → resultado={t}")
+                                    await set_cache_mem(clave, t, e, m)
+                                    return t, e, m, False
+                                log.debug("Cache MISS para URL → llamando VT")
+                                if not await check_vt_user_limit(bot, guild_id, message.author.id):
+                                    return None
+                                await safe_add_reaction(message, EMOJI_LOADING)
+                                try:
+                                    t, e, m = await analizar_url(url, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
+                                    return t, e, m, True
+                                finally:
+                                    await safe_remove_loading(bot, message)
+
+                            resolucion = await vuelo(clave, _resolver_url)
+                            if resolucion is None or resolucion is SIN_RESPUESTA:
+                                # Cuota agotada para este usuario: se informa sin informe.
+                                url_results.append(UrlResult(
+                                    url_original_str, "error", 0, None, f"url:{url}", False,
+                                    url_expandida_str if url_fue_expandida else None,
+                                ))
+                            else:
+                                tipo, embed, mal, ya_logueado = resolucion
                                 elemento_id = f"url:{url}"
                                 if tipo == "malicioso":
                                     await registrar_infraccion(guild_id, message.author.id, elemento_id)
                                 url_id = base64.urlsafe_b64encode(url.encode()).decode().rstrip("=")
-                                vt_link = f"https://www.virustotal.com/gui/url/{url_id}" if mal > 0 else None
+                                # El enlace también para los sospechosos: es justo cuando
+                                # el moderador necesita ir a mirar el informe a ver quién
+                                # lo marcó y por qué.
+                                con_informe = tipo in ("malicioso", "sospechoso")
+                                vt_link = f"https://www.virustotal.com/gui/url/{url_id}" if con_informe else None
                                 url_results.append(UrlResult(
-                                    url_original_str, tipo, mal, vt_link, elemento_id, False,
+                                    url_original_str, tipo, mal, vt_link, elemento_id, ya_logueado,
                                     url_expandida_str if url_fue_expandida else None,
                                 ))
-                            else:
-                                # No en cache → verificar límite VT
-                                if not await check_vt_user_limit(bot, guild_id, message.author.id):
-                                    url_results.append(UrlResult(
-                                        url_original_str, "error", 0, None, f"url:{url}", False,
-                                        url_expandida_str if url_fue_expandida else None,
-                                    ))
-                                else:
-                                    await safe_add_reaction(message, EMOJI_LOADING)
-                                    try:
-                                        tipo, embed, mal = await analizar_url(url, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
-                                    finally:
-                                        await safe_remove_loading(bot, message)
-                                    url_id = base64.urlsafe_b64encode(url.encode()).decode().rstrip("=")
-                                    vt_link = f"https://www.virustotal.com/gui/url/{url_id}" if mal > 0 else None
-                                    # _on_threat_found ya mandó el log con eid = f"url:{valor}"
-                                    url_results.append(UrlResult(
-                                        url_original_str, tipo, mal, vt_link, f"url:{url}", True,
-                                        url_expandida_str if url_fue_expandida else None,
-                                    ))
 
                         img_results, arch_results, omitidos = await _analizar_adjuntos_si_hay(bot, message, guild_id)
 
@@ -622,12 +686,17 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                                     dominio_exp = dominio_exp[4:]
                                 if dominio_en_whitelist(dominio_exp, whitelist):
                                     return None
-                            clave = f"url:{normalizar_url(url_exp)}"
-                            tipo, embed, mal = await get_from_cache_mem(clave)
-                            if embed is None:
-                                tipo, embed, mal = await obtener_analisis_db(clave)
-                                if embed is not None:
-                                    await set_cache_mem(clave, tipo, embed, mal)
+                            clave = clave_analisis("url", url_exp)
+
+                            async def _leer_cache():
+                                tipo, e, m = await get_from_cache_mem(clave)
+                                if e is None:
+                                    tipo, e, m = await obtener_analisis_db(clave)
+                                    if e is not None:
+                                        await set_cache_mem(clave, tipo, e, m)
+                                return tipo, e, m
+
+                            tipo, embed, mal = await vuelo(clave, _leer_cache)
                             return (url_original, url_exp, tipo, embed, mal, fue_exp)
 
                         expandidos = await asyncio.gather(*[_expandir_y_cache(url) for url in todas_urls], return_exceptions=True)
@@ -643,7 +712,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                                 if tipo == "malicioso":
                                     await registrar_infraccion(guild_id, message.author.id, elemento_id)
                                 url_id = base64.urlsafe_b64encode(url_exp.encode()).decode().rstrip("=")
-                                vt_link = f"https://www.virustotal.com/gui/url/{url_id}" if mal > 0 else None
+                                vt_link = f"https://www.virustotal.com/gui/url/{url_id}" if tipo in ("malicioso", "sospechoso") else None
                                 url_results.append(UrlResult(
                                     url_orig, tipo, mal, vt_link, elemento_id, False, redireccion,
                                 ))
@@ -652,14 +721,26 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
 
                         if pendientes:
                             async def _api_url(url_orig: str, url_exp: str, redireccion: Optional[str]) -> Optional[UrlResult]:
-                                if not await check_vt_user_limit(bot, guild_id, message.author.id):
+                                clave_api = clave_analisis("url", url_exp)
+
+                                async def _llamar_vt() -> Optional[tuple[str, discord.Embed, int, bool]]:
+                                    if not await check_vt_user_limit(bot, guild_id, message.author.id):
+                                        return None
+                                    async with ANALYSIS_SEMAPHORE:
+                                        t, e, m = await analizar_url(url_exp, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
+                                    return t, e, m, True
+
+                                resolucion = await vuelo(clave_api, _llamar_vt)
+                                if resolucion is None or resolucion is SIN_RESPUESTA:
                                     return UrlResult(url_orig, "error", 0, None, f"url:{url_exp}", False, redireccion)
-                                async with ANALYSIS_SEMAPHORE:
-                                    tipo, embed, mal = await analizar_url(url_exp, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
+                                tipo, embed, mal, ya_logueado = resolucion
                                 url_id = base64.urlsafe_b64encode(url_exp.encode()).decode().rstrip("=")
-                                vt_link = f"https://www.virustotal.com/gui/url/{url_id}" if mal > 0 else None
-                                # _on_threat_found ya mandó el log con eid = f"url:{url_exp}"
-                                return UrlResult(url_orig, tipo, mal, vt_link, f"url:{url_exp}", True, redireccion)
+                                vt_link = f"https://www.virustotal.com/gui/url/{url_id}" if tipo in ("malicioso", "sospechoso") else None
+                                # _on_threat_found manda el log con eid = f"url:{url_exp}",
+                                # pero solo si esta llamada fue la que fue a la API.
+                                # Quien espera el vuelo comparte el análisis, no el log:
+                                # su mensaje necesita el suyo.
+                                return UrlResult(url_orig, tipo, mal, vt_link, f"url:{url_exp}", ya_logueado, redireccion)
 
                             api_resultados = await asyncio.gather(*[_api_url(uo, ue, rd) for uo, ue, rd in pendientes], return_exceptions=True)
                             for r in api_resultados:
@@ -680,36 +761,46 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
         return
 
     has_malicious_url = any(r.tipo == "malicioso" for r in url_results)
+    has_suspicious_url = any(r.tipo == "sospechoso" for r in url_results)
     has_nsfw_url = any(r.tipo == "nsfw" for r in img_url_results)
-    has_malicious_file = any(t == "malicioso" for _, t, _, _, _ in arch_results)
+    has_malicious_file = any(t == "malicioso" for _, t, _, _, _, _ in arch_results)
+    has_suspicious_file = any(t == "sospechoso" for _, t, _, _, _, _ in arch_results)
     has_nsfw_img = any(t == "nsfw" for _, t, _, _ in img_results)
     has_threat = has_malicious_url or has_nsfw_url or has_malicious_file or has_nsfw_img
+    has_suspicious = has_suspicious_url or has_suspicious_file
     has_errors = (any(r.tipo == "error" for r in url_results)
                   or any(r.tipo == "error" for r in img_url_results)
                   or any(t == "error" for _, t, _, _ in img_results)
-                  or any(t == "error" for _, t, _, _, _ in arch_results))
-    has_doble_ext = any(w for _, _, _, _, w in arch_results if w)
+                  or any(t == "error" for _, t, _, _, _, _ in arch_results))
+    has_doble_ext = any(d for _, _, _, _, _, d in arch_results)
+    has_mime_mismatch = any(w for _, _, _, _, w, _ in arch_results)
 
     embed = await _construir_embed_unificado(
         message, url_results, img_url_results, img_results, arch_results, omitidos,
     )
 
     # Enviar embed
-    if has_threat or has_errors or omitidos or not silent_mode:
+    if has_threat or has_suspicious or has_errors or omitidos or not silent_mode:
         await safe_send(message, embed, reference=message)
 
-    # Reacción única por el peor resultado
+    # Reacción única por el peor resultado. Un nombre engañoso cuenta como peor que
+    # "seguro": el contenido puede estar limpio, pero el archivo no es de lo que dice
+    # ser, y marcarlo a la vez con el verde se lee como una contradicción.
     if has_malicious_url or has_malicious_file:
         await safe_add_reaction(message, EMOJI_WARNING)
     elif has_nsfw_url or has_nsfw_img:
         await safe_add_reaction(message, EMOJI_NSFW)
+    elif has_doble_ext or has_mime_mismatch:
+        await safe_add_reaction(message, EMOJI_WARNING)
+    elif has_suspicious:
+        await safe_add_reaction(message, EMOJI_GUARDIAN)
     elif has_errors:
         await safe_add_reaction(message, EMOJI_ERROR)
     else:
         await safe_add_reaction(message, EMOJI_CORRECTO)
 
-    # Strict mode: eliminar mensaje si hay amenazas o doble extensión
-    if (has_threat or has_doble_ext) and strict_mode:
+    # Strict mode
+    if debe_borrar(has_threat, has_doble_ext, has_mime_mismatch, strict_mode):
         try:
             await message.delete()
         except (discord.errors.Forbidden, discord.errors.NotFound):
@@ -718,6 +809,8 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
     # Logs por cada amenaza detectada. `elemento_id` tiene que ser el MISMO que se usó al
     # registrar la infracción (la URL expandida), o el botón "Ignorar" del log no
     # encontraría la infracción que intentaría descontar.
+    # Los sospechosos no llegan aquí: no hay infracción que ignorar, así que un log con
+    # botón "Ignorar" respondería "esa infracción ya no existe".
     if log_channel_id:
         for r in url_results:
             if r.tipo == "malicioso" and not r.ya_logueado:
@@ -731,7 +824,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
         for filename, tipo, models, content_hash in img_results:
             if tipo == "nsfw" and content_hash:
                 await enviar_log_guild(guild_id, "Imagen NSFW (múltiples)", filename, "Detectado en análisis múltiple", message.author, elemento_id=f"nsfw:{content_hash}", es_nsfw=True)
-        for filename, tipo, mal, file_hash, _wm in arch_results:
+        for filename, tipo, mal, file_hash, _wm, _doble_ext in arch_results:
             if tipo == "malicioso":
                 # Mismo elemento_id que usa _procesar_archivo al registrar la infracción.
                 await enviar_log_guild(

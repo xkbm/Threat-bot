@@ -236,6 +236,119 @@ def normalizar_url(url: str) -> str:
     path = parsed.path.rstrip("/") or "/"
     return urllib.parse.urlunparse((scheme, hostname, path, parsed.params, parsed.query, ""))
 
+
+def clave_analisis(tipo: str, valor: str) -> str:
+    """Clave de caché canónica de un elemento analizado. Fuente única de verdad.
+
+    Antes cada sitio construía la clave por su cuenta y uno de ellos normalizaba la URL
+    y otro no: la caché de 7 días quedaba de solo-escritura para el autoescaneo, que
+    comparaba `url:https://x.com/` contra el `url:https://x.com` que guardaba la API, y
+    cada reposteo volvía a gastar las 5 unidades de un análisis de URL desconocido.
+
+    Solo las URLs se normalizan, porque son el único tipo con formas equivalentes
+    (barra final, puerto por defecto, mayúsculas). Un hash es un hash y una IP no
+    tiene variantes: normalizarlos no aportaría nada.
+    """
+    if tipo == "url":
+        return f"url:{normalizar_url(valor)}"
+    # `filehash:` y no `file:` para que coincida con lo que ya hay en RAM y en SQLite,
+    # y con el elemento_id que usan las infracciones de archivos.
+    if tipo == "file":
+        return f"filehash:{valor}"
+    return f"{tipo}:{valor}"
+
+
+_vuelos: dict[str, asyncio.Future] = {}
+_vuelos_lock = asyncio.Lock()
+
+# Marca de "no he podido resolverlo": quien la recibe reintenta por su cuenta en vez
+# de esperar un resultado que no existe.
+class _SinRespuesta:
+    __slots__ = ()
+
+    def __repr__(self) -> str:
+        return "<SIN_RESPUESTA>"
+
+SIN_RESPUESTA = _SinRespuesta()
+
+
+async def vuelo(clave: str, calcular):
+    """Ejecuta `calcular()` UNA vez por clave y devuelve el resultado a todos.
+
+    Sin esto, veinte personas pegando a la vez el mismo enlace recién publicado
+    compartían el mismo cache-miss y disparaban veinte análisis, con veinte filas en
+    `/stats` y cien unidades de cuota de VirusTotal para un único enlace.
+
+    Ojo con la tentación de usar un `asyncio.Lock`: serializa, pero no deduplica. Los
+    que esperan el lock siguen ejecutando el cuerpo al soltarse, que es justo lo que
+    queremos evitar. Aquí el primero pone el resultado en un `Future` compartido y el
+    resto solo lo lee.
+
+    `calcular` tiene que devolver SOLO el resultado del análisis. Los efectos que
+    dependen de cada mensaje (registrar la infracción, montar el log, reaccionar) los
+    hace cada uno el que llama, con el valor devuelto: si fueran parte del vuelo, el
+    mensaje que esperó se quedaría sin registrar nada.
+
+    Si el primero falla, el error se propaga a los que estaban esperando: es preferible
+    que todos vean el fallo a que uno reciba un "resultado" vacío y lo lea como seguro.
+
+    Si `calcular` devuelve `SIN_RESPUESTA`, no se guarda nada y el que esperaba reintenta
+    por su cuenta. Se usa para la tasa por usuario, que es personal: si a quien abrió el
+    vuelo le tocó su límite de VT, el resto no puede quedarse sin análisis solo por eso,
+    porque su propio contador va aparte.
+    """
+    loop = asyncio.get_running_loop()
+    # Reintento acotado: si el primero no pudo por su propio límite, este reintenta
+    # como si fuera el primero. Dos vueltas bastan —si tampoco puede, ya no es un
+    # problema de vuelo sino de cuota de VT y hay que devolverlo como error.
+    for intento in range(2):
+        async with _vuelos_lock:
+            pendiente = _vuelos.get(clave)
+            soy_el_primero = pendiente is None
+            if soy_el_primero:
+                pendiente = _vuelos[clave] = loop.create_future()
+
+        if not soy_el_primero:
+            log.debug(f"VUELO espera → {clave}")
+            # shield: si el que espera se cancela, el Future compartido no se cancela
+            # y el resto de los esperadores sigue recibiendo el resultado.
+            ok, valor = await asyncio.shield(pendiente)
+            if not ok:
+                raise valor
+            if valor is SIN_RESPUESTA and intento == 0:
+                log.debug(f"VUELO reintenta → {clave}")
+                continue
+            return valor
+
+        log.debug(f"VUELO primero → {clave}")
+        try:
+            resultado = await calcular()
+        except BaseException as e:  # noqa: BLE001 - se re-lanza tras guardarlo
+            await _cerrar_vuelo(clave, pendiente, False, e)
+            raise
+        if resultado is SIN_RESPUESTA:
+            # No se resolvió nada: se suelta la clave sin guardar resultado para que el
+            # siguiente pueda intentarlo por su cuenta.
+            async with _vuelos_lock:
+                if _vuelos.get(clave) is pendiente:
+                    del _vuelos[clave]
+            if not pendiente.done():
+                pendiente.set_result((True, SIN_RESPUESTA))
+            return SIN_RESPUESTA
+        await _cerrar_vuelo(clave, pendiente, True, resultado)
+        return resultado
+
+
+async def _cerrar_vuelo(clave: str, pendiente: asyncio.Future, ok: bool, valor) -> None:
+    async with _vuelos_lock:
+        if _vuelos.get(clave) is pendiente:
+            del _vuelos[clave]
+    # El resultado va como tupla (ok, valor) y no con set_exception: un Future con
+    # excepción que nadie llega a leer emite un aviso al final del bucle, y aquí es
+    # fácil que todos los esperadores se hayan ido antes.
+    if not pendiente.done():
+        pendiente.set_result((ok, valor))
+
 async def expandir_url(bot: commands.Bot, url: str) -> str:
     try:
         for _ in range(5):
@@ -295,9 +408,34 @@ PATRON_HASH: re.Pattern = re.compile(r'^[a-fA-F0-9]{32}$|^[a-fA-F0-9]{40}$|^[a-f
 def es_hash_valido(valor: str) -> bool:
     return bool(PATRON_HASH.match(valor.strip()))
 
+# Extensiones que el sistema puede ejecutar al abrir el archivo. Es la única lista que
+# hace falta: la pregunta de seguridad es si lo que se descarga se ejecuta, no qué
+# extensión de adorno lleva delante.
+_EXT_EJECUTABLE = frozenset({
+    'exe', 'vbs', 'vbe', 'ps1', 'bat', 'cmd', 'msi', 'msc', 'scr', 'lnk', 'com',
+    'pif', 'cpl', 'jar', 'gadget', 'sh', 'app', 'command',
+})
+
+
 def tiene_doble_extension(filename: str) -> bool:
-    partes = filename.rsplit('.', 2)
-    return len(partes) == 3 and partes[1].lower() in ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'pdf', 'doc', 'xls', 'exe', 'vbs', 'ps1', 'bat', 'cmd', 'msi', 'scr', 'lnk', 'com', 'gadget', 'docx', 'xlsx', 'ppt', 'pptx', 'jar', 'py']
+    """Si el nombre esconde el carácter ejecutable de una extensión inocua.
+
+    `informe.pdf.exe` se abre como un PDF y al descargarlo resulta ser un ejecutable:
+    ese engaño es lo que se avisa. La condición es que la extensión **real** —la última,
+    la que manda— sea ejecutable y que delante haya otra extensión que la disimule.
+
+    Solo mirar la extensión intermedia daba falsos positivos: `r.pdf.exe.md` dispara
+    porque el medio es `.exe`, aunque lo que se descarga es un `.md` inofensivo. Y
+    exigir que el cebo fuera "de documento" dejaba escapar a `guion.sh.cmd`, que también
+    engaña, porque lo que se ejecuta es el `.cmd` del final.
+    """
+    nombre, _, real = filename.rpartition('.')
+    if not nombre or not real:
+        return False
+    if '.' not in nombre:
+        # Una sola extensión (`acceso.lnk`): no hay nada que esconda.
+        return False
+    return real.strip().lower() in _EXT_EJECUTABLE
 
 import random as _random
 

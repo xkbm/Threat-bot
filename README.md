@@ -34,6 +34,10 @@
 | **Modo silencioso** | Notifica solo en el canal de logs |
 | **Whitelist** | Dominios seguros que configurás por servidor |
 | **Anti-spam** | 30 análisis/hora por usuario, cooldown de 10s |
+| **Veredicto "sospechoso"** | Los enlaces que VirusTotal marca como *suspicious* pero sin confirmar se informan en ámbar: no se borran ni cuentan como infracción, porque no hay certeza |
+
+`/usercheck` es el único comando restringido a moderadores: el expediente de seguridad de una
+persona no es público.
 
 ---
 

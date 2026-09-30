@@ -14,7 +14,7 @@ from core.config import (
 )
 from core.cache import set_cache_mem
 from core.database import guardar_analisis_db
-from core.utils import obtener_top_antivirus, es_hash_valido
+from core.utils import obtener_top_antivirus, es_hash_valido, clave_analisis
 from ui.views import LogActionView
 from ui import embed as emb
 from core.guild_config import obtener_config_guild, update_stats, registrar_infraccion
@@ -170,7 +170,7 @@ def _error_tamanio(filename: str) -> discord.Embed:
     )
 
 
-async def analizar_url(url: str, guild_id: Optional[int] = None, mensaje_original: Optional[discord.Message] = None, guardar_cache: bool = True) -> tuple[str, discord.Embed, int]:
+async def analizar_url(url: str, guild_id: Optional[int] = None, mensaje_original: Optional[discord.Message] = None, guardar_cache: bool = True, registrar_para: Optional[discord.abc.User] = None) -> tuple[str, discord.Embed, int]:
     _t0 = time.time()
     log.debug(f"VT URL INICIO → {url}")
     url_id = base64.urlsafe_b64encode(url.encode()).decode().rstrip("=")
@@ -197,7 +197,7 @@ async def analizar_url(url: str, guild_id: Optional[int] = None, mensaje_origina
                         }
                     }
                 }
-                return await _procesar_resultado_vt(normalized, "url", url, guild_id, mensaje_original, guardar_cache)
+                return await _procesar_resultado_vt(normalized, "url", url, guild_id, mensaje_original, guardar_cache, registrar_para)
 
     try:
         _t = time.time()
@@ -225,7 +225,7 @@ async def analizar_url(url: str, guild_id: Optional[int] = None, mensaje_origina
                             status = analysis["data"]["attributes"]["status"]
                             if status == "completed":
                                 log.debug(f"VT URL COMPLETED → url={url} t={time.time()-_t0:.1f}s")
-                                return await _procesar_resultado_vt(analysis, "url", url, guild_id, mensaje_original, guardar_cache)
+                                return await _procesar_resultado_vt(analysis, "url", url, guild_id, mensaje_original, guardar_cache, registrar_para)
                             else:
                                 log.debug(f"VT URL STATUS → {status} intento={intento+1}/2")
                 log.debug(f"VT URL POST-POLL CHECK → {url} t={time.time()-_t0:.1f}s")
@@ -248,7 +248,7 @@ async def analizar_url(url: str, guild_id: Optional[int] = None, mensaje_origina
                                         }
                                     }
                                 }
-                                return await _procesar_resultado_vt(normalized, "url", url, guild_id, mensaje_original, guardar_cache)
+                                return await _procesar_resultado_vt(normalized, "url", url, guild_id, mensaje_original, guardar_cache, registrar_para)
                 log.debug(f"VT URL TIMEOUT → {url} t={time.time()-_t0:.1f}s")
                 await _finalizar_error(guild_id, "url", url)
                 return "error", emb.error_analisis(
@@ -273,7 +273,7 @@ async def analizar_url(url: str, guild_id: Optional[int] = None, mensaje_origina
         return "error", emb.error_conexion("No se pudo contactar con VirusTotal.", detalle=type(e).__name__), 0
 
 
-async def analizar_hash(hash_valor: str, guild_id: Optional[int] = None, mensaje_original: Optional[discord.Message] = None, guardar_cache: bool = True) -> tuple[str, discord.Embed, int]:
+async def analizar_hash(hash_valor: str, guild_id: Optional[int] = None, mensaje_original: Optional[discord.Message] = None, guardar_cache: bool = True, registrar_para: Optional[discord.abc.User] = None) -> tuple[str, discord.Embed, int]:
     _t0 = time.time()
     log.debug(f"VT HASH INICIO → {hash_valor}")
     if not es_hash_valido(hash_valor):
@@ -296,25 +296,25 @@ async def analizar_hash(hash_valor: str, guild_id: Optional[int] = None, mensaje
                 results = data["data"]["attributes"]["last_analysis_results"]
                 vt_link = f"https://www.virustotal.com/gui/file/{hash_valor}"
                 mal = stats["malicious"]
+                veredicto = _veredicto(stats)
                 if mal > 0:
-                    await _on_threat_found("hash", hash_valor, mal, guild_id, mensaje_original, vt_link, results, guardar_cache)
+                    await _on_threat_found("hash", hash_valor, mal, guild_id, mensaje_original, vt_link, results, guardar_cache, registrar_para=registrar_para)
                     top = obtener_top_antivirus(results)
                     top_text = ", ".join(top) if top else "Varios antivirus"
                 else:
                     top_text = None
-                datos = {"valor": hash_valor, "vt_link": vt_link, "top_text": top_text}
+                datos = {"valor": hash_valor, "vt_link": vt_link, "top_text": top_text, "veredicto": veredicto, "susp": stats.get("suspicious", 0)}
                 embed = emb.resultado("hash", datos, mal)
                 if guardar_cache:
-                    clave = f"hash:{hash_valor}"
-                    veredicto = "malicioso" if mal > 0 else "seguro"
+                    clave = clave_analisis("hash", hash_valor)
                     await guardar_analisis_db(clave, "hash", veredicto, mal=mal, datos=datos)
                     await set_cache_mem(clave, veredicto, mal=mal, datos=datos)
                 if mal > 0:
                     log.debug(f"VT HASH MALICIOSO → {hash_valor} mal={mal} t={time.time()-_t0:.1f}s")
                     return "malicioso", embed, mal
-                await update_stats(guild_id, "seguro")
-                log.debug(f"VT HASH SEGURO → {hash_valor} t={time.time()-_t0:.1f}s")
-                return "seguro", embed, 0
+                await update_stats(guild_id, veredicto)
+                log.debug(f"VT HASH {veredicto.upper()} → {hash_valor} t={time.time()-_t0:.1f}s")
+                return veredicto, embed, 0
             else:
                 await update_stats(guild_id, "error")
                 log.debug(f"VT HASH NO ENCONTRADO → {hash_valor} status={resp.status} t={time.time()-_t0:.1f}s")
@@ -331,7 +331,7 @@ async def analizar_hash(hash_valor: str, guild_id: Optional[int] = None, mensaje
         await update_stats(guild_id, "error")
         return "error", emb.error_conexion("No se pudo consultar el hash.", detalle=type(e).__name__), 0
 
-async def analizar_ip(ip: str, guild_id: Optional[int] = None, mensaje_original: Optional[discord.Message] = None, guardar_cache: bool = True) -> tuple[str, discord.Embed, int]:
+async def analizar_ip(ip: str, guild_id: Optional[int] = None, mensaje_original: Optional[discord.Message] = None, guardar_cache: bool = True, registrar_para: Optional[discord.abc.User] = None) -> tuple[str, discord.Embed, int]:
     _t0 = time.time()
     log.debug(f"VT IP INICIO → {ip}")
     key = await adquirir_vt()
@@ -345,22 +345,22 @@ async def analizar_ip(ip: str, guild_id: Optional[int] = None, mensaje_original:
                 data = await resp.json()
                 stats = data["data"]["attributes"]["last_analysis_stats"]
                 mal = stats["malicious"]
+                veredicto = _veredicto(stats)
                 vt_link = f"https://www.virustotal.com/gui/ip-address/{ip}"
                 if mal > 0:
-                    await _on_threat_found("ip", ip, mal, guild_id, mensaje_original, vt_link)
-                datos = {"valor": ip, "vt_link": vt_link, "top_text": None}
+                    await _on_threat_found("ip", ip, mal, guild_id, mensaje_original, vt_link, registrar_para=registrar_para)
+                datos = {"valor": ip, "vt_link": vt_link, "top_text": None, "veredicto": veredicto, "susp": stats.get("suspicious", 0)}
                 embed = emb.resultado("ip", datos, mal)
                 if guardar_cache:
-                    clave = f"ip:{ip}"
-                    veredicto = "malicioso" if mal > 0 else "seguro"
+                    clave = clave_analisis("ip", ip)
                     await guardar_analisis_db(clave, "ip", veredicto, mal=mal, datos=datos)
                     await set_cache_mem(clave, veredicto, mal=mal, datos=datos)
                 if mal > 0:
                     log.debug(f"VT IP MALICIOSA → {ip} mal={mal} t={time.time()-_t0:.1f}s")
                     return "malicioso", embed, mal
-                await update_stats(guild_id, "seguro")
-                log.debug(f"VT IP SEGURA → {ip} t={time.time()-_t0:.1f}s")
-                return "seguro", embed, 0
+                await update_stats(guild_id, veredicto)
+                log.debug(f"VT IP {veredicto.upper()} → {ip} t={time.time()-_t0:.1f}s")
+                return veredicto, embed, 0
             else:
                 await update_stats(guild_id, "error")
                 log.debug(f"VT IP NO ENCONTRADA → {ip} status={resp.status} t={time.time()-_t0:.1f}s")
@@ -377,7 +377,7 @@ async def analizar_ip(ip: str, guild_id: Optional[int] = None, mensaje_original:
         await update_stats(guild_id, "error")
         return "error", emb.error_conexion("No se pudo contactar con VirusTotal.", detalle=type(e).__name__), 0
 
-async def analizar_archivo(archivo: discord.Attachment, file_bytes: Optional[bytes] = None, file_hash: Optional[str] = None, guild_id: Optional[int] = None, mensaje_original: Optional[discord.Message] = None, guardar_cache: bool = True) -> tuple[str, discord.Embed, int]:
+async def analizar_archivo(archivo: discord.Attachment, file_bytes: Optional[bytes] = None, file_hash: Optional[str] = None, guild_id: Optional[int] = None, mensaje_original: Optional[discord.Message] = None, guardar_cache: bool = True, registrar_para: Optional[discord.abc.User] = None) -> tuple[str, discord.Embed, int]:
     _t0 = time.time()
     log.debug(f"VT FILE INICIO → {archivo.filename} hash={file_hash} size={archivo.size}")
 
@@ -430,7 +430,7 @@ async def analizar_archivo(archivo: discord.Attachment, file_bytes: Optional[byt
                     analysis_attrs = dict(attrs)
                     analysis_attrs["stats"] = attrs["last_analysis_stats"]
                     analysis = {"data": {"attributes": analysis_attrs}}
-                    return await _procesar_analisis_archivo(analysis, archivo, file_hash, guild_id, mensaje_original, guardar_cache)
+                    return await _procesar_analisis_archivo(analysis, archivo, file_hash, guild_id, mensaje_original, guardar_cache, registrar_para)
 
         key = await adquirir_vt()
         if not key:
@@ -462,7 +462,7 @@ async def analizar_archivo(archivo: discord.Attachment, file_bytes: Optional[byt
                             log.debug(f"VT FILE STATUS → {status} stats={stats} intento={i+1}/2")
                             if status == "completed":
                                 log.debug(f"VT FILE COMPLETED → {archivo.filename} t={time.time()-_t0:.1f}s")
-                                return await _procesar_analisis_archivo(analysis, archivo, file_hash, guild_id, mensaje_original, guardar_cache)
+                                return await _procesar_analisis_archivo(analysis, archivo, file_hash, guild_id, mensaje_original, guardar_cache, registrar_para)
                             elif status == "queued":
                                 log.debug(f"VT FILE QUEUED → intento={i+1}/2")
                 log.debug(f"VT FILE POST-POLL CHECK HASH → {archivo.filename} t={time.time()-_t0:.1f}s")
@@ -480,7 +480,7 @@ async def analizar_archivo(archivo: discord.Attachment, file_bytes: Optional[byt
                                 analysis_attrs = dict(attrs)
                                 analysis_attrs["stats"] = attrs["last_analysis_stats"]
                                 analysis = {"data": {"attributes": analysis_attrs}}
-                                return await _procesar_analisis_archivo(analysis, archivo, file_hash, guild_id, mensaje_original, guardar_cache)
+                                return await _procesar_analisis_archivo(analysis, archivo, file_hash, guild_id, mensaje_original, guardar_cache, registrar_para)
                 log.error(f"VT FILE TIMEOUT → {archivo.filename} t={time.time()-_t0:.1f}s")
                 await update_stats(guild_id, "error")
                 return "error", emb.error_analisis(
@@ -504,75 +504,123 @@ async def analizar_archivo(archivo: discord.Attachment, file_bytes: Optional[byt
         return "error", emb.error_conexion(
             f"No se pudo analizar `{archivo.filename}`.", detalle=type(e).__name__), 0
 
-async def _procesar_resultado_vt(analysis: dict, tipo: str, valor: str, guild_id: Optional[int], mensaje_original: Optional[discord.Message], guardar_cache: bool) -> tuple[str, discord.Embed, int]:
+def _veredicto(stats: dict) -> str:
+    """Traduce `last_analysis_stats` de VT a uno de nuestros tres veredictos.
+
+    VT separa `suspicious` de `malicious` en su esquema, y leer solo `malicious` —como
+    se hacía hasta ahora— hacía que un enlace con tres engines que lo marcan como
+    sospechoso y ninguno que lo confirme saliera con el veredicto "seguro".
+
+    No se suman: `suspicious` no es "malicioso pero menos", es una categoría propia. Por
+    eso un sospechoso se informa pero no genera infracción ni borra el mensaje, que es
+    justo lo que distingue este veredicto de los otros dos.
+    """
+    if stats.get("malicious", 0) > 0:
+        return "malicioso"
+    if stats.get("suspicious", 0) > 0:
+        return "sospechoso"
+    return "seguro"
+
+
+async def _procesar_resultado_vt(analysis: dict, tipo: str, valor: str, guild_id: Optional[int], mensaje_original: Optional[discord.Message], guardar_cache: bool, registrar_para: Optional[discord.abc.User] = None) -> tuple[str, discord.Embed, int]:
     stats = analysis["data"]["attributes"]["stats"]
     mal = stats["malicious"]
-    clave = f"{tipo}:{valor}"
-    log.debug(f"VT RESULT → {tipo}={valor} mal={mal} harmless={stats.get('harmless',0)} undetected={stats.get('undetected',0)}")
+    susp = stats.get("suspicious", 0)
+    veredicto = _veredicto(stats)
+    clave = clave_analisis(tipo, valor)
+    log.debug(f"VT RESULT → {tipo}={valor} {veredicto} mal={mal} susp={susp} harmless={stats.get('harmless',0)} undetected={stats.get('undetected',0)}")
     url_id = base64.urlsafe_b64encode(valor.encode()).decode().rstrip("=")
     vt_link = f"https://www.virustotal.com/gui/url/{url_id}"
 
     if mal > 0:
-        await _on_threat_found(tipo, valor, mal, guild_id, mensaje_original, vt_link)
+        await _on_threat_found(tipo, valor, mal, guild_id, mensaje_original, vt_link, registrar_para=registrar_para)
     top_text = None
     results = analysis["data"]["attributes"].get("results") or {}
     if mal > 0 and results:
         top = obtener_top_antivirus(results)
         top_text = ", ".join(top) if top else "Varios antivirus"
 
-    datos = {"valor": valor, "vt_link": vt_link, "top_text": top_text}
+    datos = {"valor": valor, "vt_link": vt_link, "top_text": top_text, "veredicto": veredicto, "susp": susp}
     embed = emb.resultado(tipo, datos, mal)
-    tipo_str = "malicioso" if mal > 0 else "seguro"
+    tipo_str = veredicto
 
     if guardar_cache:
         await guardar_analisis_db(clave, tipo, tipo_str, mal=mal, datos=datos)
         await set_cache_mem(clave, tipo_str, mal=mal, datos=datos)
-    if tipo_str == "seguro" and guild_id:
+    if veredicto == "seguro" and guild_id:
         await update_stats(guild_id, "seguro")
+    elif veredicto == "sospechoso" and guild_id:
+        await update_stats(guild_id, "sospechoso")
     return tipo_str, embed, mal
 
-async def _procesar_analisis_archivo(analysis: dict, archivo: discord.Attachment, file_hash: str, guild_id: Optional[int], mensaje_original: Optional[discord.Message], guardar_cache: bool) -> tuple[str, discord.Embed, int]:
+async def _procesar_analisis_archivo(analysis: dict, archivo: discord.Attachment, file_hash: str, guild_id: Optional[int], mensaje_original: Optional[discord.Message], guardar_cache: bool, registrar_para: Optional[discord.abc.User] = None) -> tuple[str, discord.Embed, int]:
     stats = analysis["data"]["attributes"]["stats"]
     mal = stats["malicious"]
-    clave = f"filehash:{file_hash}"
-    log.debug(f"VT FILE RESULT → {archivo.filename} hash={file_hash} mal={mal}")
+    susp = stats.get("suspicious", 0)
+    veredicto = _veredicto(stats)
+    clave = clave_analisis("file", file_hash)
+    log.debug(f"VT FILE RESULT → {archivo.filename} hash={file_hash} {veredicto} mal={mal} susp={susp}")
 
     if mal > 0:
-        await _on_threat_found("Archivo", archivo.filename, mal, guild_id, mensaje_original, None, elemento_id=f"filehash:{file_hash}")
+        await _on_threat_found("Archivo", archivo.filename, mal, guild_id, mensaje_original, None, elemento_id=f"filehash:{file_hash}", registrar_para=registrar_para)
 
-    datos = {"valor": archivo.filename, "vt_link": None, "top_text": None}
+    datos = {"valor": archivo.filename, "vt_link": None, "top_text": None, "veredicto": veredicto, "susp": susp}
     embed = emb.resultado("file", datos, mal)
-    tipo_str = "malicioso" if mal > 0 else "seguro"
+    tipo_str = veredicto
     if guardar_cache:
         await guardar_analisis_db(clave, "file", tipo_str, mal=mal, datos=datos)
         await set_cache_mem(clave, tipo_str, mal=mal, datos=datos)
-    if tipo_str == "seguro":
+    if veredicto == "seguro":
         await update_stats(guild_id, "seguro")
+    elif veredicto == "sospechoso":
+        await update_stats(guild_id, "sospechoso")
     return tipo_str, embed, mal
 
-async def _post_threat_side_effects(guild_id: int, tipo_str: str, valor: str, mal: int, mensaje_original: discord.Message, vt_link: Optional[str], eid: str) -> None:
+async def _post_threat_side_effects(guild_id: int, tipo_str: str, valor: str, mal: int, autor: discord.abc.User, vt_link: Optional[str], eid: str, mensaje_original: Optional[discord.Message] = None) -> None:
+    """Estadística, log de amenaza, y —solo si hubo mensaje— infracción y borrado.
+
+    La infracción va contra quien **publicó** la amenaza, que solo existe en el
+    autoescaneo. Con `/scan` no hay tal persona: quien invoca el comando está
+    consultando, no distribuyendo, así que recibe el log pero no se le cuenta nada.
+    """
     try:
         await update_stats(guild_id, "malicioso")
-        await registrar_infraccion(guild_id, mensaje_original.author.id, eid)
         if vt_link:
-            await enviar_log_guild(guild_id, tipo_str, valor, f"{mal} detecciones", mensaje_original.author, vt_link, elemento_id=eid)
+            await enviar_log_guild(guild_id, tipo_str, valor, f"{mal} detecciones", autor, vt_link, elemento_id=eid)
         else:
-            await enviar_log_guild(guild_id, tipo_str, valor, f"{mal} detecciones", mensaje_original.author, elemento_id=eid)
-        config = await obtener_config_guild(guild_id)
-        if config["strict_mode"]:
-            try:
-                await mensaje_original.delete()
-            except (discord.errors.Forbidden, discord.errors.NotFound):
-                pass
+            await enviar_log_guild(guild_id, tipo_str, valor, f"{mal} detecciones", autor, elemento_id=eid)
+        if mensaje_original is not None:
+            await registrar_infraccion(guild_id, mensaje_original.author.id, eid)
+            config = await obtener_config_guild(guild_id)
+            if config["strict_mode"]:
+                try:
+                    await mensaje_original.delete()
+                except (discord.errors.Forbidden, discord.errors.NotFound):
+                    pass
     except Exception as e:
         log.error(f"Error en post-threat side effects: {e}")
 
 
-async def _on_threat_found(tipo_str: str, valor: str, mal: int, guild_id: Optional[int], mensaje_original: Optional[discord.Message], vt_link: Optional[str] = None, results: Optional[dict] = None, guardar_cache: bool = True, elemento_id: Optional[str] = None) -> None:
-    if guild_id and mensaje_original:
-        eid = elemento_id or (f"url:{valor}" if tipo_str in ("URL", "url") else f"hash:{valor}" if tipo_str == "hash" else f"ip:{valor}")
-        task = asyncio.create_task(_post_threat_side_effects(guild_id, tipo_str, valor, mal, mensaje_original, vt_link, eid))
-        task.add_done_callback(lambda t: log.error(f"Post-threat error: {t.exception()}", exc_info=t.exception()) if t.exception() else None)
+async def _on_threat_found(tipo_str: str, valor: str, mal: int, guild_id: Optional[int], mensaje_original: Optional[discord.Message], vt_link: Optional[str] = None, results: Optional[dict] = None, guardar_cache: bool = True, elemento_id: Optional[str] = None, registrar_para: Optional[discord.abc.User] = None) -> None:
+    """Lanza los efectos de una amenaza: estadística, log, y con mensaje también
+    infracción y borrado.
+
+    Actúa si hay `mensaje_original` (autoescaneo) o si `registrar_para` trae a alguien
+    a quien atribuir el escaneo (el caso de `/scan`). Antes solo miraba el mensaje, así
+    que escanear a mano una URL maliciosa no dejaba ni log ni cambiaba `/stats`: el
+    comando y el autoescaneo discrepaban del mismo veredicto.
+
+    `registrar_para` es a quién se nombra en el log, no a quién se le cuenta la
+    infracción: esa siempre va contra el autor del mensaje, si lo hay.
+    """
+    if not guild_id:
+        return
+    if mensaje_original is None and registrar_para is None:
+        return
+    eid = elemento_id or (f"url:{valor}" if tipo_str in ("URL", "url") else f"hash:{valor}" if tipo_str == "hash" else f"ip:{valor}")
+    autor = mensaje_original.author if mensaje_original is not None else registrar_para
+    task = asyncio.create_task(_post_threat_side_effects(guild_id, tipo_str, valor, mal, autor, vt_link, eid, mensaje_original))
+    task.add_done_callback(lambda t: log.error(f"Post-threat error: {t.exception()}", exc_info=t.exception()) if t.exception() else None)
 
 async def _finalizar_error(guild_id: Optional[int], tipo: str, valor: str) -> None:
     await update_stats(guild_id, "error")
