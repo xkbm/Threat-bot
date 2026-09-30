@@ -187,10 +187,6 @@ const keyCommands = [
                         <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-surface-500"><img src="/emoji-nsfw.png" class="inline w-4 h-4" width="16" height="16" alt="" /> Imágenes (URL)</div>
                         <div id="chat-response-nsfw-values" class="space-y-0.5"></div>
                       </div>
-                      <div id="chat-response-mal-field" class="hidden mb-2">
-                        <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-surface-500"><img src="/emoji-warn.png" class="inline w-4 h-4" width="16" height="16" alt="" /> Enlaces maliciosos</div>
-                        <div id="chat-response-mal-values" class="space-y-0.5"></div>
-                      </div>
                     </div>
                     <div id="chat-response-text" class="hidden text-sm text-surface-300">
                       <img src="/emoji-whitelist.png" alt="" class="inline w-4 h-4 mr-1" width="16" height="16" />
@@ -310,8 +306,6 @@ const keyCommands = [
             const responseUrlValues = document.getElementById('chat-response-url-values');
             const responseNsfwField = document.getElementById('chat-response-nsfw-field');
             const responseNsfwValues = document.getElementById('chat-response-nsfw-values');
-            const responseMalField = document.getElementById('chat-response-mal-field');
-            const responseMalValues = document.getElementById('chat-response-mal-values');
 
             if (escenario.tipo === 'whitelist') {
               responseCard.classList.add('hidden');
@@ -327,28 +321,25 @@ const keyCommands = [
               const det = Math.floor(Math.random() * 22) + 3;
               responseDesc.innerHTML = escenario.desc(det);
 
-              // URL field
+              // URL field. Sigue el mismo formato que el embed del bot: una línea por
+              // URL con el estado al principio y el informe al final, separado por un
+              // guion. Antes la URL se repetía en un campo aparte con otra etiqueta.
               if (escenario.tieneURL) {
                 responseUrlField.classList.remove('hidden');
-                responseUrlValues.innerHTML = escenario.tipo === 'malicioso'
-                  ? `<span class="text-xs text-surface-300">${EMOJI_WARN} <code class="font-mono text-xs text-surface-200 bg-surface-700 px-1 py-0.5 rounded">${url}</code></span>`
-                  : `<span class="text-xs text-surface-300">${EMOJI_CHECK} <code class="font-mono text-xs text-surface-200 bg-surface-700 px-1 py-0.5 rounded">${url}</code></span>`;
+                const icono = escenario.tipo === 'malicioso' ? EMOJI_WARN : EMOJI_CHECK;
+                const codigo = `<code class="font-mono text-xs text-surface-200 bg-surface-700 px-1 py-0.5 rounded">${url}</code>`;
+                let informe = '';
+                if (escenario.tipo === 'malicioso') {
+                  const urlId = btoa(url).replace(/=+$/, '');
+                  informe = ` — <a href="https://www.virustotal.com/gui/url/${urlId}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-0.5 whitespace-nowrap text-shield-light hover:underline">${EMOJI_LINK_CHAIN} Informe</a>`;
+                }
+                responseUrlValues.innerHTML = `<span class="text-xs text-surface-300">${icono} ${codigo}${informe}</span>`;
               } else {
                 responseUrlField.classList.add('hidden');
               }
 
               // NSFW field
               responseNsfwField.classList.add('hidden');
-
-              // Malicious links field
-              if (escenario.tipo === 'malicioso') {
-                responseMalField.classList.remove('hidden');
-                const urlId = btoa(url).replace(/=+$/, '');
-                const vtLink = `https://www.virustotal.com/gui/url/${urlId}`;
-                responseMalValues.innerHTML = `<span class="text-xs text-surface-300">• <code class="font-mono text-xs text-surface-200 bg-surface-700 px-1 py-0.5 rounded">${url}</code> <a href="${vtLink}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-0.5 text-shield-light hover:underline">${EMOJI_LINK_CHAIN} Ver informe</a></span>`;
-              } else {
-                responseMalField.classList.add('hidden');
-              }
             }
 
             const chatInitials = document.querySelectorAll('.chat-initial');
@@ -542,10 +533,6 @@ const keyCommands = [
                       <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-surface-500"><img src="/emoji-nsfw.png" class="inline w-4 h-4" width="16" height="16" alt="" /> Imágenes (URL)</div>
                       <div id="demo-response-nsfw-values" class="space-y-0.5"></div>
                     </div>
-                    <div id="demo-response-mal-field" class="hidden mb-2">
-                      <div class="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-surface-500"><img src="/emoji-warn.png" class="inline w-4 h-4" width="16" height="16" alt="" /> Enlaces maliciosos</div>
-                      <div id="demo-response-mal-values" class="space-y-0.5"></div>
-                    </div>
                   </div>
                   <div id="demo-response-text" class="hidden text-sm text-surface-300">
                     <img src="/emoji-whitelist.png" alt="" class="inline w-4 h-4 mr-1" width="16" height="16" />
@@ -624,8 +611,6 @@ const keyCommands = [
             const urlValues = document.getElementById('demo-response-url-values');
             const nsfwField = document.getElementById('demo-response-nsfw-field');
             const nsfwValues = document.getElementById('demo-response-nsfw-values');
-            const malField = document.getElementById('demo-response-mal-field');
-            const malValues = document.getElementById('demo-response-mal-values');
 
             // Reset
             [msg1, msg2, typing, response].forEach(el => {
@@ -670,15 +655,14 @@ const keyCommands = [
               // Hide all fields first
               urlField.classList.add('hidden');
               nsfwField.classList.add('hidden');
-              malField.classList.add('hidden');
 
               if (s.tipo === 'url') {
+                // Mismo formato que el embed del bot: estado al principio, informe al
+                // final. El campo aparte de enlaces se eliminó por repetir la URL.
                 urlField.classList.remove('hidden');
-                urlValues.innerHTML = `${EMOJI_WARN_D} <code class="font-mono text-xs text-surface-200 bg-surface-700 px-1 py-0.5 rounded">${s.url}</code>`;
-                malField.classList.remove('hidden');
                 const urlId = btoa(s.url).replace(/=+$/, '');
                 const vtLink = `https://www.virustotal.com/gui/url/${urlId}`;
-                malValues.innerHTML = `<span class="text-xs text-surface-300">• <code class="font-mono text-xs text-surface-200 bg-surface-700 px-1 py-0.5 rounded">${s.url}</code> <a href="${vtLink}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-0.5 text-shield-light hover:underline">${EMOJI_LINK_D} Ver informe</a></span>`;
+                urlValues.innerHTML = `${EMOJI_WARN_D} <code class="font-mono text-xs text-surface-200 bg-surface-700 px-1 py-0.5 rounded">${s.url}</code> — <a href="${vtLink}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-0.5 whitespace-nowrap text-shield-light hover:underline">${EMOJI_LINK_D} Informe</a>`;
               } else if (s.tipo === 'nsfw') {
                 nsfwField.classList.remove('hidden');
                 nsfwValues.innerHTML = `${EMOJI_NSFW_D} <code class="font-mono text-xs text-surface-200 bg-surface-700 px-1 py-0.5 rounded">${s.url}</code> <span class="text-xs text-surface-300">Desnudez <strong class="text-surface-100">72%</strong>, Armas <strong class="text-surface-100">55%</strong></span>`;

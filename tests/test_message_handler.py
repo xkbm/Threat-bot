@@ -104,6 +104,39 @@ class TestMarcarProcesado:
         assert _procesados == {}
 
 
+class TestRedireccion:
+    """La redirección se deduce de UrlResult.redireccion, no de parámetros sueltos.
+    Antes solo se rellenaba en la rama de URL única, así que con varias URLs se perdía."""
+
+    @pytest.mark.asyncio
+    async def test_sin_redireccion_no_hay_campo(self):
+        e = await construir(urls=[UrlResult("https://x.com", "seguro", 0, None, "u", False, None)])
+        assert not any("Redirecci" in f.name for f in e.fields)
+
+    @pytest.mark.asyncio
+    async def test_una_redireccion_en_singular(self):
+        e = await construir(urls=[
+            UrlResult("https://bit.ly/a", "seguro", 0, None, "u1", False, "https://destino.example/promo"),
+        ])
+        campo = next(f for f in e.fields if "Redirecci" in f.name)
+        assert campo.name.endswith("Redirección"), campo.name
+        assert "bit.ly/a" in campo.value and "destino.example/promo" in campo.value
+
+    @pytest.mark.asyncio
+    async def test_varias_redirecciones_en_plural(self):
+        e = await construir(urls=[
+            UrlResult("https://bit.ly/a", "malicioso", 4, "http://vt/a", "u1", False, "https://evil.com/falsa"),
+            UrlResult("https://github.com/x", "seguro", 0, None, "u2", True, None),
+            UrlResult("https://tinyurl.com/z", "error", 0, None, "u3", False, "https://destino.example/promo"),
+        ])
+        campo = next(f for f in e.fields if "Redirecci" in f.name)
+        assert campo.name.endswith("Redirecciones"), campo.name
+        assert "https://evil.com/falsa" in campo.value
+        assert "https://destino.example/promo" in campo.value
+        # La que no redirige no debe aparecer.
+        assert "github.com" not in campo.value
+
+
 class TestUrlResult:
     def test_es_una_tupla_named(self):
         r = UrlResult("http://a", "malicioso", 3, "http://vt", "url:http://a", True)
@@ -113,6 +146,15 @@ class TestUrlResult:
         assert r.vt_link == "http://vt"
         assert r.elemento_id == "url:http://a"
         assert r.ya_logueado is True
+
+    def test_redireccion_opcional(self):
+        assert UrlResult("http://a", "seguro", 0, None, "u", False).redireccion is None
+        assert UrlResult("http://a", "seguro", 0, None, "u", False).es_redireccion is False
+
+    def test_es_redireccion(self):
+        r = UrlResult("http://a", "seguro", 0, None, "u", False, "http://b")
+        assert r.redireccion == "http://b"
+        assert r.es_redireccion is True
 
 
 class TestImgUrlResult:
@@ -245,10 +287,10 @@ class TestEmbedUnificado:
     @pytest.mark.asyncio
     async def test_redireccion_aparece(self):
         e = await construir(
-            urls=[UrlResult("http://short", "malicioso", 1, "http://vt", "url:http://real.com", False)],
-            url_fue_expandida=True, url_original="http://short", url_expandida="http://real.com",
+            urls=[UrlResult("http://short", "malicioso", 1, "http://vt", "url:http://real.com", False,
+                            "http://real.com")],
         )
-        assert any("Redirección" in f.name for f in e.fields)
+        assert any("Redirecci" in f.name for f in e.fields)
 
     @pytest.mark.asyncio
     async def test_no_rompe_con_muchos_elementos(self):

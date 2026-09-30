@@ -70,6 +70,9 @@ class UrlResult(NamedTuple):
     usa el botón "Ignorar" del log de amenazas para descontar la infracción.
     `ya_logueado` indica que api/virustotal._on_threat_found ya mandó el log y aplicó
     el strict mode, para no duplicarlos aquí.
+    `redireccion` es la URL expandida cuando el enlace era un acortador. Antes vivía en
+    tres parámetros sueltos de _construir_embed_unificado que solo se rellenaban en la
+    rama de URL única, así que con varias URLs la información se perdía.
     """
     url: str
     tipo: str
@@ -77,6 +80,11 @@ class UrlResult(NamedTuple):
     vt_link: Optional[str]
     elemento_id: str
     ya_logueado: bool
+    redireccion: Optional[str] = None
+
+    @property
+    def es_redireccion(self) -> bool:
+        return bool(self.redireccion)
 
 
 class ImgUrlResult(NamedTuple):
@@ -98,11 +106,12 @@ async def _construir_embed_unificado(
     img_results: list[tuple],       # (filename, tipo, models, content_hash)
     arch_results: list[tuple],      # (filename, tipo, mal, file_hash, wm)
     omitidos: int,
-    url_fue_expandida: bool = False,
-    url_original: str = "",
-    url_expandida: str = "",
 ) -> discord.Embed:
-    """Construye UN embed con toda la información disponible (URLs + imágenes + archivos)."""
+    """Construye UN embed con toda la información disponible (URLs + imágenes + archivos).
+
+    No recibe la información de redirección por parámetro: se deduce de
+    `UrlResult.redireccion`, que rellena cada rama (la de una URL y la de varias).
+    """
     total_urls = len(url_results) + len(img_url_results)
     total_imgs = len(img_results)
     total_archs = len(arch_results)
@@ -222,10 +231,15 @@ async def _construir_embed_unificado(
         embed.add_field(name=f"{EMOJI_FILE} Archivos", value="\n".join(lineas)[:1024], inline=False)
 
     # --- Campo: Redirección ---
-    if url_fue_expandida:
+    # Se generan desde los propios resultados, así que funciona igual con una URL
+    # que con cinco. Antes solo se rellenaba en la rama de URL única.
+    redirecciones = [r for r in url_results if r.es_redireccion]
+    if redirecciones:
+        lineas = [f"`{r.url}`\n→ `{r.redireccion}`" for r in redirecciones]
+        etiqueta = "Redirección" if len(redirecciones) == 1 else "Redirecciones"
         embed.add_field(
-            name=f"{EMOJI_REPLY} Redirección",
-            value=f"`{url_original}`\n→ `{url_expandida}`",
+            name=f"{EMOJI_REPLY} {etiqueta}",
+            value="\n".join(lineas)[:1024],
             inline=False,
         )
 
@@ -564,11 +578,17 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                                     await registrar_infraccion(guild_id, message.author.id, elemento_id)
                                 url_id = base64.urlsafe_b64encode(url.encode()).decode().rstrip("=")
                                 vt_link = f"https://www.virustotal.com/gui/url/{url_id}" if mal > 0 else None
-                                url_results.append(UrlResult(url_original_str, tipo, mal, vt_link, elemento_id, False))
+                                url_results.append(UrlResult(
+                                    url_original_str, tipo, mal, vt_link, elemento_id, False,
+                                    url_expandida_str if url_fue_expandida else None,
+                                ))
                             else:
                                 # No en cache → verificar límite VT
                                 if not await check_vt_user_limit(bot, guild_id, message.author.id):
-                                    url_results.append(UrlResult(url_original_str, "error", 0, None, f"url:{url}", False))
+                                    url_results.append(UrlResult(
+                                        url_original_str, "error", 0, None, f"url:{url}", False,
+                                        url_expandida_str if url_fue_expandida else None,
+                                    ))
                                 else:
                                     await safe_add_reaction(message, EMOJI_LOADING)
                                     try:
@@ -578,7 +598,10 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                                     url_id = base64.urlsafe_b64encode(url.encode()).decode().rstrip("=")
                                     vt_link = f"https://www.virustotal.com/gui/url/{url_id}" if mal > 0 else None
                                     # _on_threat_found ya mandó el log con eid = f"url:{valor}"
-                                    url_results.append(UrlResult(url_original_str, tipo, mal, vt_link, f"url:{url}", True))
+                                    url_results.append(UrlResult(
+                                        url_original_str, tipo, mal, vt_link, f"url:{url}", True,
+                                        url_expandida_str if url_fue_expandida else None,
+                                    ))
 
                         img_results, arch_results, omitidos = await _analizar_adjuntos_si_hay(bot, message, guild_id)
 
@@ -612,30 +635,33 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
 
                         # Los que ya estaban en caché no vuelven a llamar a la API, así que
                         # el bot no mandó log por ellos (ya_logueado=False).
-                        pendientes: list[tuple[str, str, bool]] = []
-                        for url_orig, url_exp, tipo, embed, mal, _fue_exp in expandidos:
+                        pendientes: list[tuple[str, str, Optional[str]]] = []
+                        for url_orig, url_exp, tipo, embed, mal, fue_exp in expandidos:
+                            redireccion = url_exp if fue_exp else None
                             if embed is not None:
                                 elemento_id = f"url:{url_exp}"
                                 if tipo == "malicioso":
                                     await registrar_infraccion(guild_id, message.author.id, elemento_id)
                                 url_id = base64.urlsafe_b64encode(url_exp.encode()).decode().rstrip("=")
                                 vt_link = f"https://www.virustotal.com/gui/url/{url_id}" if mal > 0 else None
-                                url_results.append(UrlResult(url_orig, tipo, mal, vt_link, elemento_id, False))
+                                url_results.append(UrlResult(
+                                    url_orig, tipo, mal, vt_link, elemento_id, False, redireccion,
+                                ))
                             else:
-                                pendientes.append((url_orig, url_exp, _fue_exp))
+                                pendientes.append((url_orig, url_exp, redireccion))
 
                         if pendientes:
-                            async def _api_url(url_orig: str, url_exp: str, _fue_exp: bool) -> Optional[UrlResult]:
+                            async def _api_url(url_orig: str, url_exp: str, redireccion: Optional[str]) -> Optional[UrlResult]:
                                 if not await check_vt_user_limit(bot, guild_id, message.author.id):
-                                    return UrlResult(url_orig, "error", 0, None, f"url:{url_exp}", False)
+                                    return UrlResult(url_orig, "error", 0, None, f"url:{url_exp}", False, redireccion)
                                 async with ANALYSIS_SEMAPHORE:
                                     tipo, embed, mal = await analizar_url(url_exp, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
                                 url_id = base64.urlsafe_b64encode(url_exp.encode()).decode().rstrip("=")
                                 vt_link = f"https://www.virustotal.com/gui/url/{url_id}" if mal > 0 else None
                                 # _on_threat_found ya mandó el log con eid = f"url:{url_exp}"
-                                return UrlResult(url_orig, tipo, mal, vt_link, f"url:{url_exp}", True)
+                                return UrlResult(url_orig, tipo, mal, vt_link, f"url:{url_exp}", True, redireccion)
 
-                            api_resultados = await asyncio.gather(*[_api_url(uo, ue, fe) for uo, ue, fe in pendientes], return_exceptions=True)
+                            api_resultados = await asyncio.gather(*[_api_url(uo, ue, rd) for uo, ue, rd in pendientes], return_exceptions=True)
                             for r in api_resultados:
                                 if isinstance(r, UrlResult):
                                     url_results.append(r)
@@ -666,9 +692,6 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
 
     embed = await _construir_embed_unificado(
         message, url_results, img_url_results, img_results, arch_results, omitidos,
-        url_fue_expandida=url_fue_expandida,
-        url_original=url_original_str,
-        url_expandida=url_expandida_str,
     )
 
     # Enviar embed
