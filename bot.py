@@ -73,13 +73,11 @@ bot.se_key_daily_usage = {}
 bot.se_key_count = 0
 
 # ========== EXPORTACIONES A COGS ==========
-from api.virustotal import analizar_url, analizar_hash, analizar_ip, analizar_archivo, enviar_log_guild, obtener_siguiente_key, obtener_siguiente_se_key, registrar_uso_se, registrar_uso_vt
+from api.virustotal import analizar_url, analizar_hash, analizar_ip, analizar_archivo, enviar_log_guild
 bot.analizar_url = analizar_url
 bot.analizar_hash = analizar_hash
 bot.analizar_ip = analizar_ip
 bot.analizar_archivo = analizar_archivo
-bot.registrar_uso_se = registrar_uso_se
-bot.registrar_uso_vt = registrar_uso_vt
 
 from api.sightengine import analizar_imagen_multimodelo
 bot.analizar_imagen_nsfw = analizar_imagen_multimodelo
@@ -109,7 +107,11 @@ from core.config import (
     EMOJI_CORRECTO, EMOJI_INCORRECTO, EMOJI_ERROR, EMOJI_WARNING, EMOJI_LINK, EMOJI_LUPA,
     EMOJI_LOADING, EMOJI_LOADING_ERROR, EMOJI_FILE, EMOJI_SHIELD, EMOJI_FINGERPRINT, EMOJI_GUARDIAN,
     EMOJI_STATS, EMOJI_WHITELIST, EMOJI_COOLDOWN, EMOJI_REPLY, EMOJI_KEY,
-    EMOJI_KICK, EMOJI_BAN, EMOJI_CLEAN, EMOJI_GITHUB, EMOJI_NSFW, MAX_FILE_SIZE, CACHE_DURATION, DATA_FILE, DB_FILE,
+    EMOJI_KICK, EMOJI_BAN, EMOJI_CLEAN, EMOJI_GITHUB, EMOJI_NSFW,
+    MAX_FILE_SIZE, CACHE_DURATION, DATA_FILE, DB_FILE,
+    ANTISPAM_ANALYSIS_PER_HOUR, ANTISPAM_COOLDOWN, ANTISPAM_WINDOW,
+    VT_MAX_ANALYSES_PER_MINUTE, VT_MAX_ANALYSES_PER_DAY,
+    SE_MAX_OPS_PER_DAY, SE_OPS_PER_CALL,
 )
 bot.EMOJI_CORRECTO = EMOJI_CORRECTO
 bot.EMOJI_INCORRECTO = EMOJI_INCORRECTO
@@ -135,6 +137,12 @@ bot.EMOJI_GITHUB = EMOJI_GITHUB
 bot.EMOJI_NSFW = EMOJI_NSFW
 bot.MAX_FILE_SIZE = MAX_FILE_SIZE
 bot.ANTISPAM_ANALYSIS_PER_HOUR = ANTISPAM_ANALYSIS_PER_HOUR
+bot.ANTISPAM_COOLDOWN = ANTISPAM_COOLDOWN
+bot.ANTISPAM_WINDOW = ANTISPAM_WINDOW
+bot.VT_MAX_ANALYSES_PER_MINUTE = VT_MAX_ANALYSES_PER_MINUTE
+bot.VT_MAX_ANALYSES_PER_DAY = VT_MAX_ANALYSES_PER_DAY
+bot.SE_MAX_OPS_PER_DAY = SE_MAX_OPS_PER_DAY
+bot.SE_OPS_PER_CALL = SE_OPS_PER_CALL
 bot.CACHE_DURATION = CACHE_DURATION
 bot.DATA_FILE = DATA_FILE
 bot.DB_FILE = DB_FILE
@@ -167,6 +175,7 @@ async def on_ready():
 
 async def _limpiar_cron():
     from core.database import limpiar_db_expirados
+    from ui.message_handler import limpiar_cache_procesados
     while True:
         await asyncio.sleep(3600)
         try:
@@ -180,8 +189,21 @@ async def _limpiar_cron():
                            if ahora - v > 3600]
             for k in expired_anti:
                 del bot.antispam_scan[k]
-            if expired_history or expired_anti:
-                log.debug(f"Cleanup: {len(expired_history)} history + {len(expired_anti)} antispam entries removed")
+            expired_vt = [k for k, v in bot.vt_user_requests.items()
+                          if not v or ahora - v[-1] > 60]
+            for k in expired_vt:
+                del bot.vt_user_requests[k]
+            expirados_huella = limpiar_cache_procesados()
+            # F5: los contadores de uso de API y el antispam solo vivían en RAM y se
+            # perdían en cada reinicio, así que /stats volvía a 0% de cuota consumida.
+            # include_runtime=True los vuelca a data.json; include_runtime=False (el
+            # default) solo persiste la configuración de los servidores.
+            await guardar_datos(inmediato=True, include_runtime=True)
+            if expired_history or expired_anti or expired_vt or expirados_huella:
+                log.debug(
+                    f"Cleanup: {len(expired_history)} history + {len(expired_anti)} antispam "
+                    f"+ {len(expired_vt)} vt + {expirados_huella} huellas"
+                )
         except Exception as e:
             log.error(f"Error limpiando caché: {e}")
 
@@ -266,8 +288,15 @@ async def close_with_cleanup():
 bot.close = close_with_cleanup
 
 async def load_cogs():
-    for archivo in os.listdir("./cogs"):
-        if archivo.endswith(".py"):
+    # Ruta basada en __file__ y no en "./cogs": si el proceso se arranca con otro
+    # directorio de trabajo, os.listdir("./cogs") fallaba y el bot cargaba cero cogs
+    # sin ningún error visible.
+    ruta_cogs = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cogs")
+    if not os.path.isdir(ruta_cogs):
+        log.error(f"load_cogs: no se encontró el directorio {ruta_cogs}")
+        return
+    for archivo in sorted(os.listdir(ruta_cogs)):
+        if archivo.endswith(".py") and not archivo.startswith("_"):
             try:
                 await bot.load_extension(f"cogs.{archivo[:-3]}")
                 log.info(f"Cargado cog: {archivo}")

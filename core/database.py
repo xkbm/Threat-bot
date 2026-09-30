@@ -155,6 +155,33 @@ _guardar_datos_pendiente: bool = False
 _guardar_datos_task: Optional[asyncio.Task] = None
 _GUARDAR_DEBOUNCE: float = 3.0
 
+
+def _serializar_clave_antispam(k: object) -> str:
+    """Clave de antispam a string JSON. Las tuplas (guild_id, user_id) se guardan como lista."""
+    return json.dumps(list(k)) if isinstance(k, tuple) else str(k)
+
+
+def _restaurar_claves_antispam(datos: dict) -> dict:
+    """Invierte _serializar_clave_antispam.
+
+    json.loads devuelve una LISTA, pero las claves en memoria son tuplas: sin volver a
+    envolverlas en tuple, `(1, 2)` y `[1, 2]` serían claves distintas del dict y todo el
+    historial de antispam se perdería al reiniciar el bot.
+    """
+    resultado = {}
+    for k, v in datos.items():
+        try:
+            if k.startswith("["):
+                partes = json.loads(k)
+                clave = tuple(partes) if isinstance(partes, list) else partes
+            else:
+                clave = int(k)
+        except (ValueError, TypeError, json.JSONDecodeError):
+            continue
+        resultado[clave] = v
+    return resultado
+
+
 async def _flush_datos(include_runtime: bool = False) -> None:
     async with DATA_LOCK:
         data_to_save = {str(gid): val for gid, val in state.bot.guilds_data.items()
@@ -169,8 +196,8 @@ async def _flush_datos(include_runtime: bool = False) -> None:
                 }
             }
             data_to_save["__antispam__"] = {
-                "user_scan_history": {json.dumps(k) if isinstance(k, tuple) else str(k): v for k, v in state.bot.user_scan_history.items()},
-                "antispam_scan": {json.dumps(k) if isinstance(k, tuple) else str(k): v for k, v in state.bot.antispam_scan.items()},
+                "user_scan_history": {_serializar_clave_antispam(k): v for k, v in state.bot.user_scan_history.items()},
+                "antispam_scan": {_serializar_clave_antispam(k): v for k, v in state.bot.antispam_scan.items()},
             }
         try:
             fd, tmp = tempfile.mkstemp(dir=os.path.dirname(DATA_FILE) or ".")
@@ -253,21 +280,8 @@ async def cargar_datos() -> None:
         state.bot.se_key_daily_usage = se_data.get("daily_usage", {})
         if not hasattr(state.bot, 'se_key_usage') or not state.bot.se_key_usage:
             state.bot.se_key_usage = {}
-        user_scan_history = {}
-        for k, v in antispam_data.get("user_scan_history", {}).items():
-            try:
-                parsed = json.loads(k) if k.startswith("[") else int(k)
-                user_scan_history[parsed] = v
-            except (ValueError, TypeError, json.JSONDecodeError):
-                continue
-        state.bot.user_scan_history = user_scan_history
-        antispam_scan = {}
-        for k, v in antispam_data.get("antispam_scan", {}).items():
-            try:
-                parsed = json.loads(k) if k.startswith("[") else int(k)
-                antispam_scan[parsed] = v
-            except (ValueError, TypeError, json.JSONDecodeError):
-                continue
+        state.bot.user_scan_history = _restaurar_claves_antispam(antispam_data.get("user_scan_history", {}))
+        antispam_scan = _restaurar_claves_antispam(antispam_data.get("antispam_scan", {}))
         state.bot.antispam_scan = antispam_scan
         if "__global__" not in state.bot.guilds_data:
             state.bot.guilds_data["__global__"] = {"total_analisis": 0, "seguros": 0, "maliciosos": 0, "nsfw": 0, "errores": 0}

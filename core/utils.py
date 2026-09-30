@@ -10,12 +10,57 @@ import urllib.parse
 import logging
 from collections import OrderedDict
 from discord.ext import commands
-from core.config import EMOJI_LOADING, ANTIVIRUS_CONOCIDOS, IMAGE_EXTENSIONS, VT_MAX_ANALYSES_PER_MINUTE
+from core.config import (
+    EMOJI_LOADING, ANTIVIRUS_CONOCIDOS, IMAGE_EXTENSIONS,
+    VT_MAX_ANALYSES_PER_MINUTE,
+    ANTISPAM_ANALYSIS_PER_HOUR, ANTISPAM_COOLDOWN, ANTISPAM_WINDOW,
+)
 
 log = logging.getLogger("utils")
 _dns_cache: OrderedDict[str, tuple[float, str]] = OrderedDict()
 _DNS_CACHE_TTL: float = 300.0
 _DNS_CACHE_MAX: int = 5000
+
+# Bloque compartido (RFC 6598). ipaddress.is_private devuelve False y is_global también
+# False aquí, así que hay que rechazarlo explícitamente: son direcciones de una red de
+# operador que no deberían ser alcanzables desde el contenedor del bot.
+_CGNAT: ipaddress.IPv4Network = ipaddress.ip_network("100.64.0.0/10")
+
+
+def _ip_permitida(ip_obj: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    """True si la IP es de alcance global y unicast (es decir, alcanzable desde Internet).
+
+    Cubre lo que `is_private` ya cubre (RFC 1918, loopback, link-local, ULA, etc.) más
+    los huecos que dejaba: reservado, multicast, sin especificar y CGNAT.
+    """
+    if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local:
+        return False
+    if ip_obj.is_reserved or ip_obj.is_multicast or ip_obj.is_unspecified:
+        return False
+    if ip_obj.version == 4 and ip_obj in _CGNAT:
+        return False
+    return True
+
+
+async def _url_a_ip(url: str) -> tuple[Optional[str], Optional[str]]:
+    """Reescribe el netloc de `url` a la IP resuelta conservando puerto y esquema IPv6.
+
+    Devuelve (url_por_ip, error). Conectar por IP y mandar el Host original evita el
+    DNS rebinding: la resolución que validamos es la misma con la que conectamos.
+    """
+    try:
+        segura, hostname, ip, err = await _resolve_url(url)
+    except Exception as e:
+        return None, f"Error verificando URL: {e}"
+    if not segura or not ip or not hostname:
+        return None, err or "URL no segura"
+    try:
+        parsed = urllib.parse.urlparse(url)
+        port_part = f":{parsed.port}" if parsed.port else ""
+        ip_netloc = f"[{ip}]{port_part}" if ":" in ip else f"{ip}{port_part}"
+        return urllib.parse.urlunparse(parsed._replace(netloc=ip_netloc)), None
+    except Exception as e:
+        return None, f"Error reconstruyendo URL: {e}"
 
 async def safe_remove_loading(bot: commands.Bot, msg: discord.Message) -> None:
     try:
@@ -64,8 +109,19 @@ async def url_es_imagen(url: str, bot: Optional[commands.Bot] = None) -> bool:
         return True
     if bot is None:
         return False
+    # Esta es la PRIMERA petición que se hace contra una URL escrita por un usuario, así
+    # que tiene que pasar por la misma validación SSRF que el resto de rutas y conectar
+    # por IP con el header Host original.
+    url_ip, err = await _url_a_ip(url)
+    if not url_ip:
+        log.debug(f"url_es_imagen bloqueada → {url}: {err}")
+        return False
+    hostname = urllib.parse.urlparse(url).hostname or ""
     try:
-        async with bot.session.head(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+        async with bot.session.head(
+            url_ip, allow_redirects=False, headers={"Host": hostname},
+            timeout=aiohttp.ClientTimeout(total=5)
+        ) as resp:
             ct = resp.headers.get('Content-Type', '')
             return ct.startswith('image/')
     except Exception:
@@ -95,8 +151,8 @@ async def _resolve_url(url: str) -> tuple[bool, str, str, str]:
             return False, "", "", "URL sin hostname"
         try:
             ip_obj = ipaddress.ip_address(hostname)
-            if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local:
-                return False, "", "", f"IP privada o local: {hostname}"
+            if not _ip_permitida(ip_obj):
+                return False, "", "", f"IP no global: {hostname}"
             return True, hostname, hostname, ""
         except ValueError:
             pass
@@ -111,11 +167,11 @@ async def _resolve_url(url: str) -> tuple[bool, str, str, str]:
             ip_str = addr[4][0]
             try:
                 ip_obj = ipaddress.ip_address(ip_str)
-                if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local:
-                    return False, "", "", f"El hostname {hostname} resuelve a IP privada: {ip_str}"
-                ips.append(ip_str)
             except ValueError:
                 continue
+            if not _ip_permitida(ip_obj):
+                return False, "", "", f"El hostname {hostname} resuelve a IP no global: {ip_str}"
+            ips.append(ip_str)
         if not ips:
             return False, "", "", f"No se pudo resolver {hostname}"
         _dns_cache[hostname] = (ahora + _DNS_CACHE_TTL, ips[0])
@@ -144,15 +200,11 @@ def normalizar_url(url: str) -> str:
 async def expandir_url(bot: commands.Bot, url: str) -> str:
     try:
         for _ in range(5):
-            segura, hostname, ip, err = await _resolve_url(url)
-            if not segura:
+            url_ip, err = await _url_a_ip(url)
+            if not url_ip:
                 return url
-            parsed = urllib.parse.urlparse(url)
-            port_part = f":{parsed.port}" if parsed.port else ""
-            ip_netloc = f"[{ip}]{port_part}" if ":" in ip else f"{ip}{port_part}"
-            url_ip = urllib.parse.urlunparse(parsed._replace(netloc=ip_netloc))
-            headers = {"Host": hostname}
-            async with bot.session.head(url_ip, allow_redirects=False, headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+            hostname = urllib.parse.urlparse(url).hostname or ""
+            async with bot.session.head(url_ip, allow_redirects=False, headers={"Host": hostname}, timeout=aiohttp.ClientTimeout(total=15)) as resp:
                 if resp.status in (301, 302, 303, 307, 308):
                     location = resp.headers.get('Location')
                     if location:
@@ -165,17 +217,14 @@ async def expandir_url(bot: commands.Bot, url: str) -> str:
         log.error(f"Error expandiendo URL {url}: {e}")
     return url
 
+
 async def descargar_url_segura(bot: commands.Bot, url: str, max_size: Optional[int] = None) -> tuple[Optional[bytes], Optional[str]]:
-    segura, hostname, ip, err = await _resolve_url(url)
-    if not segura:
+    url_ip, err = await _url_a_ip(url)
+    if not url_ip:
         return None, err
-    parsed = urllib.parse.urlparse(url)
-    port_part = f":{parsed.port}" if parsed.port else ""
-    ip_netloc = f"[{ip}]{port_part}" if ":" in ip else f"{ip}{port_part}"
-    url_ip = urllib.parse.urlunparse(parsed._replace(netloc=ip_netloc))
-    headers = {"Host": hostname}
+    hostname = urllib.parse.urlparse(url).hostname or ""
     try:
-        async with bot.session.get(url_ip, headers=headers, timeout=aiohttp.ClientTimeout(total=30)) as resp:
+        async with bot.session.get(url_ip, headers={"Host": hostname}, timeout=aiohttp.ClientTimeout(total=30)) as resp:
             if resp.status != 200:
                 return None, f"HTTP {resp.status}"
             if max_size:
@@ -223,12 +272,53 @@ async def maybe_send_review_prompt(bot, channel: discord.abc.Messageable) -> Non
     except Exception:
         pass
 
-async def check_vt_user_limit(user_id: int) -> bool:
-    from core import state
+async def comprobar_antispam(bot, guild_id: Optional[int], user_id: int) -> tuple[bool, int]:
+    """Comprueba y consume una unidad de antispam para (guild_id, user_id).
+
+    Aplica dos límites: un cooldown de ANTISPAM_COOLDOWN segundos entre envíos y un
+    máximo de ANTISPAM_ANALYSIS_PER_HOUR análisis por hora y usuario.
+
+    Devuelve (permitido, segundos hasta poder reintentar). Solo consume cuota si
+    permite el paso, de modo que un mensaje bloqueado no agota su propio límite.
+
+    El estado vive en el bot (user_scan_history / antispam_scan) porque es lo que
+    persiste `core/database._flush_datos` entre reinicios.
+    """
     ahora = time.time()
-    history = state.bot.vt_user_requests.setdefault(user_id, [])
-    state.bot.vt_user_requests[user_id] = [t for t in history if ahora - t < 60]
-    if len(state.bot.vt_user_requests[user_id]) >= VT_MAX_ANALYSES_PER_MINUTE:
+    key: tuple[int, int] | int = (guild_id, user_id) if guild_id else user_id
+
+    ultima = bot.antispam_scan.get(key)
+    if ultima is not None and ahora - ultima < ANTISPAM_COOLDOWN:
+        return False, int(ANTISPAM_COOLDOWN - (ahora - ultima))
+
+    historial = [t for t in bot.user_scan_history.get(key, []) if ahora - t < ANTISPAM_WINDOW]
+    if len(historial) >= ANTISPAM_ANALYSIS_PER_HOUR:
+        return False, int(historial[0] + ANTISPAM_WINDOW - ahora)
+
+    historial.append(ahora)
+    bot.user_scan_history[key] = historial
+    bot.antispam_scan[key] = ahora
+    return True, 0
+
+
+async def check_vt_user_limit(bot, guild_id: Optional[int], user_id: int) -> bool:
+    """Limita a VT_MAX_ANALYSES_PER_MINUTE peticiones por usuario y minuto.
+
+    Se indexa por (guild_id, user_id) y no solo por user_id: con la clave global un
+    usuario que analiza en varios servidores a la vez se bloqueaba a sí mismo.
+    """
+    ahora = time.time()
+    key: tuple[int, int] | int = (guild_id, user_id) if guild_id else user_id
+    historial = [t for t in bot.vt_user_requests.get(key, []) if ahora - t < 60]
+    if len(historial) >= VT_MAX_ANALYSES_PER_MINUTE:
+        bot.vt_user_requests[key] = historial
         return False
-    state.bot.vt_user_requests[user_id].append(ahora)
+    historial.append(ahora)
+    bot.vt_user_requests[key] = historial
     return True
+
+
+def formatear_espera(segundos: int) -> str:
+    """'4m 12s' o '12s', para los mensajes de límite de tasa."""
+    minutos, segs = divmod(max(0, int(segundos)), 60)
+    return f"{minutos}m {segs}s" if minutos else f"{segs}s"

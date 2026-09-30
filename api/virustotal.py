@@ -8,7 +8,13 @@ import logging
 import aiohttp
 import discord
 from core import state
-from core.config import VT_API_KEYS, SE_API_KEYS_PAIRS, MAX_FILE_SIZE, EMOJI_WARNING, EMOJI_CORRECTO, EMOJI_INCORRECTO, EMOJI_LINK, EMOJI_FILE, EMOJI_FINGERPRINT, EMOJI_GUARDIAN, EMOJI_SHIELD, EMOJI_NSFW
+from core.config import (
+    VT_API_KEYS, SE_API_KEYS_PAIRS, MAX_FILE_SIZE,
+    VT_MAX_ANALYSES_PER_MINUTE, VT_MAX_ANALYSES_PER_DAY,
+    SE_MAX_REQUESTS_PER_MINUTE, SE_MAX_OPS_PER_DAY, SE_OPS_PER_CALL,
+    EMOJI_WARNING, EMOJI_CORRECTO, EMOJI_INCORRECTO, EMOJI_LINK, EMOJI_FILE,
+    EMOJI_FINGERPRINT, EMOJI_GUARDIAN, EMOJI_SHIELD, EMOJI_NSFW,
+)
 from core.cache import get_from_cache_mem, set_cache_mem
 from core.database import guardar_analisis_db, guardar_metadatos_hash
 from core.utils import obtener_top_antivirus, es_hash_valido
@@ -21,100 +27,116 @@ VT_TIMEOUT: aiohttp.ClientTimeout = aiohttp.ClientTimeout(total=180)
 _vt_lock = asyncio.Lock()
 _se_lock = asyncio.Lock()
 
+async def _consumir_vt(key: str) -> bool:
+    """Registra el consumo de UNA petición HTTP a VT, de forma atómica.
+
+    El corte de la ventana de 60s y la acumulación ocurren en la misma sección crítica
+    que la selección, de modo que N tareas concurrentes no pueden pasar juntas el mismo
+    hueco de cuota (esto producía 429 de VT).
+
+    Devuelve False si la key ya agotó su ventana de 60s o su cupo diario.
+    """
+    async with _vt_lock:
+        ahora = time.time()
+        hoy = time.strftime("%Y-%m-%d", time.gmtime())
+        ventana = [t for t in state.bot.vt_key_usage.get(key, []) if ahora - t <= 60]
+        state.bot.vt_key_usage[key] = ventana
+        diario = state.bot.vt_key_daily_usage.get(key)
+        if diario is None or diario["date"] != hoy:
+            diario = {"count": 0, "date": hoy}
+            state.bot.vt_key_daily_usage[key] = diario
+        # Los límites se comprueban ANTES de contar: una petición rechazada no debe
+        # inflar el contador diario, o la key quedaría inutilizable de forma permanente.
+        if len(ventana) >= VT_MAX_ANALYSES_PER_MINUTE:
+            log.debug(f"VT key rate-limited: {key[:8]}... ({len(ventana)} req in 60s)")
+            return False
+        if diario["count"] >= VT_MAX_ANALYSES_PER_DAY:
+            log.debug(f"VT key daily limit: {key[:8]}... ({VT_MAX_ANALYSES_PER_DAY} req/day)")
+            return False
+        ventana.append(ahora)
+        diario["count"] += 1
+        state.bot.vt_key_total_requests[key] = state.bot.vt_key_total_requests.get(key, 0) + 1
+        return True
+
+
 async def obtener_siguiente_key() -> Optional[str]:
+    """Devuelve la siguiente key de VT en round-robin que todavía tenga cuota.
+
+    No reserva: la reserva la hace `adquirir_vt()` justo antes de cada petición, para
+    que selección y conteo sean la misma operación.
+    """
     async with _vt_lock:
         if not VT_API_KEYS:
             return None
         ahora = time.time()
-        intentos = len(VT_API_KEYS)
-        for _ in range(intentos):
+        hoy = time.strftime("%Y-%m-%d", time.gmtime())
+        for _ in range(len(VT_API_KEYS)):
             key = VT_API_KEYS[state.bot.vt_key_index]
             state.bot.vt_key_index = (state.bot.vt_key_index + 1) % len(VT_API_KEYS)
-
-            if key not in state.bot.vt_key_usage:
-                state.bot.vt_key_usage[key] = []
-
-            state.bot.vt_key_usage[key] = [t for t in state.bot.vt_key_usage[key] if ahora - t <= 60]
-
-            if len(state.bot.vt_key_usage[key]) >= 4:
-                log.debug(f"VT key rate-limited: {key[:8]}... ({len(state.bot.vt_key_usage[key])} req in 60s)")
+            ventana = state.bot.vt_key_usage.get(key, [])
+            if len([t for t in ventana if ahora - t <= 60]) >= VT_MAX_ANALYSES_PER_MINUTE:
+                log.debug(f"VT key sin ventana: {key[:8]}...")
                 continue
-
-            hoy = time.strftime("%Y-%m-%d", time.gmtime())
-            if key not in state.bot.vt_key_total_requests:
-                state.bot.vt_key_total_requests[key] = 0
-            if key not in state.bot.vt_key_daily_usage:
-                state.bot.vt_key_daily_usage[key] = {"count": 0, "date": hoy}
-            if state.bot.vt_key_daily_usage[key]["count"] >= 500 and state.bot.vt_key_daily_usage[key]["date"] == hoy:
-                log.debug(f"VT key daily limit: {key[:8]}... (500 req/day)")
+            diario = state.bot.vt_key_daily_usage.get(key)
+            if diario and diario["date"] == hoy and diario["count"] >= VT_MAX_ANALYSES_PER_DAY:
+                log.debug(f"VT key sin cupo diario: {key[:8]}...")
                 continue
-
             return key
-
         log.warning("Todas las keys de VT están rate-limited")
         return None
 
+
+async def adquirir_vt() -> Optional[str]:
+    """Devuelve una key lista para hacer UNA petición, o None si no hay cuota.
+
+    Es el único punto por el que deben pasar las peticiones a VirusTotal: cada llamada
+    reserva su propio hueco de cuota de forma atómica.
+    """
+    for _ in range(len(VT_API_KEYS)):
+        key = await obtener_siguiente_key()
+        if key is not None and await _consumir_vt(key):
+            return key
+    return None
+
+
 async def obtener_siguiente_se_key() -> Optional[tuple[str, str]]:
+    """Selecciona el siguiente par de SightEngine con cuota y lo RESERVA (4 ops por llamada).
+
+    Una llamada a SightEngine es una única petición HTTP, así que reservar en la
+    selección es equivalente y exacto.
+    """
     async with _se_lock:
         if not SE_API_KEYS_PAIRS:
             return None
         ahora = time.time()
         hoy = time.strftime("%Y-%m-%d", time.gmtime())
-        intentos = len(SE_API_KEYS_PAIRS)
-        for _ in range(intentos):
+        for _ in range(len(SE_API_KEYS_PAIRS)):
             pair = SE_API_KEYS_PAIRS[state.bot.se_key_index]
             state.bot.se_key_index = (state.bot.se_key_index + 1) % len(SE_API_KEYS_PAIRS)
             api_key = pair[0]
 
-            state.bot.se_key_usage.setdefault(api_key, [])
-            state.bot.se_key_usage[api_key] = [t for t in state.bot.se_key_usage[api_key] if ahora - t <= 60]
-            if len(state.bot.se_key_usage[api_key]) >= 4:
-                log.debug(f"SE key rate-limited: {api_key[:8]}... ({len(state.bot.se_key_usage[api_key])} req in 60s)")
+            ventana = [t for t in state.bot.se_key_usage.get(api_key, []) if ahora - t <= 60]
+            state.bot.se_key_usage[api_key] = ventana
+
+            if len(ventana) >= SE_MAX_REQUESTS_PER_MINUTE:
+                log.debug(f"SE key rate-limited: {api_key[:8]}... ({len(ventana)} req in 60s)")
                 continue
 
-            state.bot.se_key_daily_usage.setdefault(api_key, {"count": 0, "date": hoy})
-            if state.bot.se_key_daily_usage[api_key]["count"] >= 500 and state.bot.se_key_daily_usage[api_key]["date"] == hoy:
-                log.debug(f"SE key daily limit: {api_key[:8]}... (500 req/day)")
+            diario = state.bot.se_key_daily_usage.get(api_key)
+            if diario is not None and diario["date"] == hoy and diario["count"] + SE_OPS_PER_CALL > SE_MAX_OPS_PER_DAY:
+                log.debug(f"SE key daily limit: {api_key[:8]}... ({SE_MAX_OPS_PER_DAY} ops/day)")
                 continue
 
+            if diario is None or diario["date"] != hoy:
+                diario = {"count": 0, "date": hoy}
+            diario["count"] += SE_OPS_PER_CALL
+            state.bot.se_key_daily_usage[api_key] = diario
+            state.bot.se_key_total_requests[api_key] = state.bot.se_key_total_requests.get(api_key, 0) + SE_OPS_PER_CALL
+            ventana.append(ahora)
             return pair
 
         log.warning("Todas las keys de SightEngine están rate-limited")
         return None
-
-async def registrar_uso_se(api_key: str) -> None:
-    ahora = time.time()
-    hoy = time.strftime("%Y-%m-%d", time.gmtime())
-    if api_key not in state.bot.se_key_usage:
-        state.bot.se_key_usage[api_key] = []
-    if api_key not in state.bot.se_key_total_requests:
-        state.bot.se_key_total_requests[api_key] = 0
-    if api_key not in state.bot.se_key_daily_usage:
-        state.bot.se_key_daily_usage[api_key] = {"count": 0, "date": hoy}
-    state.bot.se_key_usage[api_key] = [t for t in state.bot.se_key_usage[api_key] if ahora - t <= 60]
-    state.bot.se_key_usage[api_key].append(ahora)
-    if state.bot.se_key_daily_usage[api_key]["date"] != hoy:
-        state.bot.se_key_daily_usage[api_key] = {"count": 4, "date": hoy}
-    else:
-        state.bot.se_key_daily_usage[api_key]["count"] += 4
-    state.bot.se_key_total_requests[api_key] += 4
-
-async def registrar_uso_vt(key: str) -> None:
-    ahora = time.time()
-    hoy = time.strftime("%Y-%m-%d", time.gmtime())
-    if key not in state.bot.vt_key_usage:
-        state.bot.vt_key_usage[key] = []
-    if key not in state.bot.vt_key_total_requests:
-        state.bot.vt_key_total_requests[key] = 0
-    if key not in state.bot.vt_key_daily_usage:
-        state.bot.vt_key_daily_usage[key] = {"count": 0, "date": hoy}
-    state.bot.vt_key_usage[key] = [t for t in state.bot.vt_key_usage[key] if ahora - t <= 60]
-    state.bot.vt_key_usage[key].append(ahora)
-    if state.bot.vt_key_daily_usage[key]["date"] != hoy:
-        state.bot.vt_key_daily_usage[key] = {"count": 1, "date": hoy}
-    else:
-        state.bot.vt_key_daily_usage[key]["count"] += 1
-    state.bot.vt_key_total_requests[key] += 1
 
 async def enviar_log_guild(guild_id: int, tipo: str, valor: str, detalles: str, usuario: discord.User, url_vt: Optional[str] = None, elemento_id: Optional[str] = None, es_nsfw: bool = False) -> Optional[discord.Message]:
     config = await obtener_config_guild(guild_id)
@@ -153,21 +175,27 @@ async def enviar_log_guild(guild_id: int, tipo: str, valor: str, detalles: str, 
         log.error(f"enviar_log_guild: error enviando a canal {channel_id}: {e}")
     return None
 
+async def _sin_cuota() -> tuple[str, discord.Embed, int]:
+    return "error", discord.Embed(
+        title="Sin cuota de API",
+        description="Se alcanzó el límite de peticiones de VirusTotal. Intenta de nuevo en unos minutos.",
+        color=discord.Color.red(),
+    ), 0
+
+
 async def analizar_url(url: str, guild_id: Optional[int] = None, mensaje_original: Optional[discord.Message] = None, guardar_cache: bool = True) -> tuple[str, discord.Embed, int]:
     _t0 = time.time()
     log.debug(f"VT URL INICIO → {url}")
-    key = await obtener_siguiente_key()
+    url_id = base64.urlsafe_b64encode(url.encode()).decode().rstrip("=")
+
+    key = await adquirir_vt()
     if not key:
         log.debug(f"VT URL ERROR → no hay keys disponibles t={time.time()-_t0:.1f}s")
-        return "error", discord.Embed(title="Error de configuración", description="No hay claves de VirusTotal disponibles.", color=discord.Color.red()), 0
-    headers = {"x-apikey": key}
-
-    url_id = base64.urlsafe_b64encode(url.encode()).decode().rstrip("=")
+        return await _sin_cuota()
     _t = time.time()
-    await registrar_uso_vt(key)
     async with state.bot.session.get(
         f"https://www.virustotal.com/api/v3/urls/{url_id}",
-        headers=headers, timeout=VT_TIMEOUT
+        headers={"x-apikey": key}, timeout=VT_TIMEOUT
     ) as resp:
         log.debug(f"VT URL GET → status={resp.status} t={time.time()-_t:.1f}s")
         if resp.status == 200:
@@ -186,8 +214,11 @@ async def analizar_url(url: str, guild_id: Optional[int] = None, mensaje_origina
 
     try:
         _t = time.time()
-        await registrar_uso_vt(key)
-        async with state.bot.session.post("https://www.virustotal.com/api/v3/urls", headers=headers, data={"url": url}, timeout=VT_TIMEOUT) as resp:
+        key = await adquirir_vt()
+        if not key:
+            await _finalizar_error(guild_id, "url", url)
+            return await _sin_cuota()
+        async with state.bot.session.post("https://www.virustotal.com/api/v3/urls", headers={"x-apikey": key}, data={"url": url}, timeout=VT_TIMEOUT) as resp:
             log.debug(f"VT URL POST → status={resp.status} t={time.time()-_t:.1f}s")
             if resp.status == 200:
                 data = await resp.json()
@@ -196,9 +227,11 @@ async def analizar_url(url: str, guild_id: Optional[int] = None, mensaje_origina
                 for intento in range(2):
                     if intento > 0:
                         await asyncio.sleep(55)
-                    await registrar_uso_vt(key)
+                    key = await adquirir_vt()
+                    if not key:
+                        break
                     _t2 = time.time()
-                    async with state.bot.session.get(f"https://www.virustotal.com/api/v3/analyses/{scan_id}", headers=headers, timeout=VT_TIMEOUT) as resp2:
+                    async with state.bot.session.get(f"https://www.virustotal.com/api/v3/analyses/{scan_id}", headers={"x-apikey": key}, timeout=VT_TIMEOUT) as resp2:
                         log.debug(f"VT URL POLL → intento={intento+1}/2 status={resp2.status} t={time.time()-_t2:.1f}s acum={time.time()-_t0:.1f}s")
                         if resp2.status == 200:
                             analysis = await resp2.json()
@@ -209,25 +242,26 @@ async def analizar_url(url: str, guild_id: Optional[int] = None, mensaje_origina
                             else:
                                 log.debug(f"VT URL STATUS → {status} intento={intento+1}/2")
                 log.debug(f"VT URL POST-POLL CHECK → {url} t={time.time()-_t0:.1f}s")
-                await registrar_uso_vt(key)
-                async with state.bot.session.get(
-                    f"https://www.virustotal.com/api/v3/urls/{url_id}",
-                    headers=headers, timeout=VT_TIMEOUT
-                ) as final_resp:
-                    if final_resp.status == 200:
-                        data = await final_resp.json()
-                        attrs = data["data"]["attributes"]
-                        if attrs.get("last_analysis_stats"):
-                            log.debug(f"VT URL POST-POLL CACHED → {url} t={time.time()-_t0:.1f}s")
-                            normalized = {
-                                "data": {
-                                    "attributes": {
-                                        "stats": attrs["last_analysis_stats"],
-                                        "results": attrs.get("last_analysis_results", {}),
+                key = await adquirir_vt()
+                if key:
+                    async with state.bot.session.get(
+                        f"https://www.virustotal.com/api/v3/urls/{url_id}",
+                        headers={"x-apikey": key}, timeout=VT_TIMEOUT
+                    ) as final_resp:
+                        if final_resp.status == 200:
+                            data = await final_resp.json()
+                            attrs = data["data"]["attributes"]
+                            if attrs.get("last_analysis_stats"):
+                                log.debug(f"VT URL POST-POLL CACHED → {url} t={time.time()-_t0:.1f}s")
+                                normalized = {
+                                    "data": {
+                                        "attributes": {
+                                            "stats": attrs["last_analysis_stats"],
+                                            "results": attrs.get("last_analysis_results", {}),
+                                        }
                                     }
                                 }
-                            }
-                            return await _procesar_resultado_vt(normalized, "url", url, guild_id, mensaje_original, guardar_cache)
+                                return await _procesar_resultado_vt(normalized, "url", url, guild_id, mensaje_original, guardar_cache)
                 log.debug(f"VT URL TIMEOUT → {url} t={time.time()-_t0:.1f}s")
                 await _finalizar_error(guild_id, "url", url)
                 return "error", discord.Embed(title="Error en análisis", description=f"El análisis no pudo completarse tras varios intentos. Intenta de nuevo.", color=discord.Color.red()), 0
@@ -252,16 +286,14 @@ async def analizar_hash(hash_valor: str, guild_id: Optional[int] = None, mensaje
         log.debug(f"VT HASH INVALIDO → {hash_valor} t={time.time()-_t0:.1f}s")
         await update_stats(guild_id, "error")
         return "error", discord.Embed(title=f"{EMOJI_INCORRECTO} Hash inválido", description=f"`{hash_valor}` no es un hash MD5, SHA-1 o SHA-256 válido.", color=discord.Color.red()), 0
-    key = await obtener_siguiente_key()
+    key = await adquirir_vt()
     if not key:
-        return "error", discord.Embed(title="Error de configuración", description="No hay claves de VirusTotal disponibles.", color=discord.Color.red()), 0
-    headers = {"x-apikey": key}
+        return await _sin_cuota()
     try:
         _t = time.time()
-        async with state.bot.session.get(f"https://www.virustotal.com/api/v3/files/{hash_valor}", headers=headers, timeout=VT_TIMEOUT) as resp:
+        async with state.bot.session.get(f"https://www.virustotal.com/api/v3/files/{hash_valor}", headers={"x-apikey": key}, timeout=VT_TIMEOUT) as resp:
             log.debug(f"VT HASH GET → status={resp.status} t={time.time()-_t:.1f}s")
             if resp.status == 200:
-                await registrar_uso_vt(key)
                 data = await resp.json()
                 stats = data["data"]["attributes"]["last_analysis_stats"]
                 results = data["data"]["attributes"]["last_analysis_results"]
@@ -309,16 +341,14 @@ async def analizar_hash(hash_valor: str, guild_id: Optional[int] = None, mensaje
 async def analizar_ip(ip: str, guild_id: Optional[int] = None, mensaje_original: Optional[discord.Message] = None, guardar_cache: bool = True) -> tuple[str, discord.Embed, int]:
     _t0 = time.time()
     log.debug(f"VT IP INICIO → {ip}")
-    key = await obtener_siguiente_key()
+    key = await adquirir_vt()
     if not key:
-        return "error", discord.Embed(title="Error de configuración", description="No hay claves de VirusTotal disponibles.", color=discord.Color.red()), 0
-    headers = {"x-apikey": key}
+        return await _sin_cuota()
     try:
         _t = time.time()
-        async with state.bot.session.get(f"https://www.virustotal.com/api/v3/ip_addresses/{ip}", headers=headers, timeout=VT_TIMEOUT) as resp:
+        async with state.bot.session.get(f"https://www.virustotal.com/api/v3/ip_addresses/{ip}", headers={"x-apikey": key}, timeout=VT_TIMEOUT) as resp:
             log.debug(f"VT IP GET → status={resp.status} t={time.time()-_t:.1f}s")
             if resp.status == 200:
-                await registrar_uso_vt(key)
                 data = await resp.json()
                 stats = data["data"]["attributes"]["last_analysis_stats"]
                 mal = stats["malicious"]
@@ -389,17 +419,15 @@ async def analizar_archivo(archivo: discord.Attachment, file_bytes: Optional[byt
         embed = discord.Embed(title="Archivo demasiado grande", description=f"{EMOJI_FILE} `{archivo.filename}` excede 32 MB", color=discord.Color.red())
         return "error", embed, 0
 
-    key = await obtener_siguiente_key()
-    if not key:
-        return "error", discord.Embed(title="Error de configuración", description="No hay claves de VirusTotal disponibles.", color=discord.Color.red()), 0
-    headers = {"x-apikey": key}
-
     try:
         _t = time.time()
-        await registrar_uso_vt(key)
+        key = await adquirir_vt()
+        if not key:
+            await update_stats(guild_id, "error")
+            return await _sin_cuota()
         async with state.bot.session.get(
             f"https://www.virustotal.com/api/v3/files/{file_hash}",
-            headers=headers,
+            headers={"x-apikey": key},
             timeout=VT_TIMEOUT
         ) as check_resp:
             log.debug(f"VT FILE CHECK HASH → status={check_resp.status} t={time.time()-_t:.1f}s acum={time.time()-_t0:.1f}s")
@@ -413,12 +441,15 @@ async def analizar_archivo(archivo: discord.Attachment, file_bytes: Optional[byt
                     analysis = {"data": {"attributes": analysis_attrs}}
                     return await _procesar_analisis_archivo(analysis, archivo, file_hash, guild_id, mensaje_original, guardar_cache)
 
-        await registrar_uso_vt(key)
+        key = await adquirir_vt()
+        if not key:
+            await update_stats(guild_id, "error")
+            return await _sin_cuota()
         log.debug(f"VT FILE SUBIENDO → {archivo.filename} size={len(file_bytes) if file_bytes else '?'} t={time.time()-_t0:.1f}s")
         data = aiohttp.FormData()
         data.add_field('file', file_bytes, filename=archivo.filename)
         _t2 = time.time()
-        async with state.bot.session.post("https://www.virustotal.com/api/v3/files", headers=headers, data=data, timeout=VT_TIMEOUT) as resp:
+        async with state.bot.session.post("https://www.virustotal.com/api/v3/files", headers={"x-apikey": key}, data=data, timeout=VT_TIMEOUT) as resp:
             log.debug(f"VT FILE SUBIDO → status={resp.status} t={time.time()-_t2:.1f}s acum={time.time()-_t0:.1f}s")
             if resp.status == 200:
                 result_json = await resp.json()
@@ -427,9 +458,11 @@ async def analizar_archivo(archivo: discord.Attachment, file_bytes: Optional[byt
                 for i in range(2):
                     if i > 0:
                         await asyncio.sleep(55)
-                    await registrar_uso_vt(key)
+                    key = await adquirir_vt()
+                    if not key:
+                        break
                     _t3 = time.time()
-                    async with state.bot.session.get(f"https://www.virustotal.com/api/v3/analyses/{scan_id}", headers=headers, timeout=VT_TIMEOUT) as resp2:
+                    async with state.bot.session.get(f"https://www.virustotal.com/api/v3/analyses/{scan_id}", headers={"x-apikey": key}, timeout=VT_TIMEOUT) as resp2:
                         log.debug(f"VT FILE POLL → intento={i+1}/2 status={resp2.status} t={time.time()-_t3:.1f}s acum={time.time()-_t0:.1f}s")
                         if resp2.status == 200:
                             analysis = await resp2.json()
@@ -442,20 +475,21 @@ async def analizar_archivo(archivo: discord.Attachment, file_bytes: Optional[byt
                             elif status == "queued":
                                 log.debug(f"VT FILE QUEUED → intento={i+1}/2")
                 log.debug(f"VT FILE POST-POLL CHECK HASH → {archivo.filename} t={time.time()-_t0:.1f}s")
-                await registrar_uso_vt(key)
-                async with state.bot.session.get(
-                    f"https://www.virustotal.com/api/v3/files/{file_hash}",
-                    headers=headers, timeout=VT_TIMEOUT
-                ) as final_resp:
-                    if final_resp.status == 200:
-                        existing = await final_resp.json()
-                        if existing["data"]["attributes"].get("last_analysis_stats"):
-                            log.debug(f"VT FILE POST-POLL CACHED → {archivo.filename} t={time.time()-_t0:.1f}s")
-                            attrs = existing["data"]["attributes"]
-                            analysis_attrs = dict(attrs)
-                            analysis_attrs["stats"] = attrs["last_analysis_stats"]
-                            analysis = {"data": {"attributes": analysis_attrs}}
-                            return await _procesar_analisis_archivo(analysis, archivo, file_hash, guild_id, mensaje_original, guardar_cache)
+                key = await adquirir_vt()
+                if key:
+                    async with state.bot.session.get(
+                        f"https://www.virustotal.com/api/v3/files/{file_hash}",
+                        headers={"x-apikey": key}, timeout=VT_TIMEOUT
+                    ) as final_resp:
+                        if final_resp.status == 200:
+                            existing = await final_resp.json()
+                            if existing["data"]["attributes"].get("last_analysis_stats"):
+                                log.debug(f"VT FILE POST-POLL CACHED → {archivo.filename} t={time.time()-_t0:.1f}s")
+                                attrs = existing["data"]["attributes"]
+                                analysis_attrs = dict(attrs)
+                                analysis_attrs["stats"] = attrs["last_analysis_stats"]
+                                analysis = {"data": {"attributes": analysis_attrs}}
+                                return await _procesar_analisis_archivo(analysis, archivo, file_hash, guild_id, mensaje_original, guardar_cache)
                 log.error(f"VT FILE TIMEOUT → {archivo.filename} t={time.time()-_t0:.1f}s")
                 await update_stats(guild_id, "error")
                 return "error", discord.Embed(title="Error en análisis", description="El análisis tardó más de lo esperado. Intenta de nuevo.", color=discord.Color.red()), 0

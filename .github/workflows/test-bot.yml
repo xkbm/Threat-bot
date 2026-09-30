@@ -25,6 +25,9 @@ jobs:
       - name: Revisar sintaxis (Bot y Cogs)
         run: python -m compileall .
 
+      - name: Tests unitarios
+        run: python -m pytest tests -q
+
       - name: Test de arranque (Validación de código)
         env:
           # Usamos valores genéricos para que el bot pase las validaciones de las líneas 20-35

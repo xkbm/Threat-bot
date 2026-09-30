@@ -1,0 +1,22 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "strict"
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 140
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "ASYNC"]
+ignore = [
+    "E501",    # el ancho lo gestiona ruff format
+    "UP038",   # isinstance(x, (A, B)) sigue siendo válido y más rápido
+    "B008",    # las llamadas en decoradores de discord.py son intencionales
+    "E731",    # lambdas asignadas en Callbacks de discord.py
+]
+
+[tool.ruff.lint.per-file-ignores]
+"bot.py" = ["F401", "E402"]  # bot.py inyecta atributos en la instancia para los cogs
+"cogs/*.py" = ["F401"]        # los cogs consumen self.bot.* inyectado en bot.py
+"tests/*" = ["F401"]

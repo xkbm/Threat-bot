@@ -78,7 +78,19 @@ DOMINIOS_PROTEGIDOS: list[str] = [
 
 ANTISPAM_ANALYSIS_PER_HOUR: int = 30
 ANTISPAM_COOLDOWN: int = 10
+ANTISPAM_WINDOW: int = 3600
+
+# Cuotas de las APIs externas. Fuente única de verdad: la consumen api/virustotal.py
+# para aplicar los límites y cogs/stats.py para mostrarlos.
+# VirusTotal Public API: 4 req/min y 500 req/día por key (reset 00:00 UTC).
 VT_MAX_ANALYSES_PER_MINUTE: int = 4
+VT_MAX_ANALYSES_PER_DAY: int = 500
+# SightEngine Free: 2000 operaciones/mes con tope duro de 500/día. Cada modelo pedido
+# en una misma llamada cuenta como una operación, por eso una llamada con 4 modelos
+# consume SE_OPS_PER_CALL unidades.
+SE_MAX_OPS_PER_DAY: int = 500
+SE_OPS_PER_CALL: int = 4
+SE_MAX_REQUESTS_PER_MINUTE: int = 4
 
 IMAGE_EXTENSIONS: list[str] = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.ico', '.heic', '.heif']
 

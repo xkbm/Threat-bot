@@ -4,6 +4,10 @@ from discord import app_commands
 import time
 import traceback
 import logging
+from core.config import (
+    VT_MAX_ANALYSES_PER_MINUTE, VT_MAX_ANALYSES_PER_DAY,
+    SE_MAX_OPS_PER_DAY, SE_OPS_PER_CALL,
+)
 from core.utils import maybe_send_review_prompt
 
 log = logging.getLogger("stats")
@@ -17,7 +21,7 @@ class EstadisticasCog(commands.Cog):
         total = 0
         for key in self.bot.vt_key_total_requests:
             total += len([t for t in self.bot.vt_key_usage.get(key, []) if ahora - t <= 60])
-        limit = self.bot.vt_key_count * 4
+        limit = self.bot.vt_key_count * VT_MAX_ANALYSES_PER_MINUTE
         if limit == 0:
             return "```\nSin keys VT configuradas\n```"
         porcentaje = (total / limit) * 100
@@ -31,7 +35,7 @@ class EstadisticasCog(commands.Cog):
             daily_data = self.bot.vt_key_daily_usage.get(key, {"count": 0, "date": ""})
             if daily_data["date"] == hoy:
                 total += daily_data["count"]
-        limit = self.bot.vt_key_count * 500
+        limit = self.bot.vt_key_count * VT_MAX_ANALYSES_PER_DAY
         if limit == 0:
             return "```\nSin keys VT configuradas\n```"
         porcentaje = (total / limit) * 100
@@ -45,7 +49,7 @@ class EstadisticasCog(commands.Cog):
             daily_data = self.bot.se_key_daily_usage.get(key, {"count": 0, "date": ""})
             if daily_data["date"] == hoy:
                 total += daily_data["count"]
-        limit = self.bot.se_key_count * 500
+        limit = self.bot.se_key_count * SE_MAX_OPS_PER_DAY
         if limit == 0:
             return "```\nSin keys SightEngine configuradas\n```"
         porcentaje = (total / limit) * 100
@@ -78,21 +82,21 @@ class EstadisticasCog(commands.Cog):
 
             vt_minuto = self.get_vt_combined_minute()
             embed.add_field(
-                name=f"{self.bot.EMOJI_KEY} VT Minuto (límite {self.bot.vt_key_count*4}/min)",
+                name=f"{self.bot.EMOJI_KEY} VT Minuto (límite {self.bot.vt_key_count * VT_MAX_ANALYSES_PER_MINUTE}/min)",
                 value=vt_minuto,
                 inline=False
             )
 
             vt_diario = self.get_vt_combined_daily()
             embed.add_field(
-                name=f"{self.bot.EMOJI_KEY} VT Diario (límite {self.bot.vt_key_count*500}/día)",
+                name=f"{self.bot.EMOJI_KEY} VT Diario (límite {self.bot.vt_key_count * VT_MAX_ANALYSES_PER_DAY}/día)",
                 value=vt_diario,
                 inline=False
             )
 
             se_diario = self.get_se_combined_daily()
             embed.add_field(
-                name=f"{self.bot.EMOJI_KEY} Sightengine Diario (límite {self.bot.se_key_count*500} ops/día)",
+                name=f"{self.bot.EMOJI_KEY} Sightengine Diario (límite {self.bot.se_key_count * SE_MAX_OPS_PER_DAY} ops/día, {SE_OPS_PER_CALL} por análisis)",
                 value=se_diario,
                 inline=False
             )

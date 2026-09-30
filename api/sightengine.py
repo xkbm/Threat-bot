@@ -7,7 +7,7 @@ from core import state
 from core.config import SE_API_KEYS_PAIRS, SIGHTENGINE_API_URL, SIGHTENGINE_MODELS, NSFW_CONFIDENCE_THRESHOLD
 from core.cache import get_from_cache_mem, set_cache_mem
 from core.database import guardar_analisis_db, obtener_analisis_db, guardar_datos
-from api.virustotal import obtener_siguiente_se_key, registrar_uso_se
+from api.virustotal import obtener_siguiente_se_key
 
 SE_TIMEOUT: aiohttp.ClientTimeout = aiohttp.ClientTimeout(total=30)
 
@@ -54,7 +54,6 @@ async def analizar_imagen_multimodelo(image_content_hash: str, image_bytes: byte
         data.add_field('api_user', api_user)
         data.add_field('api_secret', api_key)
         async with state.bot.session.post(SIGHTENGINE_API_URL, data=data, timeout=SE_TIMEOUT) as resp:
-            await registrar_uso_se(api_key)
             if resp.status == 200:
                 result = await resp.json()
                 models: dict[str, float] = {}
