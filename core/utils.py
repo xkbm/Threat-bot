@@ -103,6 +103,31 @@ def es_imagen(archivo: discord.Attachment) -> bool:
         return True
     return False
 
+def _motivo_legible(exc: BaseException) -> str:
+    """Convierte una excepción de red en un motivo corto y presentable.
+
+    Nunca se muestra str(exc) al usuario: los tracebacks de aiohttp/openssl incluyen IPs
+    internas, rutas del servidor y nombres de módulo, y además ocupaban media pantalla
+    dentro del embed. El detalle completo va al log; aquí solo el "por qué" útil.
+    """
+    if isinstance(exc, asyncio.TimeoutError):
+        return "La solicitud tardó demasiado"
+    if isinstance(exc, aiohttp.TooManyRedirects):
+        return "Demasiadas redirecciones"
+    nombre = type(exc).__name__
+    if "Certificate" in nombre or "CertificateError" in nombre:
+        return "No se pudo verificar el certificado de seguridad del sitio"
+    if "SSL" in nombre or "SSLError" in nombre:
+        return "Error de conexión segura con el sitio"
+    if "DNS" in nombre or "NameResolution" in nombre or "getaddrinfo" in str(exc):
+        return "No se pudo resolver el dominio"
+    if isinstance(exc, aiohttp.ClientConnectionError) or "ClientConnector" in nombre:
+        return "No se pudo conectar con el sitio"
+    if isinstance(exc, OSError):
+        return "Error de red al descargar"
+    return "No se pudo completar la descarga"
+
+
 async def url_es_imagen(url: str, bot: Optional[commands.Bot] = None) -> bool:
     ruta = url.split('?')[0]
     if any(ruta.lower().endswith(ext) for ext in IMAGE_EXTENSIONS):
@@ -120,6 +145,7 @@ async def url_es_imagen(url: str, bot: Optional[commands.Bot] = None) -> bool:
     try:
         async with bot.session.head(
             url_ip, allow_redirects=False, headers={"Host": hostname},
+            server_hostname=hostname or None,
             timeout=aiohttp.ClientTimeout(total=5)
         ) as resp:
             ct = resp.headers.get('Content-Type', '')
@@ -204,7 +230,11 @@ async def expandir_url(bot: commands.Bot, url: str) -> str:
             if not url_ip:
                 return url
             hostname = urllib.parse.urlparse(url).hostname or ""
-            async with bot.session.head(url_ip, allow_redirects=False, headers={"Host": hostname}, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+            async with bot.session.head(
+                url_ip, allow_redirects=False, headers={"Host": hostname},
+                server_hostname=hostname or None,
+                timeout=aiohttp.ClientTimeout(total=15)
+            ) as resp:
                 if resp.status in (301, 302, 303, 307, 308):
                     location = resp.headers.get('Location')
                     if location:
@@ -224,7 +254,10 @@ async def descargar_url_segura(bot: commands.Bot, url: str, max_size: Optional[i
         return None, err
     hostname = urllib.parse.urlparse(url).hostname or ""
     try:
-        async with bot.session.get(url_ip, headers={"Host": hostname}, timeout=aiohttp.ClientTimeout(total=30)) as resp:
+        async with bot.session.get(
+            url_ip, headers={"Host": hostname}, server_hostname=hostname or None,
+            timeout=aiohttp.ClientTimeout(total=30)
+        ) as resp:
             if resp.status != 200:
                 return None, f"HTTP {resp.status}"
             if max_size:
@@ -241,7 +274,8 @@ async def descargar_url_segura(bot: commands.Bot, url: str, max_size: Optional[i
                 return data, None
             return await resp.read(), None
     except Exception as e:
-        return None, str(e)
+        log.error(f"descargar_url_segura falló con {url}: {type(e).__name__}: {e}")
+        return None, _motivo_legible(e)
 
 PATRON_HASH: re.Pattern = re.compile(r'^[a-fA-F0-9]{32}$|^[a-fA-F0-9]{40}$|^[a-fA-F0-9]{64}$')
 

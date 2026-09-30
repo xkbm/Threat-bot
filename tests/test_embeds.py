@@ -2,7 +2,9 @@
 
 import os
 import re
+import asyncio
 
+import aiohttp
 import discord
 import pytest
 
@@ -203,6 +205,103 @@ class TestGuardiaDeTitulosViejos:
     def test_sin_el_truco_de_espacio_cero(self):
         for ruta, texto in self._fuente():
             assert "\\u200b" not in texto, f"el truco \\u200b sigue en {ruta}"
+
+    def test_sin_emoji_unicode(self):
+        """Solo emojis personalizados. Un emoji unicode se vería plano y distinto
+        al resto del set, que es justo lo que rompe la identidad visual."""
+        # Rangos de emoji unicode y símbolo. Un rango amplio a propósito: mejor un
+        # falso positivo que dejar pasar uno, como el U+23F0 del cronómetro que
+        # había en reboot.py.
+        patron = re.compile(
+            "[\U0001F300-\U0001FAFF\U00002600-\U000027BF\U00002B00-\U00002BFF"
+            "\U00002300-\U000023FF\U00002190-\U000021FF\U0000FE0F]"
+        )
+        for ruta, texto in self._fuente():
+            if ruta.endswith("ui/embed.py"):
+                continue
+            encontrados = set(patron.findall(texto))
+            # La flecha "→" se usa como separador en los log.debug(); no es un emoji.
+            encontrados.discard("→")
+            assert not encontrados, f"emoji unicode en {ruta}: {encontrados}"
+
+    def test_todos_los_emoji_de_config_son_personalizados(self):
+        import core.config as cfg
+        emojis = {k: v for k, v in vars(cfg).items() if k.startswith("EMOJI_")}
+        assert emojis, "no se encontraron constantes EMOJI_"
+        for nombre, valor in emojis.items():
+            assert valor.startswith("<:") and valor.endswith(">"), f"{nombre} no es personalizado: {valor!r}"
+            assert ":" in valor[2:-1], f"{nombre} mal formado: {valor!r}"
+
+
+class TestServerHostname:
+    """Conectar por IP rompe el TLS salvo que se diga a aiohttp cuál es el
+    hostname real: sin esto, cualquier CDN (media.discordapp.net) falla con
+    CERTIFICATE_VERIFY_FAILED y el embed muestra un traceback crudo."""
+
+    def test_las_tres_rutas_pasan_server_hostname(self):
+        with open(os.path.join(RAIZ, "core/utils.py"), encoding="utf-8") as fh:
+            fuente = fh.read()
+        # url_es_imagen, expandir_url y descargar_url_segura
+        for fn in ("url_es_imagen", "expandir_url", "descargar_url_segura"):
+            bloque = fuente.split(f"async def {fn}")[1].split("\nasync def")[0].split("\ndef ")[0]
+            assert "server_hostname=hostname" in bloque, f"{fn} conecta por IP sin server_hostname"
+
+    def test_aiohttp_esta_por_encima_de_la_version_con_el_parche(self):
+        """CVE-2026-54275: hasta 3.14.0 el server_hostname no entraba en la clave del
+        pool, así que una conexión reutilizada se saltaba la comprobación SNI."""
+        with open(os.path.join(RAIZ, "requirements.txt"), encoding="utf-8") as fh:
+            requisitos = fh.read()
+        match = re.search(r"^aiohttp==(\d+)\.(\d+)\.(\d+)", requisitos, re.M)
+        assert match, "aiohttp sin pinchar en requirements.txt"
+        mayor, menor, parche = (int(g) for g in match.groups())
+        assert (mayor, menor, parche) >= (3, 14, 1), f"aiohttp {match.group(0)} es vulnerable a CVE-2026-54275"
+
+    def test_no_se_filtra_str_de_excepcion_al_usuario(self):
+        with open(os.path.join(RAIZ, "core/utils.py"), encoding="utf-8") as fh:
+            fuente = fh.read()
+        bloque = fuente.split("async def descargar_url_segura")[1].split("\nasync def")[0]
+        assert "return None, str(e)" not in bloque, "descargar_url_segura sigue filtrando str(e)"
+        assert "_motivo_legible" in bloque
+
+    def test_motivo_legible_nunca_devuelve_el_traceback(self):
+        from core.utils import _motivo_legible
+
+        # Se usan excepciones propias en vez de las de aiohttp: sus constructores
+        # exigen objetos de conexión válidos y aquí solo importa el mapeo por tipo.
+        class _TooManyRedirects(aiohttp.TooManyRedirects):
+            def __init__(self):
+                Exception.__init__(self, "too many redirects")
+
+        class _ClientConnectorError(aiohttp.ClientConnectorError):
+            def __init__(self):
+                Exception.__init__(self, "cannot connect to host 10.0.0.1:443")
+
+        class _SSLCertVerificationError(Exception):
+            pass
+
+        class _SSLSubprocessError(Exception):
+            pass
+
+        class _ClientConnectorDNSError(Exception):
+            pass
+
+        casos = [
+            asyncio.TimeoutError(),
+            _TooManyRedirects(),
+            _ClientConnectorError(),
+            _SSLCertVerificationError("certificate verify failed: IP address mismatch"),
+            _SSLSubprocessError("bad handshake"),
+            _ClientConnectorDNSError("getaddrinfo failed"),
+            OSError("connection reset by peer"),
+            ValueError("raro"),
+        ]
+        for exc in casos:
+            motivo = _motivo_legible(exc)
+            assert isinstance(motivo, str) and motivo, exc
+            assert "Traceback" not in motivo, motivo
+            assert "_ssl.c" not in motivo, motivo
+            assert "10.0.0.1" not in motivo, f"filtra una IP interna: {motivo}"
+            assert len(motivo) < 80, motivo
 
 
 class TestCampos:

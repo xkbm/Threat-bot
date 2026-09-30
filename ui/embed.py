@@ -1,7 +1,9 @@
 """Constructor único de embeds de Threat.
 
 Reglas del sistema:
-  - Todos los embeds llevan el prefijo de marca 🛡️ en el título.
+  - Todos los embeds llevan el escudo (EMOJI_SHIELD, emoji personalizado del bot) en
+    el título. Los emojis personalizados solo renderizan donde Threat está presente, así
+    que un embed suyo es reconocible al instante: no se usa ningún emoji unicode.
   - Todos llevan pie: "Threat · <contexto> · <fecha UTC>".
   - El color solo codifica severidad. Los embeds informativos van todos en COLOR_NEUTRAL.
   - Los títulos van en sentence case y el vocabulario de errores está cerrado en tres.

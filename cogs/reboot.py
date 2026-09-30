@@ -17,28 +17,38 @@ class RebootCog(commands.Cog):
         if str(interaction.user.id) != OWNER_ID:
             log.warning(f"REBOOT INTENTO NO AUTORIZADO → usuario={interaction.user} ({interaction.user.id})")
             try:
-                await interaction.edit_original_response(content="❌ No tienes permiso para reiniciar el bot.")
+                await interaction.edit_original_response(
+                    content=f"{self.bot.EMOJI_INCORRECTO} No tienes permiso para reiniciar el bot."
+                )
             except discord.errors.NotFound:
                 pass
             return
 
         log.warning(f"REBOOT INICIADO → usuario={interaction.user} ({interaction.user.id})")
         view = discord.ui.View()
-        confirm_btn = discord.ui.Button(label="✅ Sí, reiniciar", style=discord.ButtonStyle.danger)
-        cancel_btn = discord.ui.Button(label="❌ Cancelar", style=discord.ButtonStyle.secondary)
+        confirm_btn = discord.ui.Button(
+            label=f"{self.bot.EMOJI_CORRECTO} Sí, reiniciar", style=discord.ButtonStyle.danger
+        )
+        cancel_btn = discord.ui.Button(
+            label=f"{self.bot.EMOJI_INCORRECTO} Cancelar", style=discord.ButtonStyle.secondary
+        )
 
         async def confirm_callback(btn_interaction: discord.Interaction) -> None:
             confirm_btn.disabled = True
             cancel_btn.disabled = True
             log.warning(f"REBOOT CONFIRMADO → usuario={btn_interaction.user} ({btn_interaction.user.id})")
-            await btn_interaction.response.edit_message(content="🔄 Reiniciando el bot...", view=view)
+            await btn_interaction.response.edit_message(
+                content=f"{self.bot.EMOJI_LOADING} Reiniciando el bot...", view=view
+            )
             await self.bot.close()
 
         async def cancel_callback(btn_interaction: discord.Interaction) -> None:
             confirm_btn.disabled = True
             cancel_btn.disabled = True
             log.info(f"REBOOT CANCELADO → usuario={btn_interaction.user} ({btn_interaction.user.id})")
-            await btn_interaction.response.edit_message(content="🚫 Reinicio cancelado.", view=view)
+            await btn_interaction.response.edit_message(
+                content=f"{self.bot.EMOJI_INCORRECTO} Reinicio cancelado.", view=view
+            )
 
         confirm_btn.callback = confirm_callback
         cancel_btn.callback = cancel_callback
@@ -47,7 +57,7 @@ class RebootCog(commands.Cog):
 
         try:
             await interaction.edit_original_response(
-                content="⚠️ **¿Seguro que quieres reiniciar?**\n"
+                content=f"{self.bot.EMOJI_WARNING} **¿Seguro que quieres reiniciar?**\n"
                 "El bot se desconecta y el panel lo arranca otra vez.",
                 view=view
             )
