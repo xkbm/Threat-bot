@@ -3,7 +3,7 @@ import asyncio
 import hashlib
 import json
 import base64
-from typing import Optional, Any
+from typing import Optional
 import logging
 import aiohttp
 import discord
@@ -13,8 +13,8 @@ from core.config import (
     VT_MAX_ANALYSES_PER_MINUTE, VT_MAX_ANALYSES_PER_DAY,
     SE_MAX_REQUESTS_PER_MINUTE, SE_MAX_OPS_PER_DAY, SE_OPS_PER_CALL,
 )
-from core.cache import get_from_cache_mem, set_cache_mem
-from core.database import guardar_analisis_db, guardar_metadatos_hash
+from core.cache import set_cache_mem
+from core.database import guardar_analisis_db
 from core.utils import obtener_top_antivirus, es_hash_valido
 from ui.views import LogActionView
 from ui import embed as emb

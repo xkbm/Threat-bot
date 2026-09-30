@@ -1,8 +1,6 @@
 import json
 import logging
-from typing import Optional
 import aiohttp
-import discord
 from core import state
 from core.config import SE_API_KEYS_PAIRS, SIGHTENGINE_API_URL, SIGHTENGINE_MODELS, NSFW_CONFIDENCE_THRESHOLD
 from core.cache import get_from_cache_mem, set_cache_mem

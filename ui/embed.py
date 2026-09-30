@@ -25,7 +25,6 @@ from core.config import (
     COLOR_NEUTRAL, COLOR_SEGURO, COLOR_MALICIOSO, COLOR_ERROR, COLOR_NSFW, COLOR_TOPGG,
     SEVERIDAD_COLOR,
     EMOJI_SHIELD, EMOJI_FILE, EMOJI_FINGERPRINT, EMOJI_GUARDIAN, EMOJI_LINK, EMOJI_NSFW,
-    EMOJI_KEY, EMOJI_CORRECTO, EMOJI_WARNING, EMOJI_INCORRECTO,
 )
 
 MARCA = "Threat"
@@ -253,10 +252,9 @@ def resultado_barra(porcentaje: float, total: int, limite: int) -> str:
 
 
 __all__ = [
-    "MARCA", "TITULOS", "TITULOS_PROHIBIDOS",
+    "MARCA", "TITULOS", "TITULOS_PROHIBIDOS", "ACRONIMOS",
     "pie", "titulo", "resultado", "error", "error_analisis", "error_conexion",
     "error_cuota", "aviso", "nsfw", "amenaza", "topgg", "resultado_barra",
-    "COLOR_NEUTRAL", "COLOR_SEGURO", "COLOR_MALICIOSO", "COLOR_ERROR", "COLOR_NSFW", "COLOR_TOPGG",
-    "SEVERIDAD_COLOR",
-    "EMOJI_CORRECTO", "EMOJI_WARNING", "EMOJI_NSFW", "EMOJI_FILE", "EMOJI_LINK",
+    "COLOR_NEUTRAL", "COLOR_SEGURO", "COLOR_MALICIOSO", "COLOR_ERROR", "COLOR_NSFW",
+    "COLOR_TOPGG", "SEVERIDAD_COLOR",
 ]

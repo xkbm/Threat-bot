@@ -10,7 +10,6 @@ import logging
 from core import state
 from core.cache import set_cache_mem
 from core.config import DB_FILE, DATA_FILE, EXPIRACION, DOMINIOS_PROTEGIDOS
-from discord.ext import commands
 
 log = logging.getLogger("db")
 

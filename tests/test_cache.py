@@ -95,10 +95,13 @@ class TestCacheRenderOnRead:
 
     @pytest.mark.asyncio
     async def test_datos_invalidos_no_rompen(self):
-        await set_cache_mem("k4", "url", discord.Embed(title="respaldo"), 0)
-        await cache._cache.__setitem__("k5", ("url", 0, {"basura": True}, None, time.time()))
-        _, embed, _ = await get_from_cache_mem("k5")
+        """Una entrada con `datos` inservible no debe tumbar la lectura: se
+        devuelve None y el llamante la trata como fallo de caché."""
+        # La tupla de RAM es (tipo, mal, tipo_analisis, datos, embed_dict, timestamp).
+        cache._cache["url:basura"] = ("url", 0, "url", {"basura": True}, None, time.time())
+        _, embed, _ = await get_from_cache_mem("url:basura")
         assert embed is None or embed.title
+        cache._cache.pop("url:basura", None)
 
     @pytest.mark.asyncio
     async def test_expiracion_con_datos(self):
