@@ -1,5 +1,4 @@
 from typing import Optional
-import time
 import discord
 from core.config import EMOJI_BAN, EMOJI_KICK, EMOJI_CLEAN, EMOJI_FINGERPRINT, EMOJI_SHIELD, EMOJI_LINK, EMOJI_COOLDOWN
 from core.guild_config import obtener_config_guild

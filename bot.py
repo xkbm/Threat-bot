@@ -82,7 +82,7 @@ bot.analizar_archivo = analizar_archivo
 from api.sightengine import analizar_imagen_multimodelo
 bot.analizar_imagen_nsfw = analizar_imagen_multimodelo
 
-from core.database import guardar_analisis_db, obtener_analisis_db, guardar_datos
+from core.database import guardar_analisis_db, obtener_analisis_db
 bot.guardar_analisis_db = guardar_analisis_db
 bot.obtener_analisis_db = obtener_analisis_db
 bot.guardar_datos = guardar_datos
@@ -110,7 +110,7 @@ from core.config import (
     EMOJI_KICK, EMOJI_BAN, EMOJI_CLEAN, EMOJI_GITHUB, EMOJI_NSFW,
     COLOR_SEGURO, COLOR_ERROR,
     MAX_FILE_SIZE, CACHE_DURATION, DATA_FILE, DB_FILE,
-    ANTISPAM_ANALYSIS_PER_HOUR, ANTISPAM_COOLDOWN, ANTISPAM_WINDOW,
+    ANTISPAM_COOLDOWN, ANTISPAM_WINDOW,
     VT_MAX_ANALYSES_PER_MINUTE, VT_MAX_ANALYSES_PER_DAY,
     SE_MAX_OPS_PER_DAY, SE_OPS_PER_CALL,
 )

@@ -65,7 +65,6 @@ class TestPieDeMarca:
         assert "Configuración" in pie
 
     def test_contexto_se_trunca(self):
-        pie = texto_pie(emb.aviso("t", "d"))
         largo = texto_pie(emb.aviso("x" * 300, "d"))
         assert "…" in largo
         assert len(largo) < len("Threat · " + "x" * 300 + " · fecha")
@@ -148,13 +147,15 @@ class TestTitulos:
         assert emb.error_cuota().title.endswith(TITULOS["error_cuota"])
 
     def test_los_tres_errores_llevan_el_mismo_icono(self):
+        """La severidad la comunican el color rojo y el texto; el icono del título
+        se reserva para la marca, así que los tres errores llevan el escudo."""
         titulos = {
             emb.error_analisis("x").title,
             emb.error_conexion("x").title,
             emb.error_cuota().title,
         }
         prefijos = {t.split(" ", 1)[0] for t in titulos}
-        assert prefijos == {EMOJI_INCORRECTO}, f"iconos inconsistentes: {titulos}"
+        assert prefijos == {EMOJI_SHIELD}, f"iconos inconsistentes: {titulos}"
 
     def test_sentence_case_en_titulos(self):
         """Solo los nombres propios llevan mayúscula."""

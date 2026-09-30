@@ -1,7 +1,6 @@
 import time
 import asyncio
 import hashlib
-import json
 import base64
 from typing import Optional
 import logging
@@ -157,7 +156,7 @@ async def enviar_log_guild(guild_id: int, tipo: str, valor: str, detalles: str, 
     except discord.errors.Forbidden:
         log.error(f"enviar_log_guild: sin permisos send_messages/embed_links en #{channel} (guild {guild_id})")
     except Exception as e:
-        log.error(f"enviar_log_guild: error enviando a canal {channel_id}: {e}")
+        log.error(f"enviar_log_guild: error enviando a #{log_channel_id} (guild {guild_id}): {type(e).__name__}: {e}")
     return None
 
 async def _sin_cuota() -> tuple[str, discord.Embed, int]:

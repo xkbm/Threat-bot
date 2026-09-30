@@ -438,7 +438,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
 
                     if await url_es_imagen(url, bot):
                         # --- URL de imagen → NSFW ---
-                        log.debug(f"URL es imagen → SSRF check + Sightengine")
+                        log.debug("URL es imagen → SSRF check + Sightengine")
                         url_hash_key = hashlib.sha256(url.encode()).hexdigest()
                         clave_meta_url = f"nsfw_url:{url_hash_key}"
                         tipo_meta, embed_meta, _ = await get_from_cache_mem(clave_meta_url)
@@ -543,7 +543,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                                     log.debug(f"Cache HIT (SQLite) para URL → resultado={tipo}")
                                     await set_cache_mem(clave, tipo, embed, mal)
                                 else:
-                                    log.debug(f"Cache MISS para URL → llamando VT")
+                                    log.debug("Cache MISS para URL → llamando VT")
 
                             if embed is not None:
                                 # Resultado en cache (VT ya no envió log)
