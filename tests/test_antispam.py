@@ -212,7 +212,10 @@ class TestPersistenciaDeClaves:
     def test_ignora_claves_corruptas(self):
         from core.database import _restaurar_claves_antispam
 
-        assert _restaurar_claves_antispam({"[roto": [], "abc": [], "5": []}) == {}
+        # "[roto" no es JSON válido y "abc" no es un int: se descartan.
+        assert _restaurar_claves_antispam({"[roto": [], "abc": []}) == {}
+        # Un entero sí es una clave válida (formato antiguo, cuando no había tuplas).
+        assert _restaurar_claves_antispam({"5": [1.0]}) == {5: [1.0]}
 
     @pytest.mark.asyncio
     async def test_el_limite_sobrevive_al_reinicio(self, bot):

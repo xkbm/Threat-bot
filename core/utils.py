@@ -103,6 +103,19 @@ def es_imagen(archivo: discord.Attachment) -> bool:
         return True
     return False
 
+def _texto_exc(exc: BaseException) -> str:
+    """str(exc) sin riesgo de que el propio formateador reviente.
+
+    Algunas excepciones de aiohttp lanzan en su __str__ si no se construyeron con
+    todos sus atributos (ClientConnectorError accede a _conn_key). Este código corre
+    justo cuando algo ya ha fallado, así que no puede permitirse fallar también.
+    """
+    try:
+        return str(exc)
+    except Exception:
+        return ""
+
+
 def _motivo_legible(exc: BaseException) -> str:
     """Convierte una excepción de red en un motivo corto y presentable.
 
@@ -119,7 +132,7 @@ def _motivo_legible(exc: BaseException) -> str:
         return "No se pudo verificar el certificado de seguridad del sitio"
     if "SSL" in nombre or "SSLError" in nombre:
         return "Error de conexión segura con el sitio"
-    if "DNS" in nombre or "NameResolution" in nombre or "getaddrinfo" in str(exc):
+    if "DNS" in nombre or "NameResolution" in nombre or "getaddrinfo" in _texto_exc(exc):
         return "No se pudo resolver el dominio"
     if isinstance(exc, aiohttp.ClientConnectionError) or "ClientConnector" in nombre:
         return "No se pudo conectar con el sitio"

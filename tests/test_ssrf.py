@@ -57,38 +57,47 @@ class TestIpPermitida:
 
 
 class TestUrlAIp:
-    def test_ip_literal_bloqueada(self):
-        url, err = _url_a_ip("http://127.0.0.1:8080/admin")
+    """`_url_a_ip` es corrutina porque delega en `_resolve_url`, que hace getaddrinfo."""
+
+    @pytest.mark.asyncio
+    async def test_ip_literal_bloqueada(self):
+        url, err = await _url_a_ip("http://127.0.0.1:8080/admin")
         assert url is None
         assert "127.0.0.1" in (err or "")
 
-    def test_link_local_bloqueada(self):
-        url, err = _url_a_ip("http://169.254.169.254/latest/meta-data/")
+    @pytest.mark.asyncio
+    async def test_link_local_bloqueada(self):
+        url, err = await _url_a_ip("http://169.254.169.254/latest/meta-data/")
         assert url is None
         assert err
 
-    def test_ipv6_loopback_bloqueada(self):
-        url, err = _url_a_ip("http://[::1]:9000/")
+    @pytest.mark.asyncio
+    async def test_ipv6_loopback_bloqueada(self):
+        url, err = await _url_a_ip("http://[::1]:9000/")
         assert url is None
         assert err
 
-    def test_cgnat_bloqueada(self):
-        url, err = _url_a_ip("http://100.64.1.1/")
+    @pytest.mark.asyncio
+    async def test_cgnat_bloqueada(self):
+        url, err = await _url_a_ip("http://100.64.1.1/")
         assert url is None
         assert err
 
-    def test_sin_esquema_otorga_error(self):
-        url, err = _url_a_ip("no-es-una-url")
+    @pytest.mark.asyncio
+    async def test_sin_esquema_otorga_error(self):
+        url, err = await _url_a_ip("no-es-una-url")
         assert url is None
         assert err
 
-    def test_ip_publica_conserva_puerto_y_esquema(self):
-        url, err = _url_a_ip("https://8.8.8.8:8443/x?y=1")
+    @pytest.mark.asyncio
+    async def test_ip_publica_conserva_puerto_y_esquema(self):
+        url, err = await _url_a_ip("https://8.8.8.8:8443/x?y=1")
         assert err is None
         assert url == "https://8.8.8.8:8443/x?y=1"
 
-    def test_ipv6_publica_va_entre_corchetes(self):
-        url, err = _url_a_ip("https://[2606:4700::1111]:8443/x")
+    @pytest.mark.asyncio
+    async def test_ipv6_publica_va_entre_corchetes(self):
+        url, err = await _url_a_ip("https://[2606:4700::1111]:8443/x")
         assert err is None
         assert url == "https://[2606:4700::1111]:8443/x"
 

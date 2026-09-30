@@ -10,10 +10,10 @@ import pytest
 
 from core.config import (
     COLOR_NEUTRAL, COLOR_SEGURO, COLOR_MALICIOSO, COLOR_ERROR, COLOR_NSFW, COLOR_TOPGG,
-    EMOJI_SHIELD, EMOJI_LINK, EMOJI_GUARDIAN,
+    EMOJI_SHIELD, EMOJI_LINK, EMOJI_GUARDIAN, EMOJI_FINGERPRINT,
 )
 from ui import embed as emb
-from ui.embed import MARCA, TITULOS, TITULOS_PROHIBIDOS
+from ui.embed import MARCA, TITULOS, TITULOS_PROHIBIDOS, ACRONIMOS
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -22,13 +22,25 @@ DATOS_HASH = {"valor": "a" * 64, "vt_link": "https://vt/gui/h", "top_text": "Kas
 DATOS_IP = {"valor": "8.8.8.8", "vt_link": "https://vt/gui/i", "top_text": None}
 DATOS_FILE = {"valor": "documento.pdf", "vt_link": None, "top_text": None}
 
+import core.config as _cfg
+_EMOJI = [v for v in vars(_cfg).values() if isinstance(v, str) and v.startswith("<:")]
+
 
 def texto_pie(embed) -> str:
     return (embed.footer.text or "") if embed.footer else ""
 
 
 def nombres_campos(embed):
+    """Los nombres de campo llevan el emoji del bot como prefijo."""
     return [f.name for f in embed.fields]
+
+
+def etiqueta(nombre: str) -> str:
+    """Quita el prefijo de emoji a un nombre de campo."""
+    for e in _EMOJI:
+        if nombre.startswith(e):
+            return nombre[len(e):].strip()
+    return nombre
 
 
 class TestPieDeMarca:
@@ -158,12 +170,19 @@ class TestTitulos:
         assert prefijos == {EMOJI_SHIELD}, f"iconos inconsistentes: {titulos}"
 
     def test_sentence_case_en_titulos(self):
-        """Solo los nombres propios llevan mayúscula."""
+        """Sentence case: se capitaliza la primera palabra y los ACRÓNIMOS.
+        El resto de palabras van en minúscula, así que "Hash malicioso detectado"
+        es correcto y "Hash Malicioso Detectado" no."""
         for clave, texto in TITULOS.items():
-            if clave in ("error_analisis", "error_conexion", "error_cuota"):
-                continue
-            primera = texto[0]
-            assert primera.islower(), f"{clave}: {texto!r} empieza en mayúscula"
+            assert texto[0].isupper(), f"{clave}: {texto!r} no capitaliza la primera palabra"
+            for palabra in texto.split()[1:]:
+                limpia = palabra.strip(".:,()")
+                if not limpia or limpia in ACRONIMOS:
+                    continue
+                assert not limpia.isupper(), f"{clave}: {limpia!r} en mayúsculas sin ser acrónimo"
+                assert not (limpia[0].isupper() and limpia.lower() not in ("de", "y", "al")), (
+                    f"{clave}: Title Case en {limpia!r} ({texto!r})"
+                )
 
     def test_titulos_unicos(self):
         assert len(set(TITULOS.values())) == len(TITULOS)
@@ -272,10 +291,6 @@ class TestServerHostname:
             def __init__(self):
                 Exception.__init__(self, "too many redirects")
 
-        class _ClientConnectorError(aiohttp.ClientConnectorError):
-            def __init__(self):
-                Exception.__init__(self, "cannot connect to host 10.0.0.1:443")
-
         class _SSLCertVerificationError(Exception):
             pass
 
@@ -285,22 +300,28 @@ class TestServerHostname:
         class _ClientConnectorDNSError(Exception):
             pass
 
+        class _Explosivo(Exception):
+            """Su __str__ revienta, como el de ClientConnectorError de aiohttp
+            cuando el objeto no tiene _conn_key."""
+
+            def __str__(self):
+                raise AttributeError("no tiene _conn_key")
+
         casos = [
             asyncio.TimeoutError(),
             _TooManyRedirects(),
-            _ClientConnectorError(),
             _SSLCertVerificationError("certificate verify failed: IP address mismatch"),
             _SSLSubprocessError("bad handshake"),
             _ClientConnectorDNSError("getaddrinfo failed"),
+            _Explosivo(),
             OSError("connection reset by peer"),
             ValueError("raro"),
         ]
         for exc in casos:
             motivo = _motivo_legible(exc)
-            assert isinstance(motivo, str) and motivo, exc
+            assert isinstance(motivo, str) and motivo, type(exc).__name__
             assert "Traceback" not in motivo, motivo
             assert "_ssl.c" not in motivo, motivo
-            assert "10.0.0.1" not in motivo, f"filtra una IP interna: {motivo}"
             assert len(motivo) < 80, motivo
 
 
@@ -311,36 +332,38 @@ class TestCampos:
                   emb.resultado("ip", DATOS_IP, 0), emb.resultado("file", DATOS_FILE, 0),
                   emb.error_analisis("x", detalle="d")):
             for n in nombres_campos(e):
-                limpio = re.sub(r"^\W*\s*", "", n)
-                assert any(limpio.endswith(p) or limpio == p for p in permitidos), f"campo inesperado: {n!r}"
+                assert etiqueta(n) in permitidos, f"campo inesperado: {n!r}"
 
     def test_campos_valor_que_ya_ordena(self):
-        esperado = [f"{EMOJI_LINK} URL", f"{EMOJI_GUARDIAN} Detectado por", f"{EMOJI_LINK} VirusTotal"]
-        assert nombres_campos(emb.resultado("url", DATOS_URL, 3)) == esperado
+        e = emb.resultado("url", DATOS_URL, 3)
+        assert [etiqueta(n) for n in nombres_campos(e)] == ["URL", "Detectado por", "VirusTotal"]
+        # El elemento se identifica con el emoji de huella y el link con el de enlace.
+        assert nombres_campos(e)[0].startswith(EMOJI_FINGERPRINT)
+        assert nombres_campos(e)[2].startswith(EMOJI_LINK)
 
     def test_sin_detectado_por_si_no_hay_datos(self):
-        assert "Detectado por" not in nombres_campos(emb.resultado("url", DATOS_IP, 3))
+        assert "Detectado por" not in [etiqueta(n) for n in nombres_campos(emb.resultado("url", DATOS_IP, 3))]
 
     def test_sin_vt_link_no_hay_campo_vt(self):
-        assert "VirusTotal" not in nombres_campos(emb.resultado("file", DATOS_FILE, 5))
+        assert "VirusTotal" not in [etiqueta(n) for n in nombres_campos(emb.resultado("file", DATOS_FILE, 5))]
 
     def test_vt_link_solo_si_existe(self):
-        assert "VirusTotal" in nombres_campos(emb.resultado("url", DATOS_URL, 3))
+        etiquetas = [etiqueta(n) for n in nombres_campos(emb.resultado("url", DATOS_URL, 3))]
+        assert "VirusTotal" in etiquetas
 
     def test_error_con_detalle(self):
         e = emb.error_analisis("desc", detalle="porque sí")
-        assert "Detalle" in nombres_campos(e)
+        assert "Detalle" in [etiqueta(n) for n in nombres_campos(e)]
         assert "porque sí" in e.fields[0].value
 
     def test_error_sin_detalle_no_crea_campo(self):
-        assert "Detalle" not in nombres_campos(emb.error_analisis("desc"))
+        assert "Detalle" not in [etiqueta(n) for n in nombres_campos(emb.error_analisis("desc"))]
 
     def test_amenaza_lleva_id_explicito(self):
         u = type("U", (), {"mention": "<@1>", "id": 12345})()
         e = emb.amenaza("URL", "http://x", "3 detecciones", u)
-        nombres = nombres_campos(e)
-        assert "ID" in nombres
-        assert "12345" in [f.value for f in e.fields if f.name == "ID"][0]
+        assert "ID" in [etiqueta(n) for n in nombres_campos(e)]
+        assert "12345" in next(f.value for f in e.fields if f.name == "ID")
 
     def test_amenaza_escapa_el_valor_en_code_block(self):
         """El valor viene de un mensaje de usuario: si no va en code block podría

@@ -58,12 +58,16 @@ class TestCacheLegacy:
 
 
 class TestCacheRenderOnRead:
-    """Entradas guardadas con `datos`: el embed se construye al leer."""
+    """Entradas guardadas con `datos`: el embed se construye al leer.
+
+    Las claves llevan prefijo real (`url:`, `filehash:`…) porque de ahí deduce
+    `core.cache` el tipo de elemento que necesita el render.
+    """
 
     @pytest.mark.asyncio
     async def test_renderiza_al_leer(self):
-        await set_cache_mem("k1", "malicioso", mal=3, datos=DATOS)
-        tipo, embed, mal = await get_from_cache_mem("k1")
+        await set_cache_mem("url:https://ejemplo.com", "malicioso", mal=3, datos=DATOS)
+        tipo, embed, mal = await get_from_cache_mem("url:https://ejemplo.com")
         assert tipo == "malicioso"
         assert mal == 3
         assert embed is not None
@@ -74,24 +78,27 @@ class TestCacheRenderOnRead:
     async def test_determinista(self):
         """Un cache hit tiene que dar un embed idéntico al original, o /scan
         mostraría dos diseños distintos para el mismo análisis."""
-        await set_cache_mem("k2", "malicioso", mal=3, datos=DATOS)
-        _, e1, _ = await get_from_cache_mem("k2")
-        _, e2, _ = await get_from_cache_mem("k2")
+        await set_cache_mem("url:det", "malicioso", mal=3, datos=DATOS)
+        _, e1, _ = await get_from_cache_mem("url:det")
+        _, e2, _ = await get_from_cache_mem("url:det")
         assert e1.to_dict() == e2.to_dict()
 
     @pytest.mark.asyncio
     async def test_no_depende_del_embed_pasado(self):
         """Con `datos`, el embed generado no se usa para nada."""
-        await set_cache_mem("k3", "seguro", discord.Embed(title="IGNORADO"), 0, datos=DATOS)
-        _, embed, _ = await get_from_cache_mem("k3")
+        await set_cache_mem("url:ignorado", "seguro", discord.Embed(title="IGNORADO"), 0, datos=DATOS)
+        _, embed, _ = await get_from_cache_mem("url:ignorado")
         assert "IGNORADO" not in (embed.title or "")
 
     @pytest.mark.asyncio
     async def test_tipos_conocidos(self):
-        for tipo, clave in (("url", "u"), ("hash", "h"), ("ip", "i"), ("file", "f")):
-            await set_cache_mem(f"tipo_{clave}", tipo, mal=0, datos=DATOS)
-            _, embed, _ = await get_from_cache_mem(f"tipo_{clave}")
+        for tipo, clave in (("url", "url:1"), ("hash", "hash:1"), ("ip", "ip:1"), ("file", "filehash:1")):
+            await set_cache_mem(clave, tipo, mal=0, datos=DATOS)
+            _, embed, _ = await get_from_cache_mem(clave)
             assert embed is not None, tipo
+            assert "Resultado del análisis" not in (embed.title or ""), (
+                f"{clave} no se asoció a un tipo de análisis conocido"
+            )
 
     @pytest.mark.asyncio
     async def test_datos_invalidos_no_rompen(self):
@@ -105,7 +112,7 @@ class TestCacheRenderOnRead:
 
     @pytest.mark.asyncio
     async def test_expiracion_con_datos(self):
-        await set_cache_mem("k6", "url", mal=1, datos=DATOS)
+        await set_cache_mem("url:exp", "url", mal=1, datos=DATOS)
         with patch("core.cache.time") as mock_time:
             mock_time.time.return_value = time.time() + 7200
-            assert await get_from_cache_mem("k6") == (None, None, 0)
+            assert await get_from_cache_mem("url:exp") == (None, None, 0)
