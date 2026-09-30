@@ -3,6 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 import time
 import logging
+from ui import embed as emb
 
 log = logging.getLogger("about")
 
@@ -28,11 +29,7 @@ class InfoCog(commands.Cog):
         parts.append(f"{seconds}s")
         uptime_str = " ".join(parts)
 
-        embed = discord.Embed(
-            title=f"{self.bot.EMOJI_SHIELD} Tiempo en línea",
-            description=f"El bot lleva **{uptime_str}** funcionando.",
-            color=discord.Color.green()
-        )
+        embed = emb.aviso("Tiempo en línea", f"El bot lleva **{uptime_str}** funcionando.")
         try:
             await interaction.edit_original_response(embed=embed)
         except discord.errors.NotFound:
@@ -44,11 +41,7 @@ class InfoCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         ws_latency = round(self.bot.latency * 1000)
-        embed = discord.Embed(
-            title=f"{self.bot.EMOJI_SHIELD} Pong!",
-            description=f"Latencia WebSocket: **{ws_latency}ms**",
-            color=discord.Color.green()
-        )
+        embed = emb.aviso("Pong!", f"Latencia WebSocket: **{ws_latency}ms**")
         try:
             await interaction.edit_original_response(embed=embed)
         except discord.errors.NotFound:
@@ -59,17 +52,14 @@ class InfoCog(commands.Cog):
         log.debug(f"ABOUT → usuario={interaction.user.id} guild={interaction.guild.id if interaction.guild else None}")
         await interaction.response.defer()
         
-        embed = discord.Embed(
-            title=f"{self.bot.EMOJI_SHIELD} Acerca de Threat",
-            description=(
-                "Threat fue desarrollado para mantener las comunidades más seguras.\n"
-                "Protege tu servidor automáticamente usando VirusTotal y Sightengine, evitando malware, phishing y NSFW."
-            ),
-            color=discord.Color(0x36393F)
-        )
-
-        embed.set_footer(
-            text="Threat es un proyecto open source bajo licencia AGPL-3.0. Código fuente disponible en GitHub."
+        embed = emb.aviso(
+            "Acerca de Threat",
+            "Threat fue desarrollado para mantener las comunidades más seguras.\n"
+            "Protege tu servidor automáticamente usando VirusTotal y Sightengine, "
+            "evitando malware, phishing y NSFW.",
+            campos=[
+                (f"{self.bot.EMOJI_GITHUB} Licencia", "Open source bajo AGPL-3.0. Código fuente disponible en GitHub.", False),
+            ],
         )
 
         view = discord.ui.View()

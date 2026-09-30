@@ -260,12 +260,10 @@ REVIEW_PROMPT_CHANCE = 0.05
 async def maybe_send_review_prompt(bot, channel: discord.abc.Messageable) -> None:
     if _random.random() >= REVIEW_PROMPT_CHANCE:
         return
-    embed = discord.Embed(
-        description=(
-            "Si te gusta Threat, ¡considera [dejar una reseña en Top.gg]"
-            f"({REVIEW_PROMPT_URL})!"
-        ),
-        color=discord.Color(0xff3366)
+    from ui import embed as emb
+    embed = emb.topgg(
+        "Si te gusta Threat, considera [dejar una reseña en Top.gg]"
+        f"({REVIEW_PROMPT_URL}) para apoyar el proyecto."
     )
     try:
         await channel.send(embed=embed)

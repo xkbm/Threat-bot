@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import logging
+from ui import embed as emb
 
 log = logging.getLogger("help")
 
@@ -14,11 +15,7 @@ class HelpCog(commands.Cog):
         log.debug(f"HELP → usuario={interaction.user.id} guild={interaction.guild.id if interaction.guild else None}")
         await interaction.response.defer()
         
-        embed = discord.Embed(
-            title=f"{self.bot.EMOJI_SHIELD} Comandos de Threat",
-            description="Lista de comandos disponibles.",
-            color=discord.Color(0x36393F)
-        )
+        embed = emb.aviso("Comandos de Threat", "Lista de comandos disponibles.", con_pie=False)
 
         embed.add_field(
             name=f"{self.bot.EMOJI_LUPA} Análisis [1]",
@@ -55,9 +52,13 @@ class HelpCog(commands.Cog):
             inline=False
         )
 
-        embed.set_footer(
-            text="Los comandos de moderación requieren permisos de administrador."
+        embed.add_field(
+            name=f"{self.bot.EMOJI_GUARDIAN} Nota",
+            value="Los comandos de moderación requieren permisos de administrador.",
+            inline=False
         )
+
+        emb.pie(embed, "Comandos")
 
         view = discord.ui.View()
         view.add_item(discord.ui.Button(

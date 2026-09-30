@@ -30,11 +30,30 @@ class DatabasePool:
             conn = await aiosqlite.connect(self._path)
             await conn.execute('PRAGMA journal_mode=WAL')
             await conn.execute('''CREATE TABLE IF NOT EXISTS analisis (
-                clave TEXT PRIMARY KEY, tipo TEXT, resultado TEXT, embed_json TEXT, timestamp REAL, expira REAL
+                clave TEXT PRIMARY KEY, tipo TEXT, resultado TEXT, embed_json TEXT, timestamp REAL, expira REAL, datos TEXT
             )''')
             await conn.execute('CREATE INDEX IF NOT EXISTS idx_expira ON analisis(expira)')
+            await self._asegurar_columna_datos(conn)
             await conn.commit()
             self._conns.append(conn)
+
+    async def _asegurar_columna_datos(self, conn: aiosqlite.Connection) -> None:
+        """Añade la columna `datos` a una base creada antes del sistema de embeds.
+
+        CREATE TABLE IF NOT EXISTS no altera una tabla existente, así que un
+        analisis.db de una versión anterior se quedaría sin la columna y el render-on-read
+        no tendría de dónde leer. Si la migración falla, el bot arranca igualmente y
+        todo cae al comportamiento legacy (devolver el embed almacenado).
+        """
+        try:
+            async with conn.execute('PRAGMA table_info(analisis)') as cur:
+                columnas = {fila[1] for fila in await cur.fetchall()}
+            if 'datos' not in columnas:
+                await conn.execute('ALTER TABLE analisis ADD COLUMN datos TEXT')
+                log.info("Migración aplicada: columna 'datos' añadida a la tabla analisis")
+        except Exception as e:
+            log.error(f"No se pudo añadir la columna 'datos' a analisis: {e}. "
+                      f"Los embeds en caché pueden conservar el diseño anterior.")
 
     async def stop(self) -> None:
         for conn in self._conns:
@@ -65,46 +84,82 @@ async def init_db() -> None:
     state.bot.db_pool = POOL
 
 
-async def guardar_analisis_db(clave: str, tipo_analisis: str, resultado: str, embed: Optional[discord.Embed], mal: int = 0) -> None:
+async def guardar_analisis_db(clave: str, tipo_analisis: str, resultado: str, *, embed: Optional[discord.Embed] = None, mal: int = 0, datos: Optional[dict] = None) -> None:
+    """Guarda un análisis en SQLite.
+
+    Si se pasan `datos` (lo mínimo para re-renderizar el embed) NO se guarda
+    `embed_json`: el embed se reconstruye al leer con el diseño vigente, así que un
+    cambio futuro de estilo no requiere reanalizar nada. Si no se pasan `datos` se
+    guarda `embed` (comportamiento legacy, y lo que usan las entradas de metadatos).
+    """
     now = time.time()
     expira = now + EXPIRACION.get(tipo_analisis, 7 * 24 * 3600)
-    embed_dict = embed.to_dict() if embed else None
-    embed_json = json.dumps(embed_dict) if embed_dict else None
     resultado_json = json.dumps({"tipo": resultado, "mal": mal})
+    datos_json = json.dumps(datos, ensure_ascii=False) if datos is not None else None
+    if datos is None and embed is not None:
+        embed_json = json.dumps(embed.to_dict(), ensure_ascii=False)
+    else:
+        embed_json = None
     await POOL.execute(
-        'INSERT OR REPLACE INTO analisis (clave, tipo, resultado, embed_json, timestamp, expira) VALUES (?, ?, ?, ?, ?, ?)',
-        (clave, tipo_analisis, resultado_json, embed_json, now, expira)
+        'INSERT OR REPLACE INTO analisis (clave, tipo, resultado, embed_json, timestamp, expira, datos) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        (clave, tipo_analisis, resultado_json, embed_json, now, expira, datos_json)
     )
-    log.debug(f"SQLITE SAVE → clave={clave} tipo={tipo_analisis} resultado={resultado} mal={mal} expira={expira-now:.0f}s")
+    log.debug(f"SQLITE SAVE → clave={clave} tipo={tipo_analisis} resultado={resultado} mal={mal} "
+              f"render={'datos' if datos is not None else 'embed'} expira={expira-now:.0f}s")
 
 
 async def obtener_analisis_db(clave: str) -> tuple[Optional[str], Optional[discord.Embed], int]:
+    """Lee un análisis. El embed se RENDERIZA AL LEER desde `datos`, de modo que
+    siempre sale con el diseño actual aunque el análisis se cacheara hace meses.
+
+    Las filas antiguas (sin `datos`) siguen devolviendo su `embed_json` tal cual, con
+    el diseño anterior. No se reanalizan: la transición no gasta cuota.
+    """
     now = time.time()
     row = await POOL.fetchone(
-        'SELECT resultado, embed_json, expira FROM analisis WHERE clave = ?', (clave,)
+        'SELECT tipo, resultado, embed_json, expira, datos FROM analisis WHERE clave = ?', (clave,)
     )
-    if row:
-        resultado_json, embed_json, expira = row
-        if now < expira:
-            embed: Optional[discord.Embed] = None
-            if embed_json:
-                try:
-                    embed_dict = json.loads(embed_json)
-                    embed = discord.Embed.from_dict(embed_dict)
-                except Exception:
-                    pass
-            try:
-                data = json.loads(resultado_json)
-                tipo = data.get("tipo")
-                mal = data.get("mal", 0)
-            except Exception:
-                tipo = resultado_json
-                mal = 0
-            log.debug(f"SQLITE HIT → clave={clave} tipo={tipo} mal={mal}")
-            return tipo, embed, mal
+    if not row:
+        log.debug(f"SQLITE MISS → clave={clave}")
+        return None, None, 0
+
+    tipo_analisis, resultado_json, embed_json, expira, datos_json = row
+    if now >= expira:
         log.debug(f"SQLITE EXPIRED → clave={clave}")
-    log.debug(f"SQLITE MISS → clave={clave}")
-    return None, None, 0
+        return None, None, 0
+
+    tipo: Optional[str] = None
+    mal = 0
+    try:
+        parsed = json.loads(resultado_json)
+        tipo = parsed.get("tipo")
+        mal = parsed.get("mal", 0)
+    except Exception:
+        tipo = resultado_json
+
+    embed: Optional[discord.Embed] = None
+    origen = "legacy"
+    if datos_json:
+        try:
+            embed = renderizar_embed(tipo_analisis, json.loads(datos_json), mal)
+            origen = "render"
+        except Exception as e:
+            log.error(f"Error renderizando el embed de {clave}: {e}")
+    if embed is None and embed_json:
+        try:
+            embed = discord.Embed.from_dict(json.loads(embed_json))
+        except Exception:
+            pass
+    log.debug(f"SQLITE HIT → clave={clave} tipo={tipo} mal={mal} origen={origen}")
+    return tipo, embed, mal
+
+
+def renderizar_embed(tipo_analisis: str, datos: dict, mal: int) -> Optional[discord.Embed]:
+    """Construye el embed de un análisis cacheado. Import diferido a propósito:
+    ui.embed no depende de la capa de datos, pero importarlo arriba cargaría el
+    módulo de presentación en el arranque del bot."""
+    from ui.embed import resultado
+    return resultado(tipo_analisis, datos, mal)
 
 
 async def limpiar_db_expirados() -> None:
@@ -133,9 +188,8 @@ async def obtener_hash_desde_metadatos(clave_metadatos: str) -> Optional[str]:
                 data = json.loads(resultado)
                 hash_val = data.get("hash")
                 if hash_val:
-                    dummy = discord.Embed(title="Meta")
-                    await set_cache_mem(clave_metadatos, json.dumps({"hash": hash_val}), dummy, 0)
-                return hash_val
+                    await set_cache_mem(clave_metadatos, json.dumps({"hash": hash_val}), datos={"hash": hash_val})
+                    return hash_val
             except Exception:
                 pass
     return None
@@ -146,8 +200,8 @@ async def guardar_metadatos_hash(clave_metadatos: str, file_hash: str) -> None:
     now = time.time()
     expira = now + EXPIRACION.get("file", 30 * 24 * 3600)
     await POOL.execute(
-        'INSERT OR REPLACE INTO analisis (clave, tipo, resultado, embed_json, timestamp, expira) VALUES (?, ?, ?, ?, ?, ?)',
-        (clave_metadatos, "metadata", data, None, now, expira)
+        'INSERT OR REPLACE INTO analisis (clave, tipo, resultado, embed_json, timestamp, expira, datos) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        (clave_metadatos, "metadata", data, None, now, expira, data)
     )
 
 DATA_LOCK = asyncio.Lock()

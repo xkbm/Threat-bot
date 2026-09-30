@@ -3,6 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 from typing import Any
 import logging
+from ui import embed as emb
 
 log = logging.getLogger("configuracion")
 
@@ -105,10 +106,15 @@ class ConfiguracionCog(commands.Cog):
             f"{self.bot.EMOJI_WARNING} **Modo estricto:** {'Activado' if strict else 'Desactivado'}\n"
             f"{self.bot.EMOJI_LINK} **Canal de logs:** {log_channel.mention if log_channel else '*No configurado*'}"
         )
-        embed = discord.Embed(
-            title=f"{self.bot.EMOJI_SHIELD} Configuración del servidor",
-            description=descripcion,
-            color=discord.Color.blue()
+        embed = emb.aviso(
+            "Configuración del servidor",
+            descripcion,
+            campos=[
+                (f"{self.bot.EMOJI_SHIELD} Auto-scan", "Activado" if auto_scan else "Desactivado", True),
+                (f"{self.bot.EMOJI_GUARDIAN} Modo silencioso", "Activado" if silent else "Desactivado", True),
+                (f"{self.bot.EMOJI_WARNING} Modo estricto", "Activado" if strict else "Desactivado", True),
+                (f"{self.bot.EMOJI_LINK} Canal de logs", log_channel.mention if log_channel else "*No configurado*", False),
+            ],
         )
         log.debug(f"SETTINGS → guild={interaction.guild.id} admin={interaction.user.id}")
         await self._safe_followup(interaction, embed=embed, ephemeral=True)

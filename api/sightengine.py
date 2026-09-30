@@ -17,7 +17,7 @@ async def analizar_imagen_multimodelo(image_content_hash: str, image_bytes: byte
     clave = f"nsfw:{image_content_hash}"
     log.debug(f"SE check → hash={image_content_hash[:16]}... clave={clave}")
     tipo, embed_cache, mal = await get_from_cache_mem(clave)
-    if embed_cache is not None:
+    if tipo is not None:
         try:
             details = json.loads(tipo) if isinstance(tipo, str) else tipo
             log.debug(f"SE HIT (RAM) → {clave} is_nsfw={details['is_nsfw']}")
@@ -25,11 +25,11 @@ async def analizar_imagen_multimodelo(image_content_hash: str, image_bytes: byte
         except Exception:
             pass
     tipo_db, embed_db, mal_db = await obtener_analisis_db(clave)
-    if embed_db is not None:
+    if tipo_db is not None:
         try:
             details = json.loads(tipo_db)
             log.debug(f"SE HIT (SQLite) → {clave} is_nsfw={details['is_nsfw']}")
-            await set_cache_mem(clave, tipo_db, embed_db, mal_db)
+            await set_cache_mem(clave, tipo_db, mal=mal_db, datos=details)
             return details["is_nsfw"], details["max_confidence"], details["models"], True
         except Exception:
             pass
@@ -81,9 +81,8 @@ async def analizar_imagen_multimodelo(image_content_hash: str, image_bytes: byte
                 log.debug(f"SE API OK → is_nsfw={is_nsfw} max_confidence={max_confidence:.2f} models={models}")
                 cache_details = {"is_nsfw": is_nsfw, "max_confidence": max_confidence, "models": models}
                 cache_json = json.dumps(cache_details)
-                dummy_embed = discord.Embed(title="NSFW Cache")
-                await guardar_analisis_db(clave, "nsfw", cache_json, dummy_embed, 1 if is_nsfw else 0)
-                await set_cache_mem(clave, cache_json, dummy_embed, 1 if is_nsfw else 0)
+                await guardar_analisis_db(clave, "nsfw", cache_json, mal=1 if is_nsfw else 0, datos=cache_details)
+                await set_cache_mem(clave, cache_json, mal=1 if is_nsfw else 0, datos=cache_details)
                 await guardar_datos()
                 return is_nsfw, max_confidence, models, False
             else:

@@ -7,6 +7,7 @@ from discord import app_commands
 from core.config import DOMINIOS_PROTEGIDOS
 from core.guild_config import agregar_dominio, quitar_dominio
 from ui.views import WhitelistPaginatorView
+from ui import embed as emb
 
 log = logging.getLogger("whitelist")
 PATRON_DOMINIO: re.Pattern = re.compile(r'^([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$')
@@ -91,11 +92,7 @@ class WhitelistCog(commands.Cog):
         log.debug(f"WHITELIST LIST → guild={guild_id} total={len(whitelist)} admin={interaction.user.id}")
         if len(whitelist) <= 20:
             lista = "\n".join(f"• `{d}`" for d in whitelist)
-            embed = discord.Embed(
-                title=f"{self.bot.EMOJI_SHIELD} Whitelist de {interaction.guild.name}",
-                description=lista,
-                color=discord.Color.blue()
-            )
+            embed = emb.aviso(f"Whitelist de {interaction.guild.name}", lista)
             try:
                 await interaction.response.send_message(embed=embed, ephemeral=True)
             except discord.errors.NotFound:

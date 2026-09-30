@@ -19,4 +19,5 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "bot.py" = ["F401", "E402"]  # bot.py inyecta atributos en la instancia para los cogs
 "cogs/*.py" = ["F401"]        # los cogs consumen self.bot.* inyectado en bot.py
+"ui/embed.py" = ["A002"]     # `titulo`/`error` chocan con builtins/keywords a propósito
 "tests/*" = ["F401"]

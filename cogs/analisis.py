@@ -7,6 +7,7 @@ from typing import Optional
 import logging
 from core.utils import expandir_url, comprobar_antispam, formatear_espera
 from core.state import ANALYSIS_SEMAPHORE
+from ui import embed as emb
 
 log = logging.getLogger("analisis")
 
@@ -66,10 +67,9 @@ class AnalisisCog(commands.Cog):
         elif tipo.value == "file":
             if archivo.size > self.bot.MAX_FILE_SIZE:
                 log.debug(f"SCAN ARCHIVO → {archivo.filename} ({archivo.size} bytes) excede MAX_FILE_SIZE")
-                embed = discord.Embed(
-                    title=f"{self.bot.EMOJI_INCORRECTO} Archivo demasiado grande",
-                    description=f"{self.bot.EMOJI_FILE} `{archivo.filename}` excede 32 MB",
-                    color=discord.Color.red()
+                embed = emb.error_analisis(
+                    f"`{archivo.filename}` supera el tamaño máximo que se puede analizar.",
+                    detalle=f"Límite de {self.bot.MAX_FILE_SIZE // (1024 * 1024)} MB por archivo.",
                 )
                 await interaction.edit_original_response(content=None, embed=embed)
                 return
@@ -91,10 +91,9 @@ class AnalisisCog(commands.Cog):
                 log.debug(f"SCAN ARCHIVO DESCARGANDO → {archivo.filename} url={archivo.url}")
                 async with self.bot.session.get(archivo.url) as resp:
                     if resp.status != 200:
-                        embed = discord.Embed(
-                            title=f"{self.bot.EMOJI_INCORRECTO} Error",
-                            description="No se pudo descargar el archivo.",
-                            color=discord.Color.red()
+                        embed = emb.error_analisis(
+                            "No se pudo descargar el archivo.",
+                            detalle=f"`{archivo.filename}` · el servidor respondió con el código {resp.status}.",
                         )
                         if doble_ext:
                             embed.add_field(name=f"{self.bot.EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
@@ -113,10 +112,9 @@ class AnalisisCog(commands.Cog):
                             warning_mime = f"El archivo tiene extensión .png pero el tipo real es `{content_type}`."
             except Exception as e:
                 log.error(f"SCAN ARCHIVO ERROR DESCARGA → {archivo.filename}: {e}")
-                embed = discord.Embed(
-                    title=f"{self.bot.EMOJI_INCORRECTO} Error",
-                    description="Error al descargar el archivo.",
-                    color=discord.Color.red()
+                embed = emb.error_conexion(
+                    "No se pudo descargar el archivo.",
+                    detalle=f"`{archivo.filename}` · {type(e).__name__}",
                 )
                 if doble_ext:
                     embed.add_field(name=f"{self.bot.EMOJI_WARNING} Doble extensión", value=f"`{archivo.filename}` podría ser peligroso.", inline=False)
@@ -153,10 +151,9 @@ class AnalisisCog(commands.Cog):
                     )
             except Exception as e:
                 log.error(f"SCAN ARCHIVO ERROR ANÁLISIS → {archivo.filename}: {e}")
-                embed = discord.Embed(
-                    title=f"{self.bot.EMOJI_INCORRECTO} Error en análisis",
-                    description=str(e),
-                    color=discord.Color.red()
+                embed = emb.error_analisis(
+                    "No se pudo completar el análisis del archivo.",
+                    detalle=f"`{archivo.filename}` · {type(e).__name__}",
                 )
                 await interaction.edit_original_response(content=None, embed=embed)
                 return
@@ -242,10 +239,9 @@ class AnalisisCog(commands.Cog):
 
         except Exception as e:
             log.error(f"SCAN ERROR → tipo={tipo.value} valor={valor}: {e} t={time.time()-_t0:.1f}s")
-            embed_error = discord.Embed(
-                title=f"{self.bot.EMOJI_INCORRECTO} Error inesperado",
-                description="No se pudo completar el análisis.",
-                color=discord.Color.red()
+            embed_error = emb.error_analisis(
+                "No se pudo completar el análisis.",
+                detalle=f"{tipo.value} · {type(e).__name__}",
             )
             try:
                 await interaction.edit_original_response(content=None, embed=embed_error)

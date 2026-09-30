@@ -54,10 +54,19 @@ más frecuentes, que son las más cacheadas.
 |---|---|---|
 | D4 | `ui/embed.py` **solo** importa `discord` + `core.config` | Evita ciclos: `core/cache.py` → `ui/embed.py` → `core.config`. El texto de antivirus ya se calcula en el write site y se guarda en `datos` (`obtener_top_antivirus` está en `core/utils.py:130` y no se necesita en render). |
 | D5 | **Pie en todos** los embeds: `Threat · <contexto> · <YYYY-MM-DD HH:MM:SS UTC>` | Es el elemento que hace identificable al bot sin gastar altura. El `author` se descarta: añade una fila más a embeds que ya rozan los 600 px con 5 URLs + 5 archivos. |
-| D6 | **🛡️ fijo** como prefijo de título | La severidad la comunica el color y el texto, no un segundo emoji. Un icono variable hacía el conjunto irreconocible. |
+| D6 | **🛡️ fijo** como prefijo de título | La severidad la comunica el color y el texto, no un segundo emoji. Un icono variable hacía el conjunto irreconocible. **Corregido en la implementación:** los emojis son personalizados del bot (`SM_Shield`, `SM_Guardian`…), no unicode, así que solo renderizan donde Threat está presente. Eso hace la marca más fuerte de lo previsto y refuerza D6. |
 | D7 | **Vocabulario de campos cerrado**: `Elemento`, `Resultado`, `VirusTotal`, `Servidor`, `Usuario`, `Detalle`. Se elimina el truco `\u200b` | El link se integra en el campo `VirusTotal`, que solo se añade si hay `vt_link`. |
 | D8 | **Sin `datos` → sin cambio de comportamiento** para las entradas legacy | D2 sin reanalizar. La versión no se versiona: con render-on-read un cambio de diseño futuro no requiere migrar nada. |
 | D9 | Se **eliminan los 3 embeds centinela** | `guardar_analisis_db` ya acepta `embed=None` (columna nullable). La comprobación de existencia pasa de `embed is not None` a `datos is not None`. Verificado que `sightengine.py:20,28` es el único sitio que usa el embed como centinela. |
+
+### Desviaciones respecto al plan original (detectadas al implementar)
+
+| # | Plan original | Realidad | Motivo |
+|---|---|---|---|
+| **D10** | `set_cache_mem` recibe el tipo de análisis | Recibe el **veredicto** (`"malicioso"`/`"seguro"`), y `resultado()` necesita el **tipo de elemento** (`url`/`hash`/`ip`/`file`) para elegir título y color | El harness lo cazó: sin esto, cada cache hit de RAM renderizaba un embed genérico "Resultado del análisis". Se deduce del prefijo de la clave (`filehash:` → `file`) y se guarda en la tupla de RAM. El lado SQLite ya era correcto porque la columna `tipo` guarda el tipo de análisis |
+| **D11** | Sentence case sin más | `Hash`, `Archivo`, `Error`… llevan mayúscula inicial | En sentence case la primera palabra **siempre** se capitaliza; solo el resto va en minúscula salvo siglas (`URL`, `IP`, `NSFW`, `API`). Se añadió `ACRONIMOS` para que el test lo verifique palabra por palabra |
+| **D12** | El `ID` del usuario iba en el pie | Se mueve a un campo inline | Al reformatear el pie a formato de marca se perdía el `ID: <user>` que tenían los logs de amenaza, y quien modera lo necesita. Se conserva como campo compacto junto a `Usuario` y `Detalles` |
+| **D13** | El log de guild lleva `ID` sin icono junto a campos con icono | Igual, pero se documentó | El caso ya existía y no era un bug de estilo grave; se mantuvo para no inflar el diff |
 
 ---
 
@@ -227,24 +236,38 @@ devuelven `_sin_cuota()`, para no contar dos veces el mismo fallo).
 ## Validación
 
 **Automatizada**
-1. `python -m compileall .`
-2. `python -m pytest tests -q` — verde, con el test de títulos viejos como guardia.
-3. `ruff check .`
-4. **Harness de aserciones** con stubs de `discord`/`aiohttp` (el patrón que ya se usó para
-   F1–F10: 167 aserciones). Este sandbox no tiene `pip` ni las dependencias instaladas, así que
-   es la única forma de ejecutar la lógica aquí. Objetivo: ≥200 aserciones.
+1. `python -m compileall .` — limpio.
+2. `python -m pytest tests -q` — verde. No ejecutable en este sandbox (sin `pip`).
+3. `ruff check .` — gate añadido a CI.
+4. **Harness con stubs de `discord`/`aiohttp`/`dotenv`**, que es la única forma de ejecutar
+   la lógica aquí:
+   - `verify_embeds.py` (nuevo, sistema de embeds): **713 aserciones, 0 fallos.**
+   - `verify.py` (regresión F1–F10): **168 aserciones, 0 fallos.** Sus 2 aserciones de color
+     se actualizaron al nuevo modelo (ámbar de marca en vez de `Color.orange()`).
+
+**Cobertura del harness de embeds** (713 aserciones): pie de marca en las 12 familias ·
+prefijo de escudo · color por severidad en los 4 tipos de elemento y los 3 errores ·
+vocabulario de títulos y sentence case palabra por palabra · guardia que falla si reaparece
+cualquier título viejo, si alguien llama a `discord.Embed()` fuera de `ui/embed.py`, si
+vuelve un color literal de Discord o el truco `\u200b` · vocabulario y orden de campos ·
+el `ID` de moderación conservado y el valor de usuario en code block · pureza de
+`resultado()` (mismo `datos` → mismo `dict`) y round-trip `to_dict`/`from_dict` ·
+render-on-read de RAM y de SQLite, incluyendo el fallback legacy · mapeo de prefijos de
+clave (`filehash:` → `archivo`) · migración `ALTER TABLE` e idempotencia · que `embed`/`mal`/
+`datos` sean keyword-only.
 
 **Manual** (servidor de prueba)
 | # | Escenario | Esperado |
 |---|---|---|
-| E1 | `/scan` con URL maliciosa, segura, hash, IP y archivo | Las 5 con pie `Threat · …`, 🛡️ en el título, color ámbar/verde/rojo correcto, mismos nombres de campo |
+| E1 | `/scan` con URL maliciosa, segura, hash, IP y archivo | Las 5 con pie `Threat · …`, escudo en el título, ámbar/verde/rojo, mismos nombres de campo |
 | E2 | Repetir un `/scan` idéntico (cache hit) | Embed **idéntico** a la primera vez, prueba de que el render-on-read es determinista |
-| E3 | Mensaje con 3 URLs + 2 adjuntos | Un solo embed gris/ámbar, pie presente, sin desbordar 600 px |
-| E4 | Forzar cada uno de los 3 errores canónicos | Título y `Detalle` correctos, rojo, pie presente |
-| E5 | `/whitelist list`, `/settings`, `/help`, `/about`, `/uptime`, `/ping`, `/stats`, `/usercheck` | Todos grises, mismo pie, 🛡️ en el título |
-| E6 | Amenaza en servidor con canal de logs | Log rojo con pie, botones Ban/Kick/Ignorar operativos, `elemento_id` correcto |
+| E3 | Mensaje con 3 URLs + 2 adjuntos | Un solo embed, pie presente, sin desbordar 600 px |
+| E4 | Forzar cada uno de los 3 errores canónicos | Título y `Detalle` correctos, rojo, escudo, pie |
+| E5 | `/whitelist list`, `/settings`, `/help`, `/about`, `/uptime`, `/ping`, `/stats`, `/usercheck` | Todos grises, mismo pie, escudo en el título |
+| E6 | Amenaza en servidor con canal de logs | Log rojo con pie, `Valor` en code block, `ID` del usuario presente, botones Ban/Kick/Ignorar operativos |
 | E7 | Arrancar con un `analisis.db` viejo (sin columna `datos`) | Arranca sin error, los cache hits devuelven el embed legacy, los nuevos ya salen con el diseño nuevo |
-| E8 | Top.gg rating prompt | Rosa `#FF3366`, gris fuera de promo, pie presente |
+| E8 | Top.gg rating prompt | Rosa `#FF3366`, escudo, pie presente |
+| E9 | Whitelist > 20 dominios (paginador) | El indicador "Página X de Y · N dominios" sigue visible, ahora como campo |
 
 ---
 

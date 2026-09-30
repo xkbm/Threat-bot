@@ -25,6 +25,11 @@ jobs:
       - name: Revisar sintaxis (Bot y Cogs)
         run: python -m compileall .
 
+      - name: Lint
+        run: |
+          pip install ruff
+          ruff check .
+
       - name: Tests unitarios
         run: python -m pytest tests -q
 

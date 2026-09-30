@@ -9,6 +9,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from core.config import OWNER_ID
+from ui import embed as emb
 
 log = logging.getLogger("eval")
 
@@ -25,10 +26,9 @@ class EvalCog(commands.Cog):
             return
 
         if not codigo or not codigo.strip():
-            embed = discord.Embed(
-                title=f"{self.bot.EMOJI_INCORRECTO} Uso incorrecto",
-                description="Uso: `-eval <código>`\n\nEjemplo:\n```\n-eval print('Hola mundo')\n```",
-                color=discord.Color.red()
+            embed = emb.error(
+                "Uso incorrecto",
+                "Uso: `-eval <código>`\n\nEjemplo:\n```\n-eval print('Hola mundo')\n```",
             )
             await ctx.send(embed=embed)
             return
@@ -70,9 +70,10 @@ class EvalCog(commands.Cog):
         if len(output) > 1990:
             output = output[:1990] + "\n... (truncado)"
 
-        embed = discord.Embed(title=f"{self.bot.EMOJI_KEY} Resultado de eval", color=discord.Color.dark_blue())
+        embed = emb.aviso("Resultado de eval", "", con_pie=False, icono=self.bot.EMOJI_KEY)
         embed.add_field(name=f"{self.bot.EMOJI_FILE} Código", value=f"```py\n{codigo[:500]}\n```", inline=False)
         embed.add_field(name=f"{self.bot.EMOJI_STATS} Salida", value=f"```\n{output}\n```", inline=False)
+        emb.pie(embed, "eval · comando de texto")
         await ctx.send(embed=embed)
 
     @app_commands.command(name="eval", description="Ejecuta código Python (solo dueño)")
@@ -87,10 +88,9 @@ class EvalCog(commands.Cog):
             return
 
         if not codigo or not codigo.strip():
-            embed = discord.Embed(
-                title=f"{self.bot.EMOJI_INCORRECTO} Uso incorrecto",
-                description="Uso: `/eval codigo:<código>`\n\nEjemplo:\n```\n/eval codigo:print('Hola mundo')\n```",
-                color=discord.Color.red()
+            embed = emb.error(
+                "Uso incorrecto",
+                "Uso: `/eval codigo:<código>`\n\nEjemplo:\n```\n/eval codigo:print('Hola mundo')\n```",
             )
             await interaction.response.send_message(embed=embed, ephemeral=True)
             return
@@ -134,9 +134,10 @@ class EvalCog(commands.Cog):
         if len(output) > 1990:
             output = output[:1990] + "\n... (truncado)"
 
-        embed = discord.Embed(title=f"{self.bot.EMOJI_KEY} Resultado de eval", color=discord.Color.dark_blue())
+        embed = emb.aviso("Resultado de eval", "", con_pie=False, icono=self.bot.EMOJI_KEY)
         embed.add_field(name=f"{self.bot.EMOJI_FILE} Código", value=f"```py\n{codigo[:500]}\n```", inline=False)
         embed.add_field(name=f"{self.bot.EMOJI_STATS} Salida", value=f"```\n{output}\n```", inline=False)
+        emb.pie(embed, "eval · comando de slash")
         try:
             await interaction.followup.send(embed=embed)
         except discord.errors.NotFound:

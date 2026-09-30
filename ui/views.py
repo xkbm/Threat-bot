@@ -6,6 +6,7 @@ from core import state
 from core.config import EMOJI_BAN, EMOJI_KICK, EMOJI_CLEAN, EMOJI_FINGERPRINT, EMOJI_SHIELD, EMOJI_LINK
 from core.guild_config import obtener_config_guild
 from core.database import guardar_datos
+from ui import embed as emb
 
 class RazonModal(discord.ui.Modal, title="Razón de la acción"):
     razon = discord.ui.TextInput(
@@ -206,13 +207,16 @@ class WhitelistPaginatorView(discord.ui.View):
         end = start + self.per_page
         page_domains = self.domains[start:end]
         lista = "\n".join(f"• `{d}`" for d in page_domains)
-        embed = discord.Embed(
-            title=f"{self.shield_emoji} Whitelist de {self.guild_name}",
-            description=lista,
-            color=discord.Color.blue()
+        return emb.aviso(
+            f"Whitelist de {self.guild_name}",
+            lista,
+            campos=[
+                (f"{self.shield_emoji} Paginación",
+                 f"Página **{self.current_page + 1}** de **{self.total_pages}** · "
+                 f"{len(self.domains)} dominios en total", False),
+            ],
+            icono=self.shield_emoji,
         )
-        embed.set_footer(text=f"Página {self.current_page + 1}/{self.total_pages} • {len(self.domains)} dominios totales")
-        return embed
 
     def _update_buttons(self) -> None:
         self.prev_btn.disabled = self.current_page <= 0

@@ -29,6 +29,27 @@ CACHE_DURATION: int = 3600
 DATA_FILE: str = os.path.join(BASE_DIR, "data.json")
 DB_FILE: str = os.path.join(BASE_DIR, "analisis.db")
 
+# ===== Sistema visual =====
+# Replican los tokens de landing/src/styles/global.css para que la marca sea la misma
+# en la web y en Discord. La barra lateral del embed es lo primero que se lee, así que
+# el color se reserva para la severidad y los embeds informativos van todos en gris.
+COLOR_NEUTRAL: int = 0x36393F   # --color-surface-600: base de la UI oscura del sitio
+COLOR_SEGURO: int = 0x4ADE80    # --color-secure
+COLOR_MALICIOSO: int = 0xF59E0B  # --color-malicious: el objeto analizado es malo
+COLOR_ERROR: int = 0xDC2626     # --color-threat: requiere acción / algo falló
+COLOR_NSFW: int = 0xDC2626      # --color-nsfw
+COLOR_TOPGG: int = 0xFF3366     # --color-topgg: promoción puntual, nunca severidad
+
+# Modelo de color:
+#   ámbar  -> "esto es malo" (resultado de un análisis)
+#   rojo   -> "esto está pasando en tu servidor, actúa" (log de amenaza) o error
+SEVERIDAD_COLOR: dict[str, int] = {
+    "seguro": COLOR_SEGURO,
+    "malicioso": COLOR_MALICIOSO,
+    "error": COLOR_ERROR,
+    "nsfw": COLOR_NSFW,
+}
+
 EXPIRACION: dict[str, int] = {
     "url": 7 * 24 * 3600,
     "hash": 30 * 24 * 3600,

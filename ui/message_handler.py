@@ -19,6 +19,7 @@ from api.virustotal import analizar_url, analizar_archivo, enviar_log_guild
 from api.sightengine import analizar_imagen_multimodelo
 from core.guild_config import obtener_config_guild, registrar_infraccion, update_stats
 from core.state import ANALYSIS_SEMAPHORE
+from ui import embed as emb
 
 log = logging.getLogger("handler")
 
@@ -126,22 +127,20 @@ async def _construir_embed_unificado(
                  + sum(1 for _, t, _, _, _ in arch_results if t == "error"))
     seguros = total - mal_count - nsfw_count - err_count
 
-    # Determinar título y color
+    # Determinar título y color. El color sigue el mismo modelo que el resto de
+    # embeds: ámbar/rojo si hay una amenaza, rojo si falló algo, verde si todo limpio.
     if is_threat:
-        if has_malicious_url or has_malicious_file:
-            color = discord.Color.orange()
-            titulo = f"{EMOJI_WARNING} Amenazas detectadas"
-        else:
-            color = discord.Color.orange()
-            titulo = f"{EMOJI_NSFW} Contenido NSFW detectado"
+        color = emb.COLOR_NSFW if has_nsfw_url or has_nsfw_img else emb.COLOR_MALICIOSO
+        titulo_texto = "Contenido NSFW detectado" if not (has_malicious_url or has_malicious_file) else "Amenazas detectadas"
     elif has_errors:
-        color = discord.Color.red()
-        titulo = f"{EMOJI_ERROR} Análisis completado con errores"
+        color = emb.COLOR_ERROR
+        titulo_texto = "Análisis completado con errores"
     else:
-        color = discord.Color.green()
-        titulo = f"{EMOJI_CORRECTO} Todos los elementos son seguros"
+        color = emb.COLOR_SEGURO
+        titulo_texto = "Todos los elementos son seguros"
 
-    # Descripción
+    # Descripción: los contadores van siempre, en el mismo orden, para que dos
+    # mensajes con resultados distintos se lean igual.
     desc = f"**{total}** elemento(s) analizado(s) en el mensaje de {message.author.mention}:\n"
     desc += f"{EMOJI_CORRECTO} Seguros: **{seguros}**\n"
     if mal_count:
@@ -151,9 +150,9 @@ async def _construir_embed_unificado(
     if err_count:
         desc += f"{EMOJI_ERROR} Errores: **{err_count}**\n"
     if omitidos:
-        desc += f"{EMOJI_COOLDOWN} **{omitidos}** archivo(s) omitido(s) (límite 5 por mensaje)"
+        desc += f"{EMOJI_COOLDOWN} **{omitidos}** archivo(s) omitido(s) (límite {MAX_ADJUNTOS_POR_MENSAJE} por mensaje)"
 
-    embed = discord.Embed(title=titulo, description=desc, color=color)
+    embed = emb.aviso(titulo_texto, desc, color=color, icono=emb.EMOJI_SHIELD, con_pie=False)
 
     # --- Campo: URLs ---
     if url_results:
@@ -222,7 +221,7 @@ async def _construir_embed_unificado(
             valor_mal += f"• `{url}` {EMOJI_LINK}[Ver informe]({vt_link})\n"
         embed.add_field(name=f"{EMOJI_WARNING} Enlaces maliciosos", value=valor_mal[:1024], inline=False)
 
-    return embed
+    return emb.pie(embed, f"Análisis de mensaje · {total} elemento(s)")
 
 
 async def _procesar_imagen(
@@ -444,7 +443,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                         clave_meta_url = f"nsfw_url:{url_hash_key}"
                         tipo_meta, embed_meta, _ = await get_from_cache_mem(clave_meta_url)
                         cached_hash = None
-                        if embed_meta is not None:
+                        if tipo_meta is not None:
                             try:
                                 cached_hash = json.loads(tipo_meta).get("hash")
                             except Exception:
@@ -493,8 +492,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                                     is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(content_hash, img_data)
                                     if not models.get("error"):
                                         await update_stats(guild_id, "nsfw" if is_nsfw else "seguro")
-                                    dummy = discord.Embed(title="NSFW URL Meta")
-                                    await set_cache_mem(clave_meta_url, json.dumps({"hash": content_hash}), dummy, 0)
+                                    await set_cache_mem(clave_meta_url, json.dumps({"hash": content_hash}), datos={"hash": content_hash})
                                     await guardar_metadatos_hash(clave_meta_url, content_hash)
 
                                     if models.get("error") == "too_large":

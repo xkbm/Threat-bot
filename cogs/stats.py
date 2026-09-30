@@ -9,6 +9,7 @@ from core.config import (
     SE_MAX_OPS_PER_DAY, SE_OPS_PER_CALL,
 )
 from core.utils import maybe_send_review_prompt
+from ui import embed as emb
 
 log = logging.getLogger("stats")
 
@@ -65,9 +66,11 @@ class EstadisticasCog(commands.Cog):
             total = stats["total_analisis"]
             porcentaje_maliciosos = (stats["maliciosos"] / total * 100) if total > 0 else 0
 
-            embed = discord.Embed(
-                title=f"{self.bot.EMOJI_STATS} Estadísticas Globales de Seguridad",
-                color=discord.Color.gold()
+            embed = emb.aviso(
+                "Estadísticas globales de seguridad",
+                f"**{total}** análisis realizados en total.",
+                icono=self.bot.EMOJI_STATS,
+                con_pie=False,
             )
             embed.add_field(name=f"{self.bot.EMOJI_LUPA} Total análisis", value=f"**{total}**", inline=True)
             embed.add_field(name=f"{self.bot.EMOJI_CORRECTO} Seguros", value=f"**{stats['seguros']}**", inline=True)
@@ -101,6 +104,7 @@ class EstadisticasCog(commands.Cog):
                 inline=False
             )
 
+            emb.pie(embed, f"Estadísticas · {total} análisis")
             await interaction.followup.send(embed=embed)
             await maybe_send_review_prompt(self.bot, interaction.channel)
         except Exception as e:

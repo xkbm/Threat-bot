@@ -108,11 +108,13 @@ from core.config import (
     EMOJI_LOADING, EMOJI_LOADING_ERROR, EMOJI_FILE, EMOJI_SHIELD, EMOJI_FINGERPRINT, EMOJI_GUARDIAN,
     EMOJI_STATS, EMOJI_WHITELIST, EMOJI_COOLDOWN, EMOJI_REPLY, EMOJI_KEY,
     EMOJI_KICK, EMOJI_BAN, EMOJI_CLEAN, EMOJI_GITHUB, EMOJI_NSFW,
+    COLOR_SEGURO, COLOR_ERROR,
     MAX_FILE_SIZE, CACHE_DURATION, DATA_FILE, DB_FILE,
     ANTISPAM_ANALYSIS_PER_HOUR, ANTISPAM_COOLDOWN, ANTISPAM_WINDOW,
     VT_MAX_ANALYSES_PER_MINUTE, VT_MAX_ANALYSES_PER_DAY,
     SE_MAX_OPS_PER_DAY, SE_OPS_PER_CALL,
 )
+from ui import embed as emb
 bot.EMOJI_CORRECTO = EMOJI_CORRECTO
 bot.EMOJI_INCORRECTO = EMOJI_INCORRECTO
 bot.EMOJI_ERROR = EMOJI_ERROR
@@ -233,22 +235,19 @@ async def on_message_edit(before, after):
     task = asyncio.create_task(_analisis_edit_con_sem())
     task.add_done_callback(lambda t: log.error(f"Task error: {t.exception()}", exc_info=t.exception()) if t.exception() else None)
 
-async def _enviar_guild_log(guild: discord.Guild, accion: str, color: discord.Color):
+async def _enviar_guild_log(guild: discord.Guild, accion: str, color: int):
     canal = bot.get_channel(758876871173079060)
     if not canal:
         return
-    embed = discord.Embed(
-        title=f"{EMOJI_SHIELD} {accion}",
-        color=color
-    )
+    embed = emb.aviso(accion, con_pie=False, color=color)
     embed.add_field(name=f"{EMOJI_LINK} Servidor", value=guild.name, inline=True)
     embed.add_field(name="ID", value=f"`{guild.id}`", inline=True)
     embed.add_field(name="Miembros", value=f"**{guild.member_count}**", inline=True)
     embed.add_field(name="Owner", value=str(guild.owner), inline=True)
     embed.add_field(name="Total servidores", value=f"**{len(bot.guilds)}**", inline=True)
-    embed.set_footer(text=time.strftime('%Y-%m-%d %H:%M:%S'))
     if guild.icon:
         embed.set_thumbnail(url=guild.icon.url)
+    emb.pie(embed, f"Servidor · {accion}")
     try:
         await canal.send(embed=embed)
     except Exception as e:
@@ -256,7 +255,7 @@ async def _enviar_guild_log(guild: discord.Guild, accion: str, color: discord.Co
 
 @bot.event
 async def on_guild_join(guild):
-    await _enviar_guild_log(guild, "Añadido a un servidor", discord.Color.green())
+    await _enviar_guild_log(guild, "Añadido a un servidor", COLOR_SEGURO)
 
 @bot.event
 async def on_guild_remove(guild):
@@ -267,7 +266,7 @@ async def on_guild_remove(guild):
         log.info(f"Guild {guild_id} ({guild.name}) eliminada — datos limpiados")
     from core.guild_config import remove_guild_lock
     await remove_guild_lock(guild_id)
-    await _enviar_guild_log(guild, "Eliminado de un servidor", discord.Color.red())
+    await _enviar_guild_log(guild, "Eliminado de un servidor", COLOR_ERROR)
 
 async def shutdown():
     for task in bot._background_tasks:

@@ -12,13 +12,12 @@ from core.config import (
     VT_API_KEYS, SE_API_KEYS_PAIRS, MAX_FILE_SIZE,
     VT_MAX_ANALYSES_PER_MINUTE, VT_MAX_ANALYSES_PER_DAY,
     SE_MAX_REQUESTS_PER_MINUTE, SE_MAX_OPS_PER_DAY, SE_OPS_PER_CALL,
-    EMOJI_WARNING, EMOJI_CORRECTO, EMOJI_INCORRECTO, EMOJI_LINK, EMOJI_FILE,
-    EMOJI_FINGERPRINT, EMOJI_GUARDIAN, EMOJI_SHIELD, EMOJI_NSFW,
 )
 from core.cache import get_from_cache_mem, set_cache_mem
 from core.database import guardar_analisis_db, guardar_metadatos_hash
 from core.utils import obtener_top_antivirus, es_hash_valido
 from ui.views import LogActionView
+from ui import embed as emb
 from core.guild_config import obtener_config_guild, update_stats, registrar_infraccion
 
 log = logging.getLogger("virustotal")
@@ -147,23 +146,9 @@ async def enviar_log_guild(guild_id: int, tipo: str, valor: str, detalles: str, 
     if channel is None:
         return None
     if es_nsfw:
-        embed = discord.Embed(
-            title=f"{EMOJI_NSFW} Contenido NSFW Detectado",
-            description=f"**{tipo}** contenido NSFW detectado",
-            color=discord.Color.orange()
-        )
+        embed = emb.nsfw(tipo, valor, detalles)
     else:
-        embed = discord.Embed(
-            title=f"{EMOJI_WARNING} Amenaza Detectada",
-            description=f"**{tipo.upper()}** analizado resultó **malicioso**",
-            color=discord.Color.red()
-        )
-    embed.add_field(name=f"{EMOJI_FINGERPRINT} Valor", value=f"`{valor}`", inline=False)
-    embed.add_field(name=f"{EMOJI_GUARDIAN} Usuario", value=usuario.mention, inline=True)
-    embed.add_field(name=f"{EMOJI_SHIELD} Detalles", value=detalles, inline=True)
-    if url_vt:
-        embed.add_field(name=f"{EMOJI_LINK} VirusTotal", value=f"[Ver informe]({url_vt})", inline=False)
-    embed.set_footer(text=f"ID: {usuario.id} • {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        embed = emb.amenaza(tipo, valor, detalles, usuario, vt_link=url_vt)
     view = LogActionView(guild_id, usuario.id, elemento_id=elemento_id)
     try:
         msg = await channel.send(embed=embed, view=view)
@@ -176,11 +161,14 @@ async def enviar_log_guild(guild_id: int, tipo: str, valor: str, detalles: str, 
     return None
 
 async def _sin_cuota() -> tuple[str, discord.Embed, int]:
-    return "error", discord.Embed(
-        title="Sin cuota de API",
-        description="Se alcanzó el límite de peticiones de VirusTotal. Intenta de nuevo en unos minutos.",
-        color=discord.Color.red(),
-    ), 0
+    return "error", emb.error_cuota(), 0
+
+
+def _error_tamanio(filename: str) -> discord.Embed:
+    return emb.error_analisis(
+        f"`{filename}` supera el tamaño máximo que se puede analizar.",
+        detalle=f"Límite de {MAX_FILE_SIZE // (1024 * 1024)} MB por archivo.",
+    )
 
 
 async def analizar_url(url: str, guild_id: Optional[int] = None, mensaje_original: Optional[discord.Message] = None, guardar_cache: bool = True) -> tuple[str, discord.Embed, int]:
@@ -264,19 +252,26 @@ async def analizar_url(url: str, guild_id: Optional[int] = None, mensaje_origina
                                 return await _procesar_resultado_vt(normalized, "url", url, guild_id, mensaje_original, guardar_cache)
                 log.debug(f"VT URL TIMEOUT → {url} t={time.time()-_t0:.1f}s")
                 await _finalizar_error(guild_id, "url", url)
-                return "error", discord.Embed(title="Error en análisis", description=f"El análisis no pudo completarse tras varios intentos. Intenta de nuevo.", color=discord.Color.red()), 0
+                return "error", emb.error_analisis(
+                    "El análisis no pudo completarse tras varios intentos.",
+                    detalle="VirusTotal sigue procesando el envío. Inténtalo de nuevo en unos minutos.",
+                ), 0
             else:
                 log.debug(f"VT URL ERROR → status={resp.status} url={url} t={time.time()-_t0:.1f}s")
                 await _finalizar_error(guild_id, "url", url)
-                return "error", discord.Embed(title="Error al analizar URL", description=f"VirusTotal respondió con código {resp.status}.", color=discord.Color.red()), 0
+                return "error", emb.error_analisis(
+                    "VirusTotal rechazó el análisis de la URL.",
+                    detalle=f"Código de respuesta {resp.status}.",
+                ), 0
     except asyncio.TimeoutError:
         log.error(f"VT URL TIMEOUT HTTP → {url} t={time.time()-_t0:.1f}s")
         await _finalizar_error(guild_id, "url", url)
-        return "error", discord.Embed(title="Error de conexión", description=f"La conexión con VirusTotal expiró ({VT_TIMEOUT.total or 180:.0f}s).", color=discord.Color.red()), 0
+        return "error", emb.error_conexion(
+            f"La solicitud a VirusTotal expiró tras {VT_TIMEOUT.total or 180:.0f}s."), 0
     except Exception as e:
         log.error(f"VT URL EXCEPTION → {url}: {e} t={time.time()-_t0:.1f}s")
         await _finalizar_error(guild_id, "url", url)
-        return "error", discord.Embed(title="Error de conexión", description=f"No se pudo contactar con VirusTotal: {type(e).__name__}", color=discord.Color.red()), 0
+        return "error", emb.error_conexion("No se pudo contactar con VirusTotal.", detalle=type(e).__name__), 0
 
 
 async def analizar_hash(hash_valor: str, guild_id: Optional[int] = None, mensaje_original: Optional[discord.Message] = None, guardar_cache: bool = True) -> tuple[str, discord.Embed, int]:
@@ -285,7 +280,10 @@ async def analizar_hash(hash_valor: str, guild_id: Optional[int] = None, mensaje
     if not es_hash_valido(hash_valor):
         log.debug(f"VT HASH INVALIDO → {hash_valor} t={time.time()-_t0:.1f}s")
         await update_stats(guild_id, "error")
-        return "error", discord.Embed(title=f"{EMOJI_INCORRECTO} Hash inválido", description=f"`{hash_valor}` no es un hash MD5, SHA-1 o SHA-256 válido.", color=discord.Color.red()), 0
+        return "error", emb.error_analisis(
+            f"`{hash_valor}` no es un hash MD5, SHA-1 o SHA-256 válido.",
+            detalle="Formato de hash no reconocido por VirusTotal.",
+        ), 0
     key = await adquirir_vt()
     if not key:
         return await _sin_cuota()
@@ -303,40 +301,36 @@ async def analizar_hash(hash_valor: str, guild_id: Optional[int] = None, mensaje
                     await _on_threat_found("hash", hash_valor, mal, guild_id, mensaje_original, vt_link, results, guardar_cache)
                     top = obtener_top_antivirus(results)
                     top_text = ", ".join(top) if top else "Varios antivirus"
-                    embed = discord.Embed(title=f"{EMOJI_WARNING} Hash Malicioso Detectado", description=f"**{mal}** antivirus lo identificaron", color=discord.Color.orange())
-                    embed.add_field(name="Hash", value=f"`{hash_valor}`", inline=False)
-                    embed.add_field(name="Detectado por", value=f"`{top_text}`", inline=False)
-                    embed.add_field(name="\u200b", value=f"{EMOJI_LINK} [Ver informe completo]({vt_link})", inline=False)
-                    if guardar_cache:
-                        await guardar_analisis_db(f"hash:{hash_valor}", "hash", "malicioso", embed, mal)
-                        await set_cache_mem(f"hash:{hash_valor}", "malicioso", embed, mal)
+                else:
+                    top_text = None
+                datos = {"valor": hash_valor, "vt_link": vt_link, "top_text": top_text}
+                embed = emb.resultado("hash", datos, mal)
+                if guardar_cache:
+                    clave = f"hash:{hash_valor}"
+                    veredicto = "malicioso" if mal > 0 else "seguro"
+                    await guardar_analisis_db(clave, "hash", veredicto, mal=mal, datos=datos)
+                    await set_cache_mem(clave, veredicto, mal=mal, datos=datos)
+                if mal > 0:
                     log.debug(f"VT HASH MALICIOSO → {hash_valor} mal={mal} t={time.time()-_t0:.1f}s")
                     return "malicioso", embed, mal
-                else:
-                    embed = discord.Embed(title=f"{EMOJI_CORRECTO} Hash Seguro", description="No se encontraron amenazas", color=discord.Color.green())
-                    embed.add_field(name="Hash", value=f"`{hash_valor}`", inline=False)
-                    embed.add_field(name="\u200b", value=f"{EMOJI_LINK} [Ver informe completo]({vt_link})", inline=False)
-                    if guardar_cache:
-                        await guardar_analisis_db(f"hash:{hash_valor}", "hash", "seguro", embed, 0)
-                        await set_cache_mem(f"hash:{hash_valor}", "seguro", embed, 0)
-                    await update_stats(guild_id, "seguro")
-                    log.debug(f"VT HASH SEGURO → {hash_valor} t={time.time()-_t0:.1f}s")
-                    return "seguro", embed, 0
+                await update_stats(guild_id, "seguro")
+                log.debug(f"VT HASH SEGURO → {hash_valor} t={time.time()-_t0:.1f}s")
+                return "seguro", embed, 0
             else:
                 await update_stats(guild_id, "error")
-                embed = discord.Embed(title="Hash no encontrado", description="No existe en VirusTotal", color=discord.Color.red())
                 log.debug(f"VT HASH NO ENCONTRADO → {hash_valor} status={resp.status} t={time.time()-_t0:.1f}s")
-                return "error", embed, 0
+                return "error", emb.error_analisis(
+                    "VirusTotal no conoce este hash.",
+                    detalle="Ningún análisis previo registrado para ese archivo.",
+                ), 0
     except asyncio.TimeoutError:
         log.error(f"VT HASH TIMEOUT → {hash_valor} t={time.time()-_t0:.1f}s")
         await update_stats(guild_id, "error")
-        embed = discord.Embed(title="Error", description="La solicitud a VirusTotal expiró.", color=discord.Color.red())
-        return "error", embed, 0
+        return "error", emb.error_conexion("La solicitud a VirusTotal expiró."), 0
     except Exception as e:
         log.error(f"VT HASH EXCEPTION → {hash_valor}: {e} t={time.time()-_t0:.1f}s")
         await update_stats(guild_id, "error")
-        embed = discord.Embed(title="Error", description="No se pudo consultar el hash", color=discord.Color.red())
-        return "error", embed, 0
+        return "error", emb.error_conexion("No se pudo consultar el hash.", detalle=type(e).__name__), 0
 
 async def analizar_ip(ip: str, guild_id: Optional[int] = None, mensaje_original: Optional[discord.Message] = None, guardar_cache: bool = True) -> tuple[str, discord.Embed, int]:
     _t0 = time.time()
@@ -355,39 +349,34 @@ async def analizar_ip(ip: str, guild_id: Optional[int] = None, mensaje_original:
                 vt_link = f"https://www.virustotal.com/gui/ip-address/{ip}"
                 if mal > 0:
                     await _on_threat_found("ip", ip, mal, guild_id, mensaje_original, vt_link)
-                    embed = discord.Embed(title=f"{EMOJI_WARNING} IP Maliciosa Detectada", description=f"**{mal}** fuentes reportan actividad sospechosa", color=discord.Color.orange())
-                    embed.add_field(name="IP", value=f"`{ip}`", inline=False)
-                    embed.add_field(name="\u200b", value=f"{EMOJI_LINK} [Ver informe completo]({vt_link})", inline=False)
-                    if guardar_cache:
-                        await guardar_analisis_db(f"ip:{ip}", "ip", "malicioso", embed, mal)
-                        await set_cache_mem(f"ip:{ip}", "malicioso", embed, mal)
+                datos = {"valor": ip, "vt_link": vt_link, "top_text": None}
+                embed = emb.resultado("ip", datos, mal)
+                if guardar_cache:
+                    clave = f"ip:{ip}"
+                    veredicto = "malicioso" if mal > 0 else "seguro"
+                    await guardar_analisis_db(clave, "ip", veredicto, mal=mal, datos=datos)
+                    await set_cache_mem(clave, veredicto, mal=mal, datos=datos)
+                if mal > 0:
                     log.debug(f"VT IP MALICIOSA → {ip} mal={mal} t={time.time()-_t0:.1f}s")
                     return "malicioso", embed, mal
-                else:
-                    embed = discord.Embed(title=f"{EMOJI_CORRECTO} IP Segura", description="No se encontraron reportes", color=discord.Color.green())
-                    embed.add_field(name="IP", value=f"`{ip}`", inline=False)
-                    embed.add_field(name="\u200b", value=f"{EMOJI_LINK} [Ver informe completo]({vt_link})", inline=False)
-                    if guardar_cache:
-                        await guardar_analisis_db(f"ip:{ip}", "ip", "seguro", embed, 0)
-                        await set_cache_mem(f"ip:{ip}", "seguro", embed, 0)
-                    await update_stats(guild_id, "seguro")
-                    log.debug(f"VT IP SEGURA → {ip} t={time.time()-_t0:.1f}s")
-                    return "seguro", embed, 0
+                await update_stats(guild_id, "seguro")
+                log.debug(f"VT IP SEGURA → {ip} t={time.time()-_t0:.1f}s")
+                return "seguro", embed, 0
             else:
                 await update_stats(guild_id, "error")
                 log.debug(f"VT IP NO ENCONTRADA → {ip} status={resp.status} t={time.time()-_t0:.1f}s")
-                embed = discord.Embed(title="IP no encontrada", description="No se pudo analizar la IP", color=discord.Color.red())
-                return "error", embed, 0
+                return "error", emb.error_analisis(
+                    f"VirusTotal no tiene datos de reputación para `{ip}`.",
+                    detalle="La dirección no figura en la base de datos de VirusTotal.",
+                ), 0
     except asyncio.TimeoutError:
         log.error(f"VT IP TIMEOUT → {ip} t={time.time()-_t0:.1f}s")
         await update_stats(guild_id, "error")
-        embed = discord.Embed(title="Error", description="La solicitud a VirusTotal expiró.", color=discord.Color.red())
-        return "error", embed, 0
+        return "error", emb.error_conexion("La solicitud a VirusTotal expiró."), 0
     except Exception as e:
         log.error(f"VT IP EXCEPTION → {ip}: {e} t={time.time()-_t0:.1f}s")
         await update_stats(guild_id, "error")
-        embed = discord.Embed(title="Error", description="No se pudo contactar con VirusTotal", color=discord.Color.red())
-        return "error", embed, 0
+        return "error", emb.error_conexion("No se pudo contactar con VirusTotal.", detalle=type(e).__name__), 0
 
 async def analizar_archivo(archivo: discord.Attachment, file_bytes: Optional[bytes] = None, file_hash: Optional[str] = None, guild_id: Optional[int] = None, mensaje_original: Optional[discord.Message] = None, guardar_cache: bool = True) -> tuple[str, discord.Embed, int]:
     _t0 = time.time()
@@ -400,24 +389,27 @@ async def analizar_archivo(archivo: discord.Attachment, file_bytes: Optional[byt
                 log.debug(f"VT FILE DESCARGANDO → status={resp.status} t={time.time()-_t:.1f}s")
                 if resp.status != 200:
                     await update_stats(guild_id, "error")
-                    return "error", discord.Embed(title="Error al descargar archivo", description=f"El servidor respondió con código {resp.status}", color=discord.Color.red()), 0
+                    return "error", emb.error_analisis(
+                        f"No se pudo descargar `{archivo.filename}`.",
+                        detalle=f"El servidor respondió con el código {resp.status}.",
+                    ), 0
                 file_bytes = await resp.read()
                 if len(file_bytes) > MAX_FILE_SIZE:
                     log.debug(f"VT FILE DEMASIADO GRANDE → {archivo.filename} bytes={len(file_bytes)} t={time.time()-_t0:.1f}s")
                     await update_stats(guild_id, "error")
-                    return "error", discord.Embed(title="Archivo demasiado grande", description=f"{EMOJI_FILE} `{archivo.filename}` excede 32 MB", color=discord.Color.red()), 0
+                    return "error", _error_tamanio(archivo.filename), 0
                 file_hash = hashlib.sha256(file_bytes).hexdigest()
                 log.debug(f"VT FILE DESCARGADO → hash={file_hash} bytes={len(file_bytes)} t={time.time()-_t0:.1f}s")
         except Exception as e:
             log.error(f"VT FILE DESCARGAR ERROR → {archivo.filename}: {e} t={time.time()-_t0:.1f}s")
             await update_stats(guild_id, "error")
-            return "error", discord.Embed(title="Error", description="Error al descargar el archivo", color=discord.Color.red()), 0
+            return "error", emb.error_conexion(
+                f"No se pudo descargar `{archivo.filename}`.", detalle=type(e).__name__), 0
 
     if archivo.size > MAX_FILE_SIZE:
         log.debug(f"VT FILE DEMASIADO GRANDE → {archivo.filename} size={archivo.size} t={time.time()-_t0:.1f}s")
         await update_stats(guild_id, "error")
-        embed = discord.Embed(title="Archivo demasiado grande", description=f"{EMOJI_FILE} `{archivo.filename}` excede 32 MB", color=discord.Color.red())
-        return "error", embed, 0
+        return "error", _error_tamanio(archivo.filename), 0
 
     try:
         _t = time.time()
@@ -492,19 +484,26 @@ async def analizar_archivo(archivo: discord.Attachment, file_bytes: Optional[byt
                                 return await _procesar_analisis_archivo(analysis, archivo, file_hash, guild_id, mensaje_original, guardar_cache)
                 log.error(f"VT FILE TIMEOUT → {archivo.filename} t={time.time()-_t0:.1f}s")
                 await update_stats(guild_id, "error")
-                return "error", discord.Embed(title="Error en análisis", description="El análisis tardó más de lo esperado. Intenta de nuevo.", color=discord.Color.red()), 0
+                return "error", emb.error_analisis(
+                    f"El análisis de `{archivo.filename}` tardó más de lo esperado.",
+                    detalle="VirusTotal sigue procesando el archivo. Inténtalo de nuevo en unos minutos.",
+                ), 0
             else:
                 log.error(f"VT FILE SUBIR ERROR → status={resp.status} t={time.time()-_t0:.1f}s")
                 await update_stats(guild_id, "error")
-                return "error", discord.Embed(title="Error al subir archivo", description="VirusTotal rechazó el archivo", color=discord.Color.red()), 0
+                return "error", emb.error_analisis(
+                    f"VirusTotal rechazó `{archivo.filename}`.",
+                    detalle=f"Código de respuesta {resp.status}.",
+                ), 0
     except asyncio.TimeoutError:
         log.error(f"VT FILE TIMEOUT HTTP → {archivo.filename} t={time.time()-_t0:.1f}s")
         await update_stats(guild_id, "error")
-        return "error", discord.Embed(title="Error", description="La solicitud a VirusTotal expiró.", color=discord.Color.red()), 0
+        return "error", emb.error_conexion("La solicitud a VirusTotal expiró."), 0
     except Exception as e:
         log.error(f"VT FILE EXCEPTION → {archivo.filename}: {e} t={time.time()-_t0:.1f}s")
         await update_stats(guild_id, "error")
-        return "error", discord.Embed(title="Error", description="No se pudo analizar el archivo", color=discord.Color.red()), 0
+        return "error", emb.error_conexion(
+            f"No se pudo analizar `{archivo.filename}`.", detalle=type(e).__name__), 0
 
 async def _procesar_resultado_vt(analysis: dict, tipo: str, valor: str, guild_id: Optional[int], mensaje_original: Optional[discord.Message], guardar_cache: bool) -> tuple[str, discord.Embed, int]:
     stats = analysis["data"]["attributes"]["stats"]
@@ -516,21 +515,21 @@ async def _procesar_resultado_vt(analysis: dict, tipo: str, valor: str, guild_id
 
     if mal > 0:
         await _on_threat_found(tipo, valor, mal, guild_id, mensaje_original, vt_link)
-        embed = discord.Embed(title=f"{EMOJI_WARNING} URL Maliciosa Detectada", description=f"Se encontraron **{mal}** detecciones", color=discord.Color.orange())
-        embed.add_field(name="URL", value=f"`{valor}`", inline=False)
-        embed.add_field(name="\u200b", value=f"{EMOJI_LINK} [Ver informe completo]({vt_link})", inline=False)
-        tipo_str = "malicioso"
-    else:
-        embed = discord.Embed(title=f"{EMOJI_CORRECTO} URL Segura", description="No se detectaron amenazas", color=discord.Color.green())
-        embed.add_field(name="URL", value=f"`{valor}`", inline=False)
-        embed.add_field(name="\u200b", value=f"{EMOJI_LINK} [Ver informe completo]({vt_link})", inline=False)
-        tipo_str = "seguro"
-        if guild_id:
-            await update_stats(guild_id, "seguro")
+    top_text = None
+    results = analysis["data"]["attributes"].get("results") or {}
+    if mal > 0 and results:
+        top = obtener_top_antivirus(results)
+        top_text = ", ".join(top) if top else "Varios antivirus"
+
+    datos = {"valor": valor, "vt_link": vt_link, "top_text": top_text}
+    embed = emb.resultado(tipo, datos, mal)
+    tipo_str = "malicioso" if mal > 0 else "seguro"
 
     if guardar_cache:
-        await guardar_analisis_db(clave, tipo, tipo_str, embed, mal)
-        await set_cache_mem(clave, tipo_str, embed, mal)
+        await guardar_analisis_db(clave, tipo, tipo_str, mal=mal, datos=datos)
+        await set_cache_mem(clave, tipo_str, mal=mal, datos=datos)
+    if tipo_str == "seguro" and guild_id:
+        await update_stats(guild_id, "seguro")
     return tipo_str, embed, mal
 
 async def _procesar_analisis_archivo(analysis: dict, archivo: discord.Attachment, file_hash: str, guild_id: Optional[int], mensaje_original: Optional[discord.Message], guardar_cache: bool) -> tuple[str, discord.Embed, int]:
@@ -541,18 +540,16 @@ async def _procesar_analisis_archivo(analysis: dict, archivo: discord.Attachment
 
     if mal > 0:
         await _on_threat_found("Archivo", archivo.filename, mal, guild_id, mensaje_original, None, elemento_id=f"filehash:{file_hash}")
-        embed = discord.Embed(title=f"{EMOJI_WARNING} Archivo Malicioso Detectado", description=f"**{mal}** antivirus detectaron {EMOJI_FILE} `{archivo.filename}`", color=discord.Color.orange())
-        if guardar_cache:
-            await guardar_analisis_db(clave, "file", "malicioso", embed, mal)
-            await set_cache_mem(clave, "malicioso", embed, mal)
-        return "malicioso", embed, mal
-    else:
-        embed = discord.Embed(title=f"{EMOJI_CORRECTO} Archivo Seguro", description=f"{EMOJI_FILE} `{archivo.filename}` parece limpio (0 detecciones)", color=discord.Color.green())
-        if guardar_cache:
-            await guardar_analisis_db(clave, "file", "seguro", embed, 0)
-            await set_cache_mem(clave, "seguro", embed, 0)
+
+    datos = {"valor": archivo.filename, "vt_link": None, "top_text": None}
+    embed = emb.resultado("file", datos, mal)
+    tipo_str = "malicioso" if mal > 0 else "seguro"
+    if guardar_cache:
+        await guardar_analisis_db(clave, "file", tipo_str, mal=mal, datos=datos)
+        await set_cache_mem(clave, tipo_str, mal=mal, datos=datos)
+    if tipo_str == "seguro":
         await update_stats(guild_id, "seguro")
-        return "seguro", embed, 0
+    return tipo_str, embed, mal
 
 async def _post_threat_side_effects(guild_id: int, tipo_str: str, valor: str, mal: int, mensaje_original: discord.Message, vt_link: Optional[str], eid: str) -> None:
     try:

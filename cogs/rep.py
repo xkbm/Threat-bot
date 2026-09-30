@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import logging
+from ui import embed as emb
 
 log = logging.getLogger("rep")
 
@@ -20,18 +21,22 @@ class ReputacionCog(commands.Cog):
         count = infracciones.get(str(usuario.id), 0)
 
         if count > 0:
-            color = discord.Color.orange()
+            color = emb.COLOR_MALICIOSO
             estado = f"{self.bot.EMOJI_WARNING} Tiene **{count}** infracciones registradas."
         else:
-            color = discord.Color.green()
+            color = emb.COLOR_SEGURO
             estado = f"{self.bot.EMOJI_CORRECTO} No tiene infracciones registradas."
 
-        embed = discord.Embed(
-            title=f"{self.bot.EMOJI_GUARDIAN} Reputación de seguridad",
-            description=f"**Usuario:** {usuario.mention}\n**ID:** `{usuario.id}`\n\n{estado}",
-            color=color
+        embed = emb.aviso(
+            "Reputación de seguridad",
+            f"**Usuario:** {usuario.mention}\n**ID:** `{usuario.id}`\n\n{estado}",
+            campos=[
+                (f"{self.bot.EMOJI_LINK} Servidor", interaction.guild.name, False),
+                (f"{self.bot.EMOJI_KEY} Comando", "Usa `/help` para ver los demás comandos", False),
+            ],
+            color=color,
+            icono=self.bot.EMOJI_GUARDIAN,
         )
-        embed.set_footer(text=f"Servidor: {interaction.guild.name}  •  Usa /help para ver otros comandos")
 
         log.debug(f"USERCHECK → guild={guild_id} usuario_consultado={usuario.id} infracciones={count} admin={interaction.user.id}")
         try:

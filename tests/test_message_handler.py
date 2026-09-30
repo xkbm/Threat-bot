@@ -5,6 +5,7 @@ import types
 import discord
 import pytest
 
+from ui import embed as emb
 from ui.message_handler import (
     ImgUrlResult,
     UrlResult,
@@ -137,25 +138,25 @@ class TestEmbedUnificado:
     async def test_todo_seguro(self):
         e = await construir(urls=[UrlResult("http://a.com", "seguro", 0, None, "url:http://a.com", False)])
         assert "Todos los elementos son seguros" in e.title
-        assert e.color == discord.Color.green()
+        assert e.color == discord.Color(emb.COLOR_SEGURO)
         assert "Seguros: **1**" in e.description
 
     @pytest.mark.asyncio
     async def test_url_maliciosa(self):
         e = await construir(urls=[UrlResult("http://a.com", "malicioso", 4, "http://vt", "url:http://a.com", False)])
         assert "Amenazas detectadas" in e.title
-        assert e.color == discord.Color.orange()
+        assert e.color == discord.Color(emb.COLOR_MALICIOSO)
         assert "Maliciosos: **1**" in e.description
 
     @pytest.mark.asyncio
     async def test_solo_nsfw_usa_titulo_nsfw(self):
         e = await construir(imgs=[("foto.png", "nsfw", {"nudity": 0.9}, "h1")])
-        assert "NSFW" in e.title
+        assert "Contenido NSFW detectado" in e.title
 
     @pytest.mark.asyncio
     async def test_nsfw_por_url_tambien_usa_titulo_nsfw(self):
         e = await construir(imgs_url=[ImgUrlResult("http://i.png", "nsfw", "Desnudez 80%", "nsfw:h")])
-        assert "NSFW" in e.title
+        assert "Contenido NSFW detectado" in e.title
         assert any("Imágenes (URL)" in f.name for f in e.fields)
 
     @pytest.mark.asyncio
@@ -163,7 +164,7 @@ class TestEmbedUnificado:
         e = await construir(urls=[UrlResult("http://a.com", "error", 0, None, "url:http://a.com", False)])
         assert "errores" in e.title.lower()
         assert "Errores: **1**" in e.description
-        assert e.color == discord.Color.red()
+        assert e.color == discord.Color(emb.COLOR_ERROR)
 
     @pytest.mark.asyncio
     async def test_omitidos_reportados(self):
@@ -174,6 +175,16 @@ class TestEmbedUnificado:
     async def test_lista_vacia_devuelve_embed_vacio(self):
         e = await construir()
         assert e.title is not None
+
+    @pytest.mark.asyncio
+    async def test_tiene_pie_de_marca(self):
+        e = await construir(urls=[UrlResult("http://a.com", "seguro", 0, None, "u", False)])
+        assert e.footer.text.startswith(emb.MARCA), e.footer.text
+
+    @pytest.mark.asyncio
+    async def test_tiene_escudo(self):
+        e = await construir(urls=[UrlResult("http://a.com", "seguro", 0, None, "u", False)])
+        assert e.title.startswith(emb.EMOJI_SHIELD)
 
     @pytest.mark.asyncio
     async def test_campos_de_urls(self):
