@@ -105,6 +105,23 @@ def titulo(texto: str) -> str:
     return f"{EMOJI_SHIELD} {texto}"
 
 
+ETIQUETA_INFORME = "Informe"
+
+
+def enlace_informe(url: Optional[str], con_emoji: bool = True) -> str:
+    """Enlace al informe de VirusTotal, siempre con la misma etiqueta.
+
+    Antes el mismo enlace se etiquetaba de cuatro formas distintas ("Ver informe
+    completo", "Ver informe", "VT" y el nombre del campo "VirusTotal"), lo que
+    obligaba a leerlo cuatro veces para saber que era lo mismo. Ahora hay una sola,
+    y quien lo lea tiene una referencia constante.
+    """
+    if not url:
+        return ""
+    icono = f"{EMOJI_LINK} " if con_emoji else ""
+    return f"{icono}[{ETIQUETA_INFORME}]({url})"
+
+
 def _nuevo(texto_titulo: str, color: int, descripcion: str = "") -> discord.Embed:
     return discord.Embed(title=titulo(texto_titulo), description=descripcion or None, color=discord.Color(color))
 
@@ -150,7 +167,8 @@ def resultado(tipo: str, datos: dict, mal: int) -> discord.Embed:
         embed.add_field(name=f"{EMOJI_GUARDIAN} Detectado por", value=f"`{datos['top_text']}`", inline=False)
 
     if datos.get("vt_link"):
-        embed.add_field(name=f"{EMOJI_LINK} VirusTotal", value=f"[Ver informe completo]({datos['vt_link']})", inline=False)
+        # El nombre del campo ya dice de dónde viene; el valor solo lleva la acción.
+        embed.add_field(name=f"{EMOJI_LINK} VirusTotal", value=enlace_informe(datos["vt_link"], con_emoji=False), inline=False)
 
     return pie(embed, f"{etiqueta} · {veredicto}")
 
@@ -236,7 +254,7 @@ def amenaza(tipo: str, valor: str, detalles: str, usuario: discord.abc.User,
     # lo necesita para copiar y pegar en herramientas de moderación.
     embed.add_field(name="ID", value=f"`{usuario.id}`", inline=True)
     if vt_link:
-        embed.add_field(name=f"{EMOJI_LINK} VirusTotal", value=f"[Ver informe]({vt_link})", inline=False)
+        embed.add_field(name=f"{EMOJI_LINK} VirusTotal", value=enlace_informe(vt_link, con_emoji=False), inline=False)
     return pie(embed, f"Amenaza · {tipo}")
 
 
@@ -252,9 +270,9 @@ def resultado_barra(porcentaje: float, total: int, limite: int) -> str:
 
 
 __all__ = [
-    "MARCA", "TITULOS", "TITULOS_PROHIBIDOS", "ACRONIMOS",
+    "MARCA", "TITULOS", "TITULOS_PROHIBIDOS", "ACRONIMOS", "ETIQUETA_INFORME",
     "pie", "titulo", "resultado", "error", "error_analisis", "error_conexion",
-    "error_cuota", "aviso", "nsfw", "amenaza", "topgg", "resultado_barra",
+    "error_cuota", "aviso", "nsfw", "amenaza", "topgg", "resultado_barra", "enlace_informe",
     "COLOR_NEUTRAL", "COLOR_SEGURO", "COLOR_MALICIOSO", "COLOR_ERROR", "COLOR_NSFW",
     "COLOR_TOPGG", "SEVERIDAD_COLOR",
 ]

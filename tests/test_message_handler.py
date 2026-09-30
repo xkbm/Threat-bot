@@ -189,12 +189,43 @@ class TestEmbedUnificado:
     @pytest.mark.asyncio
     async def test_campos_de_urls(self):
         e = await construir(urls=[
-            UrlResult("http://a.com", "seguro", 0, None, "url:http://a.com", False),
-            UrlResult("http://b.com", "malicioso", 2, "http://vt", "url:http://b.com", False),
+            UrlResult("http://a.com", "seguro", 0, None, "u1", False),
+            UrlResult("http://b.com", "malicioso", 2, "http://vt", "u2", False),
         ])
         nombres = [f.name for f in e.fields]
         assert any("URLs" in n for n in nombres)
-        assert any("Enlaces maliciosos" in n for n in nombres)
+        # Las URLs maliciosas ya salen en el campo URLs con su icono y su informe;
+        # no debe existir un segundo campo que las repita.
+        assert not any("Enlaces maliciosos" in n for n in nombres)
+
+    @pytest.mark.asyncio
+    async def test_una_linea_por_url_sin_linea_vacia(self):
+        e = await construir(urls=[
+            UrlResult("http://a.com", "seguro", 0, None, "u1", False),
+            UrlResult("http://b.com", "malicioso", 2, "http://vt", "u2", False),
+            UrlResult("http://c.com", "error", 0, None, "u3", False),
+        ])
+        campo = next(f for f in e.fields if "URLs" in f.name)
+        lineas = campo.value.split("\n")
+        assert len(lineas) == 3, lineas
+        assert all(l.strip() for l in lineas), "ninguna línea puede estar vacía"
+        assert not campo.value.endswith("\n")
+
+    @pytest.mark.asyncio
+    async def test_informe_usa_la_etiqueta_unica(self):
+        e = await construir(urls=[
+            UrlResult("http://b.com", "malicioso", 2, "http://vt", "u2", False),
+        ])
+        campo = next(f for f in e.fields if "URLs" in f.name)
+        assert f"[{emb.ETIQUETA_INFORME}](http://vt)" in campo.value
+        assert "Ver informe" not in campo.value
+        assert "[VT]" not in campo.value
+
+    @pytest.mark.asyncio
+    async def test_url_sin_informe_no_lleva_enlace(self):
+        e = await construir(urls=[UrlResult("http://a.com", "seguro", 0, None, "u1", False)])
+        campo = next(f for f in e.fields if "URLs" in f.name)
+        assert "](" not in campo.value, campo.value
 
     @pytest.mark.asyncio
     async def test_conteo_consistente(self):

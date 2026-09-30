@@ -154,72 +154,84 @@ async def _construir_embed_unificado(
 
     embed = emb.aviso(titulo_texto, desc, color=color, icono=emb.EMOJI_SHIELD, con_pie=False)
 
+    # Una línea por elemento: estado al principio, enlace al informe al final y
+    # separado por un guion. Antes el enlace iba pegado a la URL con la etiqueta
+    # "VT" y además las URLs maliciosas se repetían en un segundo campo, así que
+    # el mismo enlace aparecía etiquetado de dos maneras distintas.
+    def _linea(icono: str, valor: str, extra: str = "") -> str:
+        linea = f"{icono} `{valor}`"
+        if extra:
+            linea += f" — {extra}"
+        return linea
+
+    def _icono_de_estado(tipo: str, nsfw: bool = False) -> str:
+        if tipo == "nsfw":
+            return EMOJI_NSFW
+        if tipo == "malicioso":
+            return EMOJI_WARNING
+        if tipo == "seguro":
+            return EMOJI_CORRECTO
+        return EMOJI_ERROR
+
     # --- Campo: URLs ---
     if url_results:
-        valor_urls = ""
-        for r in url_results:
-            icono = EMOJI_WARNING if r.tipo == "malicioso" else (EMOJI_CORRECTO if r.tipo == "seguro" else EMOJI_ERROR)
-            valor_urls += f"{icono} `{r.url}`"
-            if r.vt_link:
-                valor_urls += f" {EMOJI_LINK}[VT]({r.vt_link})"
-            valor_urls += "\n"
-        embed.add_field(name=f"{EMOJI_LINK} URLs", value=valor_urls[:1024], inline=False)
+        lineas = [
+            _linea(
+                _icono_de_estado(r.tipo),
+                r.url,
+                emb.enlace_informe(r.vt_link) if r.vt_link else "",
+            )
+            for r in url_results
+        ]
+        embed.add_field(name=f"{EMOJI_LINK} URLs", value="\n".join(lineas)[:1024], inline=False)
 
     # --- Campo: Imágenes (URLs) ---
     if img_url_results:
-        valor_img_urls = ""
-        for r in img_url_results:
-            icono = EMOJI_NSFW if r.tipo == "nsfw" else (EMOJI_CORRECTO if r.tipo == "seguro" else EMOJI_ERROR)
-            valor_img_urls += f"{icono} `{r.url}`"
-            if r.detalles:
-                valor_img_urls += f" ({r.detalles})"
-            valor_img_urls += "\n"
-        embed.add_field(name=f"{EMOJI_NSFW} Imágenes (URL)", value=valor_img_urls[:1024], inline=False)
+        lineas = [_linea(_icono_de_estado(r.tipo, nsfw=True), r.url, r.detalles) for r in img_url_results]
+        embed.add_field(name=f"{EMOJI_NSFW} Imágenes (URL)", value="\n".join(lineas)[:1024], inline=False)
 
     # --- Campo: Imágenes (adjuntas) ---
     if img_results:
-        valor_imgs = ""
+        lineas = []
         for filename, tipo, models, _ in img_results:
             if tipo == "nsfw":
-                detalles: list[str] = []
-                if models.get('nudity', 0.0) >= 0.5: detalles.append(f"Desnudez {models['nudity']*100:.0f}%")
-                if models.get('weapon', 0.0) >= 0.5: detalles.append(f"Armas {models['weapon']*100:.0f}%")
-                if models.get('offensive', 0.0) >= 0.7: detalles.append(f"Ofensivo {models['offensive']*100:.0f}%")
-                if models.get('alcohol', 0.0) >= 0.7: detalles.append(f"Alcohol {models['alcohol']*100:.0f}%")
-                detalle_str = ", ".join(detalles) if detalles else "Contenido inapropiado"
-                valor_imgs += f"{EMOJI_NSFW} `{filename}` (NSFW: {detalle_str})\n"
+                detectados = []
+                if models.get('nudity', 0.0) >= 0.5: detectados.append(f"Desnudez {models['nudity']*100:.0f}%")
+                if models.get('weapon', 0.0) >= 0.5: detectados.append(f"Armas {models['weapon']*100:.0f}%")
+                if models.get('offensive', 0.0) >= 0.7: detectados.append(f"Ofensivo {models['offensive']*100:.0f}%")
+                if models.get('alcohol', 0.0) >= 0.7: detectados.append(f"Alcohol {models['alcohol']*100:.0f}%")
+                extra = "NSFW: " + (", ".join(detectados) if detectados else "contenido inapropiado")
             elif tipo == "seguro":
-                valor_imgs += f"{EMOJI_CORRECTO} `{filename}` (imagen)\n"
+                extra = "imagen"
             else:
-                valor_imgs += f"{EMOJI_ERROR} `{filename}` (error)\n"
-        embed.add_field(name=f"{EMOJI_FILE} Imágenes (adjuntas)", value=valor_imgs[:1024], inline=False)
+                extra = "error"
+            lineas.append(_linea(_icono_de_estado(tipo, nsfw=True), filename, extra))
+        embed.add_field(name=f"{EMOJI_FILE} Imágenes (adjuntas)", value="\n".join(lineas)[:1024], inline=False)
 
     # --- Campo: Archivos ---
     if arch_results:
-        valor_archs = ""
+        lineas = []
         for filename, tipo, mal, _, wm in arch_results:
-            if tipo == "malicioso":
-                valor_archs += f"{EMOJI_WARNING} `{filename}` ({mal} detecciones)"
-            elif tipo == "seguro":
-                valor_archs += f"{EMOJI_CORRECTO} `{filename}`"
-            else:
-                valor_archs += f"{EMOJI_ERROR} `{filename}` (error)"
+            extra = f"{mal} detecciones" if tipo == "malicioso" else ("limpio" if tipo == "seguro" else "error")
+            linea = _linea(_icono_de_estado(tipo), filename, extra)
             if wm:
-                valor_archs += f"\n{EMOJI_REPLY} {wm}"
-            valor_archs += "\n"
-        embed.add_field(name=f"{EMOJI_FILE} Archivos", value=valor_archs[:1024], inline=False)
+                # Indentada y con el emoji de reply, para que se lea como aviso del
+                # archivo de arriba y no como un archivo más de la lista.
+                linea += f"\n   {EMOJI_REPLY} {wm}"
+            lineas.append(linea)
+        embed.add_field(name=f"{EMOJI_FILE} Archivos", value="\n".join(lineas)[:1024], inline=False)
 
-    # --- Campo: Redirección (single URL) ---
+    # --- Campo: Redirección ---
     if url_fue_expandida:
-        embed.add_field(name=f"{EMOJI_REPLY} Redirección", value=f"Original: `{url_original}`\nExpandida: `{url_expandida}`", inline=False)
+        embed.add_field(
+            name=f"{EMOJI_REPLY} Redirección",
+            value=f"`{url_original}`\n→ `{url_expandida}`",
+            inline=False,
+        )
 
-    # --- Campo: Enlaces maliciosos (VT links) ---
-    mal_urls = [(r.url, r.vt_link) for r in url_results if r.tipo == "malicioso" and r.vt_link]
-    if mal_urls:
-        valor_mal = ""
-        for url, vt_link in mal_urls:
-            valor_mal += f"• `{url}` {EMOJI_LINK}[Ver informe]({vt_link})\n"
-        embed.add_field(name=f"{EMOJI_WARNING} Enlaces maliciosos", value=valor_mal[:1024], inline=False)
+    # No hay campo aparte de "enlaces maliciosos": las URLs ya salen en el campo
+    # URLs con su icono de estado y su informe, y repetirlas aquí solo duplicaba
+    # la misma información con otra etiqueta.
 
     return emb.pie(embed, f"Análisis de mensaje · {total} elemento(s)")
 
