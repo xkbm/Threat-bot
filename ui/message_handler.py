@@ -380,35 +380,49 @@ async def _reputacion_de_imagen(
     if not await check_vt_user_limit(bot, guild_id, user_id):
         return "no_consultado", 0, None, None
 
-    veredicto, detecciones, vt_link, top = await reputacion_hash(content_hash)
-    if veredicto == "desconocido":
-        # VirusTotal no conoce este archivo. Es determinista: mientras nadie lo suba, un
-        # 404 seguirá siendo un 404. Sin cachearlo, cada reaparición de la misma imagen
-        # gastaba una request de la cuota gratuita para volver a aprender lo mismo.
-        # Se guarda "no_consultado" y no "desconocido": lo que se relee de caché tiene que
-        # ser EXACTAMENTE lo que devuelve el camino fresco, o los dos caminos discreparían
-        # en lo que le dicen a `_procesar_imagen`. Con "desconocido", el acierto de caché
-        # no ponía la marca de "sin comprobar en VirusTotal" y la imagen salía como
-        # comprobada cuando no se había comprobado.
-        await guardar_analisis_db(clave, TIPO_HASH_DESCONOCIDO, "no_consultado")
-        return "no_consultado", 0, None, None
-    if veredicto in ("sin_cuota", "error"):
-        # Estos NO se cachean: son transitorios. La cuota se resetea, la red vuelve, y
-        # cachearlos dejaría al bot sin comprobar imágenes de forma permanente por un
-        # fallo pasajero.
-        return "no_consultado", 0, None, None
+    # Cerrojo por hash: una sola consulta a VirusTotal por hash, aunque varias copias
+    # del mismo archivo lleguen a la vez.
+    #
+    # La deduplicación de adjuntos de arriba cubre "subieron cinco veces el mismo
+    # archivo", pero no "el mismo archivo con dos nombres distintos en el mismo mensaje",
+    # ni dos mensajes simultáneos. Aquí el problema es distinto y más sutil: como las
+    # llamadas concurrentes comprueban la caché antes de que ninguna haya escrito, todas
+    # ven MISS y todas pagan. Una caché no protege contra una avalancha sobre ella; para
+    # eso está `vuelo`, que es lo mismo que ya protege a las URLs.
+    async def _consultar() -> tuple[str, int, Optional[str], Optional[str]]:
+        v, d, link, top = await reputacion_hash(content_hash)
 
-    # El enlace al informe y los antivirus se guardan en `datos`, no solo en `mal`. Al
-    # releer de caché solo se recupera `(tipo, embed, mal)`, así que sin esto el acierto
-    # perdía justo lo que el moderador necesita para comprobar la detección.
-    await guardar_analisis_db(
-        clave, veredicto, veredicto, mal=detecciones,
-        datos={"tipo": veredicto, "mal": detecciones, "vt_link": vt_link, "top": top},
-    )
-    await set_cache_mem(clave, veredicto, mal=detecciones)
-    if veredicto == "malicioso":
-        await registrar_infraccion(guild_id, user_id, f"filehash:{content_hash}")
-    return veredicto, detecciones, vt_link, top
+        if v == "desconocido":
+            # VirusTotal no conoce este archivo. Es determinista: mientras nadie lo suba,
+            # un 404 seguirá siendo un 404. Sin cachearlo, cada reaparición gastaba una
+            # request de la cuota gratuita para volver a aprender lo mismo.
+            #
+            # Se guarda "no_consultado" y no "desconocido": lo que se relee de caché tiene
+            # que ser EXACTAMENTE lo que devuelve el camino fresco, o los dos caminos
+            # discreparían en lo que le dicen a `_procesar_imagen`. Con "desconocido", el
+            # acierto de caché no ponía la marca de "sin comprobar en VirusTotal".
+            await guardar_analisis_db(clave, TIPO_HASH_DESCONOCIDO, "no_consultado")
+            return "no_consultado", 0, None, None
+
+        if v in ("sin_cuota", "error"):
+            # Estos NO se cachean: son transitorios. La cuota se resetea, la red vuelve, y
+            # cachearlos dejaría al bot sin comprobar imágenes de forma permanente por un
+            # fallo pasajero.
+            return "no_consultado", 0, None, None
+
+        # El enlace al informe y los antivirus se guardan en `datos`, no solo en `mal`. Al
+        # releer de caché solo se recupera `(tipo, embed, mal)`, así que sin esto el
+        # acierto perdía justo lo que el moderador necesita para comprobar la detección.
+        await guardar_analisis_db(
+            clave, v, v, mal=d,
+            datos={"tipo": v, "mal": d, "vt_link": link, "top": top},
+        )
+        await set_cache_mem(clave, v, mal=d)
+        if v == "malicioso":
+            await registrar_infraccion(guild_id, user_id, f"filehash:{content_hash}")
+        return v, d, link, top
+
+    return await vuelo(f"imgmal:{content_hash}", _consultar)
 
 
 async def _procesar_imagen(
@@ -636,6 +650,40 @@ async def _analizar_adjuntos(
     """
     adjuntos = message.attachments[:MAX_ADJUNTOS_POR_MENSAJE]
     omitidos = max(0, len(message.attachments) - MAX_ADJUNTOS_POR_MENSAJE)
+
+    # Dedupica adjuntos idénticos antes de analizar.
+    #
+    # Del log de producción: al subir cinco veces el mismo `image.png` en un mensaje se
+    #Logged:
+    #
+    #     SQLITE MISS → imgmal:077d18ed...   x5
+    #     VT HASH NUEVO → 077d18ed...         x5
+    #
+    # Las cinco copias son la misma imagen, pero se analizaban las cinco. El peor detalle:
+    # como las cinco comprueban la caché a la vez y ninguna ha terminado de escribir cuando
+    # las demás preguntan, las cinco dan MISS y las cinco pagan una request a
+    # VirusTotal. La caché no ayuda contra eso: no es un fallo de caché, es una avalancha
+    # sobre ella.
+    #
+    # Se agrupa por nombre y tamaño. Dos archivos distintos con el MISMO nombre y el
+    # MISMO tamaño byte a byte no existen en la práctica, así que el riesgo de agrupar de más
+    # más es nulo; el de no agrupar es real y lo acabamos de ver.
+    unicos: list[discord.Attachment] = []
+    vistos: set[tuple[str, int]] = set()
+    repetidos = 0
+    for a in adjuntos:
+        marca = (a.filename.lower(), a.size)
+        if marca in vistos:
+            repetidos += 1
+            continue
+        vistos.add(marca)
+        unicos.append(a)
+    if repetidos:
+        log.info(
+            f"Mensaje {message.id}: {repetidos} adjunto(s) duplicado(s) no se analizan "
+            f"otra vez ({len(adjuntos)} -> {len(unicos)})"
+        )
+    adjuntos = unicos
 
     # Detecta por bytes. Va en paralelo porque son peticiones de red y cada una puede
     # tardar; si una falla, `None` hace que ese adjunto use la pista por extensión.
