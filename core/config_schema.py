@@ -202,6 +202,9 @@ ESQUEMA: tuple[Clave, ...] = (
     # --- General ---
     _b("auto_scan_enabled", GENERAL, "Auto-scan", True,
        "Analiza los enlaces y adjuntos de cada mensaje."),
+    _b("avisar_amenazas", GENERAL, "Avisar de amenazas", True,
+       "Poner en el canal de logs cuando algo se detecta. Antes solo se desactivaba "
+       "dejando el canal vacío, y eso se confundía con no haberlo configurado todavía."),
     Clave("log_channel_id", "int", GENERAL, "Canal de logs", None, ayuda="Donde van las amenazas."),
     # --- Aviso ---
     _b("silent_mode", AVISO, "Modo silencioso", True,

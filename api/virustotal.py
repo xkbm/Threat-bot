@@ -185,6 +185,12 @@ async def enviar_log_guild(guild_id: int, tipo: str, valor: str, detalles: str, 
     log_channel_id = config["log_channel_id"]
     if log_channel_id is None:
         return None
+    # Interruptor explícito. Antes la única forma de callar este log era dejar el canal
+    # vacío, y en el panel eso se lee igual que "todavía no lo he configurado", que son
+    # dos intenciones opuestas. Ahora se puede tener el canal puesto y no querer avisos, o
+    # no quererlos ahora y activarlos luego sin volver a buscar el canal.
+    if not config.get("avisar_amenazas", True):
+        return None
     channel = state.bot.get_channel(log_channel_id)
     if channel is None:
         return None
