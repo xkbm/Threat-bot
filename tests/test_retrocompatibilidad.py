@@ -1,166 +1,161 @@
-"""Retrocompatibilidad: actualizar el bot no puede cambiar lo que ve un servidor.
+"""Retrocompatibilidad: actualizar el bot no puede dejar un servidor a medias.
 
-El riesgo concreto que fija este archivo: `silent_mode` se está reemplazando por tres
-interruptores, y si la derivación de los defaults no usa el valor **de ese** guild, una
-configuración existente cambia de comportamiento al actualizar, en silencio.
+Aquí hubo antes un bloque entero con la garantía de que los interruptores antiguos
+derivaban su valor por defecto del `silent_mode` guardado, para que un servidor que
+actualizase no viera cambiar lo que recibe. Ese diseño se sustituyó por una lista de
+categorías con un dial cada una, y los interruptores antiguos ya no existen.
 
-`silent_mode` valía False = "manda el embed siempre, también lo limpio". Al derivar
-`avisar_limpios` del True por defecto en lugar del False guardado, ese servidor pasaba a
-`avisar_limpios=False` y dejaba de recibir los embeds de mensajes limpios de golpe.
+La garantía que queda, y que es la que importa: **una configuración antigua, sin la
+clave nueva, tiene que seguir produciendo un bot que funciona y que avisa de lo grave.**
+No se intenta adivinar qué interruptores dejó puestos quien configuró el bot antes de que
+existiera el dial por categoría: no hay forma honesta de hacerlo, y una suposición
+equivocada silencia justo lo que ese admin quería vigilar.
 """
+
+import types
 
 import pytest
 
-from core import guild_config as gc
-from core.aviso import config_aviso_por_defecto, debe_enviar_embed
+from core import config_schema as esq
+from core.aviso import (
+    categorias_aviso,
+    config_aviso_por_defecto,
+    debe_enviar_embed,
+    reacciones_activas,
+)
 from core.senales import Elemento, Senales
 from core.veredictos import Veredicto
 
 
 @pytest.fixture
 def guild_vacia(monkeypatch):
-    """Una guild tal y como saldría de `data.json`, sin claves nuevas."""
-    import types
+    import core.state as state
+    from core import guild_config as gc
 
     bot = types.SimpleNamespace(guilds_data={})
-    import core.state as state
     monkeypatch.setattr(state, "bot", bot)
     return bot
 
 
-class TestDerivacionDesdeElValorGuardado:
-    def test_silent_false_derivavisar_limpios_true(self, guild_vacia):
-        """El caso que se rompe: un servidor que quiere ver también lo limpio."""
-        guild_vacia.guilds_data[1] = {"silent_mode": False, "strict_mode": True}
+async def _config_de(guild_id):
+    """`obtener_config_guild` es async; los tests de abajo son async por eso.
 
-        config = gc._asegurar_guild(1)
+    Antes esto creaba un event loop nuevo por llamada, y como los locks de
+    `core.guild_config` se asocian al loop en su primer uso, al ejecutarse el fichero
+    entero los tests fallaban porштрас el fallo venía de la mezcla de loops.
+    """
+    from core.guild_config import obtener_config_guild
 
-        assert config["silent_mode"] is False
-        assert config["avisar_limpios"] is True, (
-            "un guild con silent_mode=False debe seguir viendo los mensajes limpios"
-        )
+    return await obtener_config_guild(guild_id)
 
-    def test_silent_true_deriva_avisar_limpios_false(self, guild_vacia):
-        guild_vacia.guilds_data[1] = {"silent_mode": True}
 
-        config = gc._asegurar_guild(1)
+def _con_veredicto(v) -> Senales:
+    s = Senales()
+    s.anadir(Elemento(nombre="x", tipo="url", veredicto=v))
+    return s
 
+
+def _con_error(motivo_se) -> Senales:
+    s = Senales()
+    s.anadir(Elemento(nombre="x", tipo="file", veredicto=Veredicto.ERROR,
+                      modelos={"error": motivo_se}))
+    return s
+
+
+class TestConfiguracionAntigua:
+    @pytest.mark.asyncio
+    async def test_sin_la_clave_nueva_avisa_de_lo_grave(self, guild_vacia):
+        """Un `data.json` viejo no tiene `notificar`; el bot debe seguir avisando."""
+        guild_vacia.guilds_data[1] = {"silent_mode": True, "strict_mode": True}
+        config = await _config_de(1)
+        for grave in (Veredicto.MALICIOSO, Veredicto.NSFW, Veredicto.PHISHING):
+            assert debe_enviar_embed(_con_veredicto(grave), config) is True, grave
+
+    @pytest.mark.asyncio
+    async def test_las_claves_antiguas_se_ignoran_en_vez_de_dar_error(self, guild_vacia):
+        """Un servidor puede tener `avisar_limpios` y compañía: sobran, no rompen."""
+        guild_vacia.guilds_data[1] = {
+            "silent_mode": True, "strict_mode": True,
+            "avisar_limpios": False, "avisar_sospechosos": True,
+            "avisar_errores": True, "motivos_fallo": ["sin_cuota"],
+        }
+        config = await _config_de(1)
         assert config["silent_mode"] is True
-        assert config["avisar_limpios"] is False
+        assert debe_enviar_embed(_con_veredicto(Veredicto.MALICIOSO), config) is True
 
-    def test_guild_nueva_sin_silent_guardado(self, guild_vacia):
-        """Sin nada guardado, manda el default: silencioso."""
-        config = gc._asegurar_guild(99)
-        assert config["silent_mode"] is True
-        assert config["avisar_limpios"] is False
-
-    def test_el_resto_de_claves_se_crea_igual(self, guild_vacia):
+    @pytest.mark.asyncio
+    async def test_el_resto_de_claves_se_crea_igual(self, guild_vacia):
         guild_vacia.guilds_data[1] = {"silent_mode": False}
-        config = gc._asegurar_guild(1)
-        for clave in ("avisar_sospechosos", "avisar_errores", "reacciones"):
-            assert clave in config
-            assert config[clave] is True
+        config = await _config_de(1)
+        assert config["notificar"] == list(esq.CATEGORIAS_POR_DEFECTO)
+        assert reacciones_activas(config) is True
 
-    def test_las_claves_existentes_no_se_pisan(self, guild_vacia):
-        """Si el usuario ya lo toco desde el panel, su valor manda."""
+    @pytest.mark.asyncio
+    async def test_whitelist_y_strict_no_se_tocan(self, guild_vacia):
         guild_vacia.guilds_data[1] = {
-            "silent_mode": False,
-            "avisar_limpios": False,   # lo apagó a propósito
+            "silent_mode": True, "strict_mode": False,
+            "whitelist": ["discord.com"], "log_channel_id": 42,
         }
-        config = gc._asegurar_guild(1)
-        assert config["avisar_limpios"] is False
-
-
-class TestComportamientoEquivalenteAntesYDespues:
-    """La garantía que de verdad importa: la misma config da el mismo resultado."""
-
-    def _senales_limpias(self):
-        s = Senales()
-        s.anadir(Elemento(nombre="a", tipo="url", veredicto=Veredicto.SEGURO))
-        return s
-
-    @pytest.mark.parametrize("silent_mode", [True, False])
-    def test_guardar_y_mandar_coincide_con_el_comportamiento_antiguo(self, guild_vacia, silent_mode):
-        """Regla antigua: `has_threat or ... or not silent_mode`.
-
-        Es decir: con el modo silencioso solo mandaba si había algo que mirar; sin él,
-        siempre.
-        """
-        # Lo que había antes de los interruptores.
-        config_antigua = {"silent_mode": silent_mode, "strict_mode": True}
-        señales = {"amenaza": False, "sospechoso": False, "error": False, "omitidos": 0}
-        antes = (señales["amenaza"] or señales["sospechoso"] or señales["error"]
-                 or señales["omitidos"] or not silent_mode)
-
-        # Lo de ahora, partiendo de una config guardada sin claves nuevas.
-        guild_vacia.guilds_data[1] = dict(config_antigua)
-        config = gc._asegurar_guild(1)
-        ahora = debe_enviar_embed(self._senales_limpias(), config)
-
-        assert ahora is antes, f"silent_mode={silent_mode}: cambió el comportamiento"
-
-    @pytest.mark.parametrize("silent_mode", [True, False])
-    def test_con_amenaza_siempre_manda(self, guild_vacia, silent_mode):
-        """Con el master off, antes mandaba siempre. Ahora también."""
-        guild_vacia.guilds_data[1] = {"silent_mode": silent_mode}
-        config = gc._asegurar_guild(1)
-
-        s = Senales()
-        s.anadir(Elemento(nombre="a", tipo="url", veredicto=Veredicto.MALICIOSO))
-        assert debe_enviar_embed(s, config) is True
-
-    @pytest.mark.parametrize("silent_mode", [True, False])
-    def test_con_error_respeta_el_comportamiento_antiguo(self, guild_vacia, silent_mode):
-        """Un error antes mandaba siempre. Con el master activo, ahora depende del
-        interruptor, pero su default reproduce ese comportamiento."""
-        guild_vacia.guilds_data[1] = {"silent_mode": silent_mode}
-        config = gc._asegurar_guild(1)
-
-        s = Senales()
-        s.anadir(Elemento(nombre="a", tipo="file", veredicto=Veredicto.ERROR))
-        assert config["avisar_errores"] is True
-        assert debe_enviar_embed(s, config) is True
-
-    def test_omitidos_ya_no_avisa_por_defecto(self, guild_vacia):
-        """Aquí SÍ se cambia el comportamiento, a propósito.
-
-        "Demasiados adjuntos o enlaces" es ruido informativo en cualquier servidor con
-        tráfico normal: pasa cada día y no requiere ninguna acción. Antes compartía el
-        interruptor con "se acabó la cuota", que sí requiere acción. Separarlos por
-        motivo permite callar el ruido sin callar el aviso que de verdad importa.
-        """
-        guild_vacia.guilds_data[1] = {"silent_mode": True}
-        config = gc._asegurar_guild(1)
-
-        s = Senales()
-        s.omitidos = 2
-        assert debe_enviar_embed(s, config) is False
-        # Y si el admin lo quiere, se activa sin tocar nada más.
-        assert debe_enviar_embed(s, {**config, "motivos_fallo": ["omitidos"]}) is True
-
-
-class TestNoSePierdeNadaDeLaConfigVieja:
-    def test_whitelist_y_strict_no_se_tocan(self, guild_vacia):
-        guild_vacia.guilds_data[1] = {
-            "silent_mode": False,
-            "strict_mode": False,
-            "whitelist": ["discord.com"],
-            "log_channel_id": 12345,
-        }
-        config = gc._asegurar_guild(1)
+        config = await _config_de(1)
         assert config["strict_mode"] is False
         assert config["whitelist"] == ["discord.com"]
-        assert config["log_channel_id"] == 12345
-
-    def test_infracciones_viejas_intactas(self, guild_vacia):
-        guild_vacia.guilds_data[1] = {"infracciones": {"42": 3}}
-        assert gc._asegurar_guild(1)["infracciones"] == {"42": 3}
+        assert config["log_channel_id"] == 42
 
 
-class TestDefaultDeFabrica:
-    def test_config_por_defecto_es_coherente_consigo_misma(self):
-        """Lo que se usa al crear una guild desde cero."""
-        cfg = gc._config_por_defecto()
-        esperado = config_aviso_por_defecto(cfg["silent_mode"])
-        for clave, valor in esperado.items():
-            assert cfg[clave] == valor, clave
+class TestLoQueSigueImportando:
+    @pytest.mark.asyncio
+    async def test_el_default_no_depende_del_silent_mode_guardado(self, guild_vacia):
+        """Con el interruptor general apagado el bot no avisa de nada, solo importa qué
+        haya en la lista. Ese estado es el que un admin elige a propósito."""
+        guild_vacia.guilds_data[1] = {"silent_mode": False, "notificar": ["nsfw"]}
+        config = await _config_de(1)
+        assert debe_enviar_embed(_con_veredicto(Veredicto.NSFW), config) is False
+        assert debe_enviar_embed(_con_veredicto(Veredicto.NSFW),
+                                 {**config, "silent_mode": True}) is True
+
+    @pytest.mark.asyncio
+    async def test_el_ruido_no_avisa_sin_que_haya_que_configurar_nada(self, guild_vacia):
+        guild_vacia.guilds_data[1] = {"silent_mode": True}
+        config = await _config_de(1)
+        assert debe_enviar_embed(_con_veredicto(Veredicto.SEGURO), config) is False
+
+    @pytest.mark.asyncio
+    async def test_un_error_de_cuota_si_avisa(self, guild_vacia):
+        """Con la configuración por defecto, quedarse sin cuota es justo lo que hay que
+        decir: el bot ha dejado de trabajar."""
+        guild_vacia.guilds_data[1] = {"silent_mode": True}
+        config = await _config_de(1)
+        assert debe_enviar_embed(_con_error("sin_cuota"), config) is True
+
+    @pytest.mark.asyncio
+    async def test_un_mensaje_con_amenaza_si_avisa(self, guild_vacia):
+        guild_vacia.guilds_data[1] = {"silent_mode": True}
+        config = await _config_de(1)
+        s = _con_veredicto(Veredicto.MALICIOSO)
+        s.anadir(Elemento(nombre="y", tipo="file", veredicto=Veredicto.ERROR,
+                          modelos={"error": "sin_cuota"}))
+        assert debe_enviar_embed(s, config) is True
+
+
+class TestDefaultsDelCatalogo:
+    @pytest.mark.asyncio
+    async def test_una_lista_vacia_significa_silencio(self):
+        """La ambigüedad que hace que un filtro mal entendido calle lo importante."""
+        assert len(categorias_aviso({"notificar": []})) == 0
+
+    @pytest.mark.asyncio
+    async def test_sin_clave_usa_el_default_del_catalogo(self):
+        assert categorias_aviso({}) == set(esq.CATEGORIAS_POR_DEFECTO)
+
+    @pytest.mark.asyncio
+    async def test_el_default_equivale_a_todo_menos_el_ruido(self):
+        esperados = set(esq.CATEGORIAS_AVISO) - {"limpio", "omitidos"}
+        assert set(esq.CATEGORIAS_POR_DEFECTO) == esperados
+
+    @pytest.mark.asyncio
+    async def test_el_default_no_deja_al_bot_mudo(self):
+        """Con los defaults, un malware y una caída de cuota se avisan."""
+        cfg = config_aviso_por_defecto(True)
+        for v in (Veredicto.MALICIOSO, Veredicto.PHISHING, Veredicto.NSFW):
+            assert debe_enviar_embed(_con_veredicto(v), cfg) is True, v
+        assert debe_enviar_embed(_con_error("sin_cuota"), cfg) is True

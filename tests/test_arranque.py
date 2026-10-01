@@ -139,7 +139,8 @@ async def bot_arrancado(_bot_cargado):
     await bot.session.close()
 
 
-COGS = ["about", "analisis", "configuracion", "eval", "help", "reboot", "rep", "stats", "whitelist"]
+COGS = ["about", "analisis", "configuracion", "eval", "help", "historial",
+        "reboot", "rep", "stats"]
 
 
 async def _cargar_cogs(bot):
@@ -179,9 +180,16 @@ class TestArranque:
     async def test_el_arbol_de_comandos_se_construye(self, bot_arrancado):
         await _cargar_cogs(bot_arrancado)
         comandos = {c.name for c in bot_arrancado.tree.get_commands()}
-        esperados = {"scan", "autoscan", "silentmode", "strictmode", "setlogchannel",
-                     "whitelist", "usercheck", "stats", "settings", "help", "about"}
+        # La configuración ya no tiene comandos propios: todo pasa por el panel. Estos
+        # sequitaron a propósito, y que un test los exigiera los habría vuelto a poner.
+        esperados = {"scan", "usercheck", "stats", "settings", "help", "about", "history"}
         assert esperados <= comandos, f"faltan: {esperados - comandos}"
+
+        eliminados = {"silentmode", "strictmode", "autoscan", "setlogchannel",
+                      "disablelogchannel", "whitelist"}
+        assert not (eliminados & comandos), (
+            f"vuelven comandos de configuración que ya no existen: {eliminados & comandos}"
+        )
 
     @pytest.mark.asyncio
     async def test_usercheck_exige_permisos(self, bot_arrancado):

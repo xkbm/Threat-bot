@@ -233,75 +233,71 @@ class SelectorQuitarWhitelist(discord.ui.Select):
         )
 
 
-class SelectorMotivos(discord.ui.Select):
-    """Qué motivos de fallo avisan al canal. Un solo control, no ocho interruptores.
+class SelectorNotificaciones(discord.ui.Select):
+    """Qué categorías avisan al canal. Un dial por categoría, en un solo desplegable.
 
-    Discord admite multi-selección (`min_values=0`), así que esto son ocho opciones en
-    un desplegable en vez de ocho interruptores. La diferencia no es cosmetics: ocho
-    interruptores serían 256 combinaciones, algunas contradictorias, y hay que explicar
-    cuál manda. Con este control, vaciar la selección significa "ningún fallo avisa" y no
-    "sin configurar", que es la ambigüedad que hace que un filtro mal entendido termine
-    silenciando los avisos que sí importan.
+    Discord admite multi-selección con `min_values=0`, así que esto son quince opciones
+    marcadas y desmarcadas a voluntad, en vez de quince interruptores repartidos por
+    cinco filas de un panel que Discord limita a cinco.
 
-    Solo cuenta si "Avisar errores" está activo. Una amenaza confirmada avisa siempre.
+    Vaciar la selección es un estado legítimo: "no me avises de nada, solo pon la
+    reacción". Por eso `min_values=0` y no "al menos una": no se puede forzar al usuario a
+    recibir avisos que no quiere.
     """
 
     def __init__(self, seleccion: list[str]):
-        seleccion = set(seleccion)
+        marcados = set(seleccion)
         super().__init__(
-            placeholder="Motivos que avisan de un fallo…",
-            # min_values=0 es lo que permite vaciarlo del todo.
+            placeholder="Categorías que avisan…",
             min_values=0,
-            max_values=len(esq.MOTIVOS_FALLO),
-            custom_id=f"{UMBRAL}motivos_fallo",
+            max_values=len(esq.CATEGORIAS),
+            custom_id=f"{UMBRAL}notificar",
             options=[
                 discord.SelectOption(
-                    label=texto,
+                    label=etiqueta,
                     value=clave,
-                    default=(clave in seleccion),
-                    description=esq.AYUDA_MOTIVOS.get(clave, ""),
+                    description=ayuda[:100],
+                    default=(clave in marcados),
                 )
-                for clave, texto in esq.MOTIVOS_FALLO.items()
+                for clave, (etiqueta, ayuda) in esq.CATEGORIAS.items()
             ],
         )
 
     async def callback(self, interaction: discord.Interaction) -> None:
-        # `values` es la lista de los marcados. Discord no cambia el orden, pero se
-        # ordena por el del catálogo para que la configuración guardada sea estable y no
-        # dependa del orden en que el usuario hizo clic.
-        elegidos = {v for v in self.values}
-        ordenados = [m for m in esq.MOTIVOS_FALLO if m in elegidos]
-        await _guardar(interaction, "motivos_fallo", ordenados)
+        # Se guarda en el orden del catálogo, no en el que hizo clic: así el JSON de
+        # configuración es estable y dos servidores con lo mismo se parecen.
+        elegidos = set(self.values)
+        ordenados = [c for c in esq.CATEGORIAS if c in elegidos]
+        await _guardar(interaction, "notificar", ordenados)
 
 
-class SelectorPresetMotivos(discord.ui.Select):
+class SelectorPresetNotificaciones(discord.ui.Select):
     """Atajo para los tres casos que se dan de verdad.
 
-    Elegir los motivos uno a uno es cansa de visitos para quien solo quiere "solo lo que
-    para el bot" o "nada". El preset sustituye la selección entera.
+    Marcar quince casillas una a una es un coñazo, y casi nadie quiere una configuración
+    intermediaria: quiere "todo", "solo lo grave" o "nada".
     """
 
-    def __init__(self, actual: list[str]):
+    def __init__(self):
         super().__init__(
             placeholder="Atajo…",
             min_values=1, max_values=1,
-            custom_id=f"{UMBRAL}preset_motivos",
+            custom_id=f"{UMBRAL}preset_notificar",
             options=[
                 discord.SelectOption(label=texto, value=valor)
-                for valor, texto in esq.PRESETS_MOTIVOS.items()
+                for valor, texto in esq.PRESETS_NOTIFICACION.items()
             ],
         )
-        self.actual = set(actual)
 
     async def callback(self, interaction: discord.Interaction) -> None:
         valor = self.values[0]
         if valor == esq.PRESET_TODO:
-            motivos = list(esq.MOTIVOS_FALLO)
+            seleccion = list(esq.CATEGORIAS_AVISO)
         elif valor == esq.PRESET_CRITICOS:
-            motivos = list(esq.MOTIVOS_CRITICOS)
+            seleccion = list(esq.CATEGORIAS_CRITICAS)
         else:
-            motivos = []
-        await _guardar(interaction, "motivos_fallo", motivos)
+            seleccion = []
+        await _guardar(interaction, "notificar", seleccion)
 
 
 class SelectorAccion(discord.ui.Select):
@@ -379,7 +375,7 @@ class PanelConfig(discord.ui.View):
             dominios = list(config.get("whitelist") or [])
             if dominios:
                 self.add_item(SelectorQuitarWhitelist(
-                    dominios, frozenset(esq.DOMINIOS_PROTEGIDOS)))
+                    dominios, esq.DOMINIOS_PROTEGIDOS))
 
         if self.seccion == esq.CONTENIDO:
             for clave in esq.claves_de(esq.CONTENIDO):
@@ -405,12 +401,15 @@ class PanelConfig(discord.ui.View):
             self.add_item(boton)
 
         if self.seccion == esq.FALLOS:
-            motivos = list(config.get("motivos_fallo", esq.MOTIVOS_POR_DEFECTO))
-            self.add_item(SelectorMotivos(motivos))
-            self.add_item(SelectorPresetMotivos(motivos))
+            # La lista completa va en su propia seccion (se llama FALLOS pero contiene
+            # también hallazgos): en Aviso ya hay interruptores y los desplegables ocupan
+            # filas enteras de las cinco que admite Discord.
+            self.add_item(SelectorNotificaciones(
+                list(config.get("notificar") or esq.CATEGORIAS_POR_DEFECTO)))
+            self.add_item(SelectorPresetNotificaciones())
 
         for clave in esq.claves_de(self.seccion):
-            if clave.tipo == "str" and clave.opciones and clave.nombre != "motivos_fallo":
+            if clave.tipo == "str" and clave.opciones and clave.nombre != "notificar":
                 self.add_item(SelectorAccion(
                     clave.nombre, str(config.get(clave.nombre, clave.default))))
 
@@ -450,7 +449,10 @@ class PanelConfig(discord.ui.View):
         lineas = esq.resumen_seccion(config, self.seccion)
         descripcion = esq.DESCRIPCION_SECCION[self.seccion]
         if self.seccion == esq.GENERAL:
-            descripcion += "\n\nUsa `/setlogchannel` y `/whitelist` para cambiar el canal y los dominios."
+            descripcion += (
+                "\n\nTodo se ajusta desde aquí: el interruptor general silencia el bot "
+                "de golpe, y en **Aviso** hay un dial por cada categoría."
+            )
         return emb.aviso(
             f"Ajustes \u00b7 {esq.TITULOS_SECCION[self.seccion]}",
             descripcion,

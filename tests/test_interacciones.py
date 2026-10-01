@@ -161,129 +161,11 @@ class TestSettingsResponde:
         )
 
 
-class TestTodosLosComandosResponden:
-    """Guarda para los siete: el mismo fallo se repite si alguien lo copia."""
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize(
-        "nombre,args",
-        [
-            ("silentmode", (True,)),
-            ("strictmode", (True,)),
-            ("autoscan", (True,)),
-            ("setlogchannel", (_Canal(),)),
-        ],
-    )
-    async def test_cada_comando_responde_o_difiere(self, nombre, args):
-        import cogs.configuracion as cfg_mod
-
-        cog = cfg_mod.ConfiguracionCog(_fake_bot())
-        interaccion = FakeInteraction(_Guild())
-        comando = getattr(cog, nombre)
-        await comando.callback(cog, interaccion, *args)
-        # Se acepta cualquiera de las tres vías válidas: `response`, diferido + followup,
-        # o followup. Lo que no vale es no responder de ninguna forma.
-        respondio = (
-            interaccion.response.deferida
-            or interaccion.response.respondida
-            or bool(interaccion.followup_enviados)
-        )
-        assert respondio, f"{nombre} no respondió al usuario"
-
-
-class TestLosInterruptoresSonIndependientes:
-    """Encender un interruptor no debe apagar otro.
-
-    Antes, tanto el panel como `/silentmode` ajustaban `avisar_limpios` en cascada al
-    cambiar `silent_mode`. Se veía como un fallo del panel, y no lo era: el acoplamiento
-    no evitaba ningún estado contradictorio, porque con el master apagado
-    `debe_enviar_embed` devuelve True siempre y `avisar_limpios` es irrelevante. Solo
-   老的 confuses a quien lo usa.
-    """
-
-    @pytest.mark.asyncio
-    async def test_cambiar_el_master_no_toca_avisar_limpios(self):
-        import core.config_schema as esq
-        from core import guild_config as gc
-        from ui import panel as pan
-
-        config = dict(esq.defaults())
-        config["avisar_limpios"] = True
-        guardados = {}
-
-        async def _obtener(guild_id):
-            return dict(config)
-
-        async def _actualizar(guild_id, **campos):
-            guardados.update(campos)
-            config.update(campos)
-            return config
-
-        gc.obtener_config_guild = _obtener
-        pan.obtener_config_guild = _obtener
-        gc.actualizar_config = _actualizar
-        pan.actualizar_config = _actualizar
-
-        guild = _Guild()
-        vista = await pan.PanelConfig.crear(esq.AVISO, guild)
-        boton = next(h for h in vista.children
-                     if getattr(h, "custom_id", "").endswith("silent_mode"))
-        await boton.callback(FakeInteraction(guild))
-
-        assert guardados == {"silent_mode": False}, (
-            f"cambiar el master no debe tocar nada mas: {guardados}"
-        )
-        assert config["avisar_limpios"] is True, "avisar_limpios se apagó solo"
-
-    @pytest.mark.asyncio
-    async def test_cada_interruptor_solo_se_toca_a_si_mismo(self):
-        """Recorre todos los booleanos del panel y comprueba que no arrastran a otro."""
-        import core.config_schema as esq
-        from core import guild_config as gc
-        from ui import panel as pan
-
-        for seccion in esq.secciones():
-            for clave in esq.claves_de(seccion):
-                if clave.tipo != "bool":
-                    continue
-                config = dict(esq.defaults())
-                guardados = {}
-
-                async def _obtener(guild_id, _c=config):
-                    return dict(_c)
-
-                async def _actualizar(guild_id, _c=None, _g=None, **campos):
-                    _g.update(campos)
-                    _c.update(campos)
-                    return _c
-
-                gc.obtener_config_guild = _obtener
-                pan.obtener_config_guild = _obtener
-                gc.actualizar_config = lambda gid, _c=None, _g=None, **kw: _actualizar(
-                    gid, _c=config, _g=guardados, **kw)
-                pan.actualizar_config = gc.actualizar_config
-
-                guild = _Guild()
-                vista = await pan.PanelConfig.crear(seccion, guild)
-                boton = next((h for h in vista.children
-                              if getattr(h, "custom_id", "").endswith(clave.nombre)), None)
-                if boton is None:
-                    continue
-                # El valor esperado se calcula ANTES de pulsar: `_actualizar` muta
-                # `config`, así que leerlo después daría el valor nuevo y `not` de
-                # ese, que no es lo que se espera.
-                esperado = not bool(config[clave.nombre])
-                await boton.callback(FakeInteraction(guild))
-                assert guardados == {clave.nombre: esperado}, (
-                    f"el interruptor '{clave.nombre}' arrastró a otros: {list(guardados)}"
-                )
-
-
 class TestLosControlesNuevosDelPanel:
     """Canal de logs y whitelist se cambian desde el panel, no solo con comandos."""
 
     @pytest.fixture(autouse=True)
-    def _panel(self):
+    def _panel(self, monkeypatch):
         import core.config_schema as esq
         from core import guild_config as gc_mod
         from ui import panel as pan
@@ -300,11 +182,11 @@ class TestLosControlesNuevosDelPanel:
             _c.update(campos)
             return _c
 
-        gc_mod.obtener_config_guild = _obtener
-        pan.obtener_config_guild = _obtener
+        monkeypatch.setattr(gc_mod, "obtener_config_guild", _obtener)
+        monkeypatch.setattr(pan, "obtener_config_guild", _obtener)
         gc_mod.actualizar_config = lambda gid, _c=None, _g=None, **kw: _actualizar(
             gid, _c=self.config, _g=self.guardados, **kw)
-        pan.actualizar_config = gc_mod.actualizar_config
+        monkeypatch.setattr(pan, "actualizar_config", gc_mod.actualizar_config)
         yield
 
     async def _vista(self, seccion, guild=None):
@@ -421,59 +303,40 @@ class TestElBotonDeWhitelistReutilizaLaValidacionDelComando:
 
 
 class TestTodoSeConfiguraDesdeElPanel:
-    """Ninguna opción debería exigir recordar un comando aparte.
+    """Ningún otro comando cambia configuración: todo pasa por el panel."""
 
-    Se recorre cada comando que escribe configuración y se comprueba que su clave
-    tiene un control en el panel. Es la garantía de que "todo se configura desde ahí".
-    """
-
-    def test_toda_clave_de_configuracion_tiene_control_en_el_panel(self):
+    def test_no_quedan_comandos_de_configuracion(self):
         import inspect
 
-        import core.config_schema as esq
-        from ui import panel as pan
+        import cogs.configuracion as cfg_mod
 
-        # Cada clave del esquema debe producir algún control en su sección:
-        #   bool            -> BotonBool
-        #   float           -> SelectorUmbral (botón que cicla entre pasos)
-        #   int             -> SelectorCanalLog
-        #   str con opciones-> SelectorAccion
-        #   listas          -> control propio (whitelist: añadir/quitar; motivos: multi-selección)
-        for seccion in esq.secciones():
-            for clave in esq.claves_de(seccion):
-                tiene_control = (
-                    clave.tipo in ("bool", "float", "int")
-                    or (clave.tipo == "str" and clave.opciones)
-                    or clave.tipo == "list"
-                )
-                assert tiene_control, f"'{clave.nombre}' no tiene control en el panel"
+        nombres = []
+        for attr in vars(cfg_mod.ConfiguracionCog).values():
+            comando = getattr(attr, "callback", None)
+            if comando is not None and getattr(comando, "__name__", "") != "settings":
+                nombres.append(comando.__name__)
+        assert nombres == [], f"comandos de configuración fuera del panel: {nombres}"
 
-    def test_las_claves_de_acciones_tienen_selector(self):
-        import core.config_schema as esq
-
-        for clave in esq.claves_de(esq.MODERACION):
-            if clave.opciones:
-                assert clave.tipo == "str", clave.nombre
-
-    def test_las_que_reescriben_config_son_atajos(self):
-        """Los comandos siguen existiendo, pero ninguna es la única vía."""
-        import inspect
+    def test_no_existe_cog_de_whitelist(self):
+        """El panel añade y quita dominios; el comando se fue con el resto."""
         import pathlib
 
         raiz = pathlib.Path(__file__).resolve().parent.parent
-        texto = (raiz / "cogs" / "configuracion.py").read_text(encoding="utf-8")
-        for nombre in ("silentmode", "strict_mode", "auto_scan_enabled", "log_channel_id"):
-            assert nombre in texto, f"{nombre} perdió su atajo"
-        # Y todas tienen control en el panel.
-        import core.config_schema as esq
-        panel_keys = {c.nombre for c in esq.ESQUEMA}
-        for nombre in ("silent_mode", "strict_mode", "auto_scan_enabled", "log_channel_id"):
-            assert nombre in panel_keys, f"{nombre} no se puede cambiar desde el panel"
+        assert not (raiz / "cogs" / "whitelist.py").exists()
+
+    def test_ayuda_no_anuncia_comandos_que_no_existen(self):
+        import pathlib
+
+        raiz = pathlib.Path(__file__).resolve().parent.parent
+        texto = (raiz / "cogs" / "help.py").read_text(encoding="utf-8")
+        for eliminado in ("/silentmode", "/strictmode", "/autoscan",
+                          "/setlogchannel", "/disablelogchannel", "/whitelist"):
+            assert eliminado not in texto, f"/help sigue anunciando {eliminado}"
 
 
 class TestQuitarDominioDesdeElPanel:
     @pytest.fixture(autouse=True)
-    def _panel(self):
+    def _panel(self, monkeypatch):
         import core.config_schema as esq
         from core import guild_config as gc_mod
         from ui import panel as pan
@@ -495,12 +358,11 @@ class TestQuitarDominioDesdeElPanel:
                 d for d in self.config["whitelist"] if d != dominio]
             return 0
 
-        gc_mod.obtener_config_guild = _obtener
-        pan.obtener_config_guild = _obtener
-        gc_mod.actualizar_config = _actualizar
-        pan.actualizar_config = _actualizar
-        gc_mod.quitar_dominio = _quitar
-        pan.quitar_dominio = _quitar
+        monkeypatch.setattr(gc_mod, "obtener_config_guild", _obtener)
+        monkeypatch.setattr(pan, "obtener_config_guild", _obtener)
+        monkeypatch.setattr(gc_mod, "actualizar_config", _actualizar)
+        monkeypatch.setattr(pan, "actualizar_config", _actualizar)
+        monkeypatch.setattr(gc_mod, "quitar_dominio", _quitar)
         yield
 
     class _Guild:

@@ -81,11 +81,6 @@ class Senales:
     omitidos: int = 0             # adjuntos que no cabían en el límite
     whitelist_omitidos: int = 0   # enlaces ignorados por estar en whitelist
 
-    # Motivos de fallo presentes en este mensaje, del catálogo de
-    # `config_schema.MOTIVOS_FALLO`. Es lo que permite avisar de "se acabó la cuota"
-    # callando "el archivo era grande": antes `avisar_errores` era un interruptor único
-    # para dos cosas que no significan lo mismo.
-    motivos: Set[str] = field(default_factory=set)
 
     # Scores crudos de SightEngine. Se guardan para poder explicar el por qué de un
     # veredicto sin volver a llamar a la API.
@@ -157,24 +152,38 @@ class Senales:
         return not self.error and not self.cooldown and not self.omitidos
 
     @property
-    def motivos_calculados(self) -> Set[str]:
-        """Los motivos de fallo que hay en este mensaje.
+    def categorias(self) -> Set[str]:
+        """Qué categorías de aviso hay en este mensaje.
 
-        Se calcula, no se rellena a mano: depende de los `error` de cada elemento y de
+        Se calcula, no se rellena a mano: depende de los veredictos de cada elemento y de
         los tres agregados, y mantenerlo sincronizado a mano era una forma más de que el
         embed y la decisión de mandarlo no coincidieran.
+
+        Todos los valores salen del catálogo de `config_schema.CATEGORIAS`. Por eso
+        `SEGURO` no aporta nada por sí solo (solo cuenta como `limpio` si el mensaje
+        entero está limpio) y `IGNORADO` se traduce a `whitelist`, que es exactamente lo
+        que significa.
         """
-        motivos: Set[str] = set()
+        vistas: Set[str] = set()
         for e in self.elementos:
             if e.veredicto is Veredicto.ERROR:
-                motivos.add(motivo_de_error(e.modelos))
+                vistas.add(motivo_de_error(e.modelos))
+            elif e.veredicto is Veredicto.IGNORADO:
+                vistas.add("whitelist")
+            elif e.veredicto is not Veredicto.SEGURO:
+                vistas.add(e.veredicto.value)
+            if e.hay_senal_de_nombre:
+                vistas.add("nombre_sospechoso")
         if self.cooldown:
-            motivos.add("cooldown")
+            vistas.add("cooldown")
         if self.omitidos > 0:
-            motivos.add("omitidos")
+            vistas.add("omitidos")
         if self.whitelist_omitidos > 0:
-            motivos.add("whitelist")
-        return {m for m in motivos if m}
+            vistas.add("whitelist")
+        if not vistas:
+            # Ni un solo hallazgo y ningún fallo: un mensaje limpio de verdad.
+            vistas.add("limpio")
+        return vistas
 
     @property
     def hay_algo_que_mostrar(self) -> bool:

@@ -344,9 +344,10 @@ class TestPanel:
     """El panel tiene que construirse sin petarse con cualquier configuración."""
 
     @pytest.fixture(autouse=True)
-    def _bot_global(self):
+    def _bot_global(self, monkeypatch):
         import core.guild_config as gc
         import core.state as state
+        from ui import panel as pan
 
         bot = types.SimpleNamespace(
             guilds_data={}, user_scan_history={}, antispam_scan={},
@@ -364,10 +365,12 @@ class TestPanel:
             self.config.update(campos)
             return self.config
 
-        gc.obtener_config_guild = _obtener
-        gc.actualizar_config = _actualizar
-        pan.obtener_config_guild = _obtener
-        pan.actualizar_config = _actualizar
+        # `monkeypatch`, no asignación directa: esta última se quedaba puesta después
+        # del test y contaminaba los ficheros que se ejecutaban detrás.
+        monkeypatch.setattr(gc, "obtener_config_guild", _obtener)
+        monkeypatch.setattr(gc, "actualizar_config", _actualizar)
+        monkeypatch.setattr(pan, "obtener_config_guild", _obtener)
+        monkeypatch.setattr(pan, "actualizar_config", _actualizar)
         yield
         state.bot = anterior
 

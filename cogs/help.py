@@ -26,16 +26,15 @@ class HelpCog(commands.Cog):
 
         embed.add_field(
             name=f"{self.bot.EMOJI_STATS} Utilidades [6]",
-            value="`/stats` \u00b7 `/about` \u00b7 `/uptime` \u00b7 `/ping` \u00b7 `/help` \u00b7 `/usercheck`",
+            value="`/stats` \u00b7 `/about` \u00b7 `/uptime` \u00b7 `/ping` \u00b7 `/usercheck` \u00b7 `/help`",
             inline=False
         )
 
         embed.add_field(
-            name=f"{self.bot.EMOJI_GUARDIAN} Moderación [8]",
+            name=f"{self.bot.EMOJI_GUARDIAN} Moderación [2]",
             value=(
-                "`/settings` \u00b7 **panel con todos los ajustes**\n"
-                "`/autoscan` \u00b7 `/silentmode` \u00b7 `/strictmode` \u00b7 `/whitelist` \u00b7 "
-                "`/setlogchannel` \u00b7 `/disablelogchannel` \u00b7 `/history`"
+                "`/settings` · **todo se configura aquí**\n"
+                "`/history` · últimos análisis del canal"
             ),
             inline=False
         )

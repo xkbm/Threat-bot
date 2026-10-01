@@ -20,7 +20,6 @@ lo que recibe nadie. Ver `core.aviso.config_aviso_por_defecto`.
 
 from __future__ import annotations
 
-from core.config import DOMINIOS_PROTEGIDOS as _DOMINIOS_PROTEGIDOS_BASE
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -53,63 +52,59 @@ DESCRIPCION_SECCION = {
 ACCIONES = ("ignorar", "borrar", "timeout", "banear")
 
 
-# --- Motivos por los que se avisa de un fallo --------------------------------
+# --- Categorías notificables ------------------------------------------------
 #
-# "Avisar errores" era un único interruptor para cosas que no significan lo mismo: que la
-# cuota se acabó (el bot dejó de trabajar) y que un archivo era grande (no pasa nada).
+# Un dial por categoría. La alternativa eran tres interruptores (limpios, sospechosos,
+# errores) y una lista aparte para los motivos de fallo, con lo que el admin no podía
+# silencingar "se acabó la cuota" sin callar también "había demasiados adjuntos", y no
+# podía callar el NSFW sin callar el malware.
 #
-# No son 8 interruptores sueltos: serían 256 combinaciones, algunas contradictorias, y
-# duplicarían los tres maestros que ya existen. Es **un** control con los motivos, y los
-# motivos solo cuentan si `avisar_errores` está activo. Una amenaza confirmada avisa
-# siempre, con la configuración que haya.
+# Con un dial por categoría, quien configura decide qué le importa en su servidor, que es
+# justo lo que no se puede suponer. El estado "todo apagado" existe y es legítimo: hay
+# quien prefiere mirar el panel en silencio y usar solo la reacción.
 #
-# El orden va de "esto para el bot" a "esto es ruido", que es el orden en el que un
-# admin lee la lista.
-MOTIVOS_FALLO = {
-    "sin_cuota": "La cuota de la API se agotó",
-    "sin_claves": "Las APIs no están configuradas",
-    "red": "Fallo de red o la API cayó",
-    "tamano": "El archivo supera el tamaño analysesable",
-    "sin_resultados": "La API no devolvió resultados",
-    "cooldown": "Se alcanzó el límite de escaneos",
-    "whitelist": "Había enlaces en la whitelist",
-    "omitidos": "Había más adjuntos o enlaces de los permitidos",
+# El orden es el de a qué le conviene al usuario enterarse antes.
+
+# Clave -> (etiqueta, [ayuda del desplegable])
+CATEGORIAS: dict[str, tuple[str, str]] = {
+    # Lo que se ha encontrado
+    "malicioso": ("Malware", "Archivos y enlaces confirmados como maliciosos"),
+    "phishing": ("Suplantación de marca", "Dominios que imitan a una marca real"),
+    "nsfw": ("NSFW", "Desnudez, gore y contenido ofensivo en imágenes"),
+    "restringido": ("Restringido", "Alcohol y armas. No borra el mensaje"),
+    "sospechoso": ("Sospechoso", "Señal débil de VirusTotal, sin confirmar"),
+    "nombre_sospechoso": ("Nombre engañoso", "Doble extensión o extensión que no cuadra"),
+    # Lo que no se ha podido mirar
+    "sin_cuota": ("Cuota agotada", "El bot dejó de analizar: se acabó la cuota de la API"),
+    "sin_claves": ("Sin configurar", "Las APIs no están configuradas en el bot"),
+    "red": ("Fallo de red", "La API no respondió"),
+    "sin_resultados": ("Sin resultados", "La API respondió pero sin datos útiles"),
+    "cooldown": ("Límite de escaneos", "El usuario alcanzó su límite por hora"),
+    "tamano": ("No analizable por tamaño", "El archivo supera lo que admite la API"),
+    "whitelist": ("Enlaces en whitelist", "Había enlaces ignorados a propósito"),
+    "omitidos": ("Demasiados adjuntos", "El mensaje traía más de los que se analizan"),
+    "limpio": ("Mensajes limpios", "No se encontró nada en absoluto"),
 }
 
-# Solo estos dos valen la pena por defecto. "Demasiados adjuntos" es ruido informativo
-# en cualquier servidor con tráfico normal, y la whitelist la puso el propio admin.
-MOTIVOS_POR_DEFECTO = (
-    "sin_cuota", "sin_claves", "red", "tamano", "sin_resultados",
-    "cooldown", "whitelist",
+CATEGORIAS_AVISO = tuple(CATEGORIAS)
+
+# Todo activado menos lo que es ruido puro: un mensaje sin nada no requiere un aviso, y
+# decir "traías 6 adjuntos y analicé 5" cada vez tampoco.
+CATEGORIAS_POR_DEFECTO = tuple(
+    c for c in CATEGORIAS_AVISO if c not in ("limpio", "omitidos")
 )
-
-# Los que explican que el bot ha dejado de funcionar. Preset "solo críticos".
-MOTIVOS_CRITICOS = ("sin_cuota", "sin_claves")
-
-# Texto corto de cada opción, que es lo que cabe en el desplegable de Discord.
-AYUDA_MOTIVOS = {
-    "sin_cuota": "El bot ha dejado de analizar",
-    "sin_claves": "Error de configuración del bot",
-    "red": "Fallo pasajero de la API",
-    "tamano": "El archivo era demasiado grande",
-    "sin_resultados": "La API no respondió bien",
-    "cooldown": "Límite de escaneos alcanzado",
-    "whitelist": "Había enlaces ignorados a propósito",
-    "omitidos": "Mensaje con demasiados elementos",
-}
-
-# Los que trae el bot de serie: se pueden quitar, pero se vuelven a poner al reiniciar.
-# El panel lo avisa en vez de dejarlo caer en silencio.
-DOMINIOS_PROTEGIDOS = frozenset(_DOMINIOS_PROTEGIDOS_BASE)
 
 PRESET_TODO = "todo"
 PRESET_CRITICOS = "criticos"
-PRESET_NINGUNO = "ninguno"
-PRESETS_MOTIVOS = {
-    PRESET_TODO: "Todos",
-    PRESET_CRITICOS: "Solo los que paran el bot",
-    PRESET_NINGUNO: "Ninguno",
+PRESET_NADA = "nada"
+PRESETS_NOTIFICACION = {
+    PRESET_TODO: "Todo",
+    PRESET_CRITICOS: "Solo lo grave",
+    PRESET_NADA: "Nada",
 }
+# Lo grave es lo que requiere acción inmediata: una amenaza confirmada, una suplantación
+# y el bot parado por cuota.
+CATEGORIAS_CRITICAS = ("malicioso", "phishing", "nsfw", "sin_cuota", "sin_claves")
 
 
 @dataclass(frozen=True)
@@ -207,15 +202,12 @@ ESQUEMA: tuple[Clave, ...] = (
        "dejando el canal vacío, y eso se confundía con no haberlo configurado todavía."),
     Clave("log_channel_id", "int", GENERAL, "Canal de logs", None, ayuda="Donde van las amenazas."),
     # --- Aviso ---
-    _b("silent_mode", AVISO, "Modo silencioso", True,
-       "General: con él activo solo se avisa si hay algo que mirar."),
-    _b("avisar_limpios", AVISO, "Avisar limpios", False,
-       "Manda el embed aunque no haya nada. Se deriva del modo silencioso."),
-    _b("avisar_sospechosos", AVISO, "Avisar sospechosos", True),
-    _b("avisar_errores", AVISO, "Avisar errores", True,
-       "Elementos que no se pudieron comprobar por falta de cuota o por fallo."),
+    _b("silent_mode", AVISO, "Interruptor general", True,
+       "Con él apagado no se avisa de nada, Botón de emergencia para silenciar el bot "
+       "de golpe sin tocar cada categoría."),
     _b("reacciones", AVISO, "Reacciones", True,
-       "La reacción no se rige por los interruptores de aviso: va aparte."),
+       "El emoji sobre el mensaje. Va aparte de los avisos: es retroalimentación, no "
+       "una notificación."),
 
     # --- Contenido ---
     _n("umbral_nudity", CONTENIDO, "Nudity explícita", 0.5, 0.0, 1.0),
@@ -233,14 +225,11 @@ ESQUEMA: tuple[Clave, ...] = (
     # la llave de tu cuota mensual. Ahora lo decide el código.
 
     # --- Fallos ---
-    # En su propia sección, y no en Aviso, por dos razones: la sección Aviso llegaba a
-    # las 5 filas que Discord admite (un desplegable ocupa una fila entera), y mezclar
-    # "qué se manda" con "qué fallos merecen la pena" en la misma pantalla obliga a
-    # leer dos cosas distintas para entender una decisión.
-    Clave("motivos_fallo", "list", FALLOS, "Motivos que avisan",
-          list(MOTIVOS_POR_DEFECTO), opciones=tuple(MOTIVOS_FALLO),
-          ayuda="Solo cuentan si 'Avisar errores' está activo. Una amenaza "
-                "confirmada avisa siempre, pase lo que pase."),
+    # En su propia sección, y no en Aviso, porque un desplegable ocupa una fila entera de
+    # las 5 que admite Discord, y la sección Aviso ya lleva sus interruptores.
+    Clave("notificar", "list", FALLOS, "Qué avisa en el canal",
+          list(CATEGORIAS_POR_DEFECTO), opciones=CATEGORIAS_AVISO,
+          ayuda="Un dial por categoría. Si no hay nada marcado, no se avisa de nada."),
 
     # --- Moderación ---
     _b("strict_mode", MODERACION, "Modo estricto", True,
@@ -345,21 +334,22 @@ def aplicar_config(umbrales: Optional[dict] = None) -> dict:
     return resultado
 
 
-def _legible_motivos(seleccion: List[str]) -> str:
-    """Resumen de los motivos activos que quepa en un campo de embed.
+def _legible_notificar(seleccion: List[str]) -> str:
+    """Resumen de qué avisa, para el embed del panel.
 
-    La cuenta es lo que importa ("7 de 8"), no la lista entera: con ocho motivos, un
-    campo de embed quedaría en un muro de texto que nadie lee. Y los motivos que faltan
-    son los interesantes: son los que están callados.
+    La cuenta es lo que importa ("7 de 15"), no la lista entera: con quince categorías un
+    campo de embed quedaría en un muro de texto. Y las que faltan son las
+    interesantes: son las que están calladas.
     """
-    total = len(MOTIVOS_FALLO)
-    activos = [m for m in MOTIVOS_FALLO if m in set(seleccion)]
+    total = len(CATEGORIAS)
+    activos = [c for c in CATEGORIAS if c in set(seleccion)]
     if not activos:
-        return f"*Ninguno* · {total} silenciados"
+        return f"*Ninguno* \u00b7 {total} silenciados"
     if len(activos) == total:
-        return f"*Todos* ({total})"
-    faltan = total - len(activos)
-    return f"**{len(activos)}** de {total} · sin avisar: {', '.join(faltan and [MOTIVOS_FALLO[m] for m in MOTIVOS_FALLO if m not in set(seleccion)][:2])}" + (f" (+{faltan - 2})" if faltan > 2 else "")
+        return f"*Todas* ({total})"
+    faltan = [CATEGORIAS[c][0] for c in CATEGORIAS if c not in set(seleccion)]
+    return (f"**{len(activos)}** de {total} \u00b7 sin avisar: "
+            + ", ".join(faltan[:2]) + (f" (+{len(faltan) - 2})" if len(faltan) > 2 else ""))
 
 
 def resumen_seccion(config: dict, seccion: str) -> List[tuple[str, str]]:
@@ -373,8 +363,8 @@ def _legible(clave: Clave, valor: Any) -> str:
         return "Activado" if valor else "Desactivado"
     if clave.tipo == "float":
         return f"{float(valor):.0%}"
-    if clave.nombre == "motivos_fallo":
-        return _legible_motivos(valor or [])
+    if clave.nombre == "notificar":
+        return _legible_notificar(valor or [])
     if clave.tipo == "list":
         if not valor:
             return "*Ninguno*"
@@ -382,3 +372,15 @@ def _legible(clave: Clave, valor: Any) -> str:
         extra = f" *+{len(valor) - 3}*" if len(valor) > 3 else ""
         return texto + extra
     return "*No configurado*" if valor is None else str(valor)
+
+
+# Los dominios que el bot trae en la whitelist de serie. Se pueden quitar desde el panel,
+# pero vuelven a aparecer al reiniciar, y el panel lo avisa en vez de dejarlo caer en
+# silencio. Está aquí y no importado en cada sitio para que quien use el esquema no tenga
+# que saber de dónde sale la lista.
+from core.config import DOMINIOS_PROTEGIDOS  # noqa: E402  (al final: evita ciclo
+
+
+def es_protegido(dominio: str) -> bool:
+    """¿Este dominio venía de serie en lugar de haberlo añadido un admin?"""
+    return (dominio or "").lower() in DOMINIOS_PROTEGIDOS
