@@ -63,6 +63,10 @@ def debe_enviar_embed(senales: Senales, config: Mapping[str, Any]) -> bool:
         return True
     if config.get("avisar_sospechosos", True) and senales.hay_hallazgo:
         return True
+    if senales.whitelist_omitidos > 0:
+        # El bot ha ignorado enlaces a propósito. Es información que el usuario pidió
+        # él mismo, no ruido: si tiene la whitelist activa, quiere saber que se aplicó.
+        return True
     if senales.error or senales.cooldown or senales.omitidos > 0:
         # Hay un fallo que contar. Solo se enseña si el usuario quiere ver errores; el
         # interruptor de limpios no lo activa: "muéstrame lo limpio" no significa
@@ -83,13 +87,20 @@ def reacciones_activas(config: Mapping[str, Any]) -> bool:
 
 
 def razon_para_embeder(senales: Senales, config: Mapping[str, Any]) -> str:
-    """Qué regla decidió mandar (o no mandar) el embed. Para logs y tests."""
+    """Qué regla decidió mandar (o no mandar) el embed. Para logs y tests.
+
+    El orden tiene que calcar el de `debe_enviar_embed`, o el log explaina una cosa y el
+    embed hace otra. Por eso la whitelist va antes del bloque de errores: decide siempre,
+    sin depender de ningún interruptor.
+    """
     if not config.get("silent_mode", True):
         return "master desactivado"
     if senales.hay_amenaza:
         return "amenaza confirmada"
     if config.get("avisar_sospechosos", True) and senales.hay_hallazgo:
         return "hallazgo"
+    if senales.whitelist_omitidos > 0:
+        return "enlaces en whitelist"
     if config.get("avisar_errores", True):
         if senales.error:
             return "error de análisis"

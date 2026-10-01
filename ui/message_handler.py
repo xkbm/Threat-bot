@@ -1036,7 +1036,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
 
     # --- Construir y enviar embed unificado ---
     total_elementos = len(url_results) + len(img_url_results) + len(img_results) + len(arch_results)
-    if total_elementos == 0:
+    if total_elementos == 0 and not _whitelist_omitidos:
         return
 
     # --- Señales: una foto de todo lo que se ha detectado ---

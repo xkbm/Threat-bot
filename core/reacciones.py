@@ -45,10 +45,14 @@ EMOJI_VEREDICTOS = frozenset({
 def resolver_reaccion(senales: Senales) -> str:
     """Devuelve el único emoji que corresponde a este mensaje.
 
-    La tabla de prioridad es la definición de "peor". La whitelist **no** aparece: es un
-    dato, no un veredicto, y va al embed. Por eso un mensaje con whitelist y un link
-    malicioso sale solo con el de malicioso, y el embed dice cuántos enlaces hubo
-    exentos en lugar de contradecirse con un emoji de "confiado".
+    La tabla de prioridad es la definición de "peor". Un mensaje con whitelist y un link
+    malicioso sale solo con el de malicioso, y el embed dice cuántos enlaces hubo exentos
+    en lugar de marcarse con dos emojis contradictorios.
+
+    Excepción: si lo **único** que pasó fue la whitelist, esa es la respuesta. Marcarlo
+    con el check verde diría "analizado y limpio", que es falso: no se miró nada. Y sin
+    reacción, un mensaje con enlaces exentos queda indistinguible de uno que el bot pasó
+    por alto.
     """
     if senales.malicious:
         return config.EMOJI_WARNING
@@ -66,6 +70,10 @@ def resolver_reaccion(senales: Senales) -> str:
         return config.EMOJI_WARNING
     if senales.suspicious:
         return config.EMOJI_GUARDIAN
+    # La whitelist es lo último: solo decide cuando no hay nada más que contar. Con
+    # elementos de por medio, manda su veredicto y la whitelist va al embed.
+    if senales.whitelist_omitidos:
+        return config.EMOJI_WHITELIST
     return config.EMOJI_CORRECTO
 
 

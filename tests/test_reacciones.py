@@ -108,15 +108,22 @@ class TestResolverReaccion:
         s.anadir(Elemento(nombre="informe.pdf.exe", tipo="file", doble_extension=True))
         assert resolver_reaccion(s) == config.EMOJI_WARNING
 
-    def test_whitelist_no_produce_reaccion_propia(self):
-        """La whitelist es un dato del embed, no un veredicto."""
+    def test_la_whitelist_solo_decide_si_no_hay_nada_mas(self):
+        """Antes la whitelist no tenía reacción propia, ni siquiera siendo lo único.
+
+        Eso hacía que un mensaje con enlaces exentos quedara indistinguible de uno que el
+        bot pasó por alto, o marcado con un verde que miente ("analizado y limpio"
+        cuando no se miró nada). Ahora decide solo cuando no hay ningún otro veredicto;
+        con algo que contar, manda ese y la whitelist va al embed.
+        """
         s = senales_de(Veredicto.SEGURO, whitelist_omitidos=2)
-        assert resolver_reaccion(s) == config.EMOJI_CORRECTO
+        assert resolver_reaccion(s) == config.EMOJI_WHITELIST
 
     def test_whitelist_no_contradice_una_amenaza(self):
         """El bug D16: antes salía con whitelist Y malicioso a la vez."""
         s = senales_de(Veredicto.MALICIOSO, whitelist_omitidos=1)
         assert resolver_reaccion(s) == config.EMOJI_WARNING
+        assert resolver_reaccion(s) != config.EMOJI_WHITELIST
 
     def test_caso_real_tres_amenazas_una_solo_reaccion(self):
         """Whitelist + .pdf.exe + NSFW: antes eran tres emojis."""
@@ -302,3 +309,80 @@ class TestPoliticaAviso:
         assert razon_para_embeder(senales_de(Veredicto.MALICIOSO), cfg) == "amenaza confirmada"
         assert razon_para_embeder(senales_de(Veredicto.ERROR), cfg) == "error de análisis"
         assert razon_para_embeder(senales_de(Veredicto.SEGURO), cfg) == "silenciado"
+
+class TestWhitelistSola:
+    """El caso que se rompió: un mensaje solo con enlaces en whitelist.
+
+    Antes la whitelist tenía su propia reacción inmediata. Al moverla al embed para no
+    tener dos emojis contradictorios, se coló un `return` temprano que hacía que el embed
+    no se construyera nunca, y la información desaparecía entera: ni reacción ni mensaje.
+
+    El arreglo: la whitelist decide la reacción cuando no hay nada más, y cuenta como
+    motivo para avisar aunque el modo silencioso esté activo, porque es una decisión que
+    el usuario tomó él mismo y quiere ver aplicada.
+    """
+
+    @staticmethod
+    def _solo_whitelist(n=1):
+        s = Senales()
+        s.whitelist_omitidos = n
+        return s
+
+    def test_reaccion_es_la_de_whitelist(self):
+        from core import config
+
+        assert resolver_reaccion(self._solo_whitelist()) == config.EMOJI_WHITELIST
+
+    def test_no_es_el_check_verde(self):
+        """El verde diría "analizado y limpio", que es falso: no se miró nada."""
+        from core import config
+
+        assert resolver_reaccion(self._solo_whitelist()) != config.EMOJI_CORRECTO
+
+    def test_no_es_el_de_error(self):
+        """La whitelist no es un fallo de análisis."""
+        from core import config
+
+        assert resolver_reaccion(self._solo_whitelist()) != config.EMOJI_ERROR
+
+    def test_una_amenieza_gana_a_la_whitelist(self):
+        from core import config
+
+        s = self._solo_whitelist(1)
+        s.anadir(Elemento(nombre="x", tipo="url", veredicto=Veredicto.MALICIOSO))
+        assert resolver_reaccion(s) == config.EMOJI_WARNING
+
+    def test_whitelist_con_elemento_limpio_gana_la_whitelist(self):
+        from core import config
+
+        s = self._solo_whitelist(1)
+        s.anadir(Elemento(nombre="x", tipo="url", veredicto=Veredicto.SEGURO))
+        assert resolver_reaccion(s) == config.EMOJI_WHITELIST
+
+
+class TestAvisoDeWhitelist:
+    def test_se_avisa_aunque_esten_los_tres_apagados(self):
+        """El usuario pidió esa whitelist: tiene que ver que se aplicó."""
+        from core.aviso import debe_enviar_embed
+
+        cfg = {**config_aviso_por_defecto(True), "avisar_limpios": False,
+               "avisar_sospechosos": False, "avisar_errores": False}
+        s = Senales()
+        s.whitelist_omitidos = 1
+        assert debe_enviar_embed(s, cfg) is True
+
+    def test_sin_whitelist_sigue_respetando_los_interruptores(self):
+        from core.aviso import debe_enviar_embed
+
+        cfg = {**config_aviso_por_defecto(True), "avisar_limpios": False}
+        s = Senales()
+        s.anadir(Elemento(nombre="x", tipo="url", veredicto=Veredicto.SEGURO))
+        assert debe_enviar_embed(s, cfg) is False
+
+    def test_la_razon_lo_dice(self):
+        from core.aviso import razon_para_embeder
+
+        cfg = config_aviso_por_defecto(True)
+        s = Senales()
+        s.whitelist_omitidos = 3
+        assert "whitelist" in razon_para_embeder(s, cfg)
