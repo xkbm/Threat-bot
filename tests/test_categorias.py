@@ -183,3 +183,184 @@ class TestExplicacion:
     def test_distingue_todo_silenciado(self):
         s = _senales(Veredicto.MALICIOSO, cooldown=True)
         assert "silenciado" in razon_para_embeder(s, _cfg(notificar=[]))
+
+
+class TestNingunControlDelPanelEstaMuerto:
+    """Guarda que evita lo que pasó: el panel ofrecía "Acción ante malware",
+    "Acción ante suplantación" y "Acción ante restringido", se podían cambiar, y **nadie
+    los leía**. Tres controles que no hacen nada son peores que no tenerlos: el admin
+    cree que ha configurado algo.
+
+    Cualquier clave del esquema tiene que leerse en algún sitio del código que no sea el
+    propio esquema ni los tests.
+    """
+
+    def _consumidores(self, clave: str) -> list[str]:
+        """Dónde se leen de verdad.
+
+        Cuenta como consumo cualquier aparición FUERA del bloque `ESQUEMA`, también
+        dentro de `config_schema.py`: los umbrales se leen en `aplicar_config`, que traduce
+        `umbral_partial` a la clave que espera SightEngine. Eso es uso, no declaración,
+        aunque esté en el mismo fichero.
+        """
+        import pathlib
+
+        raiz = pathlib.Path(__file__).resolve().parent.parent
+        propio = (raiz / "core" / "config_schema.py").read_text(encoding="utf-8")
+        i = propio.index("ESQUEMA: tuple[Clave, ...] = (")
+        j = propio.index("\n)\n", i)
+        sin_declarar = propio[:i] + propio[j:]
+
+        found = []
+        if f'"{clave}"' in sin_declarar:
+            found.append("core/config_schema.py")
+        for sub in ("core", "ui", "cogs", "api"):
+            for f in (raiz / sub).glob("*.py"):
+                if f.name == "config_schema.py":
+                    continue
+                if f'"{clave}"' in f.read_text(encoding="utf-8"):
+                    found.append(f"{sub}/{f.name}")
+        return found
+
+    def test_toda_clave_del_esquema_se_lee_en_alguna_pista(self):
+        huerfanas = [
+            c.nombre for c in esq.ESQUEMA
+            if not self._consumidores(c.nombre)
+        ]
+        assert not huerfanas, (
+            f"claves del panel que nadie lee: {huerfanas}. "
+            f"O se conectan a algo, o se quitan del panel."
+        )
+
+    def test_las_acciones_por_categoria_no_vuelven(self):
+        """Se quitaron porque no hacían nada. La moderación la lleva el modo estricto y
+        los botones del log de amenazas, no un dial por categoría."""
+        for clave in ("accion_restringido", "accion_phishing", "accion_malicious"):
+            assert clave not in esq.POR_NOMBRE, f"vuelve el control muerto '{clave}'"
+
+
+class TestLaRedaccionSeEntiende:
+    """El usuario dijo que el panel no se entendía. Los textos son la interfaz."""
+
+    def test_cada_seccion_explica_para_que_sirve(self):
+        for seccion in esq.secciones():
+            texto = esq.DESCRIPCION_SECCION[seccion]
+            assert texto and texto.endswith((".", "…")), seccion
+            # Que responda a "qué hago aquí", no a "qué hay aquí".
+            assert any(p in texto.lower() for p in ("qué", "dónde", "para")), texto
+
+    def test_ninguna_etiqueta_usa_el_nombre_interno_de_la_clave(self):
+        for clave in esq.ESQUEMA:
+            bruto = clave.nombre.replace("_", " ").lower()
+            assert not clave.etiqueta.lower().startswith(bruto), clave.nombre
+
+    def test_las_ayudas_no_empiezan_por_mayuscula_tras_coma(self):
+        """Error tipográfico real: "no se avisa de nada, Botón de emergencia"."""
+        import re
+
+        for clave in esq.ESQUEMA:
+            ayuda = clave.ayuda
+            assert re.search(r",\s[A-ZÁÉÍÓÚÑ][a-záéíóúñ]", ayuda) is None, (
+                f"{clave.nombre}: mayúscula tras coma en {ayuda!r}"
+            )
+
+    def test_todo_umbral_explica_para_que_sirve(self):
+        """Cuatro de los seis no tenían ninguna explicación."""
+        for clave in esq.claves_de(esq.CONTENIDO):
+            if clave.tipo == "float":
+                assert clave.ayuda, f"{clave.nombre} se muestra sin explicación"
+
+    def test_las_etiquetas_caben_en_el_panel(self):
+        for clave in esq.ESQUEMA:
+            assert len(clave.etiqueta) <= 40, f"{clave.nombre}: {clave.etiqueta!r}"
+
+    def test_la_seccion_de_avisos_no_depende_de_otras(self):
+        """La lista de qué avisar estuvo en una sección llamada 'Fallos' que en realidad
+        contenía también malware y NSFW. Ahora está con el resto de los avisos."""
+        assert "Avisar de" in esq.POR_NOMBRE["notificar"].etiqueta
+        assert esq.AVISO == "aviso"
+        assert not hasattr(esq, "FALLOS"), "la sección 'Fallos' ya no existe"
+
+
+class TestCadaSeccionMuestraSoloLoSuyo:
+    """Los interruptores de General se repetían en las cinco secciones.
+
+    Renderizado se veía que "Analizar los mensajes" salía en Contenido, en Moderación y
+    en Exclusiones, donde no tiene nada que ver. Cuatro copias del mismo interruptor
+    confunden en vez de ayudar, y era parte de lo que hacía el panel ilegible.
+    """
+
+    @staticmethod
+    async def _seccion(nombre, monkeypatch):
+        import types
+
+        import core.config as cfg
+        import core.guild_config as gc
+        import core.state as state
+        from ui import panel as pan
+
+        emojis = {n: getattr(cfg, n) for n in dir(cfg) if n.startswith("EMOJI_")}
+        state.bot = types.SimpleNamespace(
+            **emojis, guilds_data={}, vt_key_total_requests={}, vt_key_daily_usage={},
+            se_key_total_requests={}, se_key_daily_usage={}, user_scan_history={},
+            antispam_scan={}, vt_key_usage={}, se_key_usage={}, vt_user_requests={},
+        )
+
+        async def _nada(*a, **k):
+            return None
+
+        async def _obtener(_gid):
+            return dict(esq.defaults())
+
+        # `monkeypatch` y no asignación directa: esta última se queda puesta al terminar
+        # el test y rompe los ficheros que se ejecutan después.
+        monkeypatch.setattr(state, "bot", state.bot)
+        monkeypatch.setattr(state.bot, "guardar_datos", _nada, raising=False)
+        monkeypatch.setattr(gc, "obtener_config_guild", _obtener)
+        monkeypatch.setattr(pan, "obtener_config_guild", _obtener)
+        monkeypatch.setattr(gc, "actualizar_config", lambda *a, **k: None)
+        monkeypatch.setattr(pan, "actualizar_config", lambda *a, **k: None)
+
+        class _Perm:
+            send_messages = True
+
+        class _Canal:
+            def __init__(self, i, n):
+                self.id, self.name, self.topic = i, n, ""
+
+            def permissions_for(self, _m):
+                return _Perm()
+
+        guild = types.SimpleNamespace(
+            id=1, text_channels=[_Canal(1, "general"), _Canal(2, "registros")],
+            me=object(), get_channel=lambda c: None,
+        )
+        return await pan.PanelConfig.crear(nombre, guild)
+
+    @pytest.mark.parametrize("seccion", [s for s in esq.secciones()])
+    @pytest.mark.asyncio
+    async def test_solo_aparecen_los_botones_de_esa_seccion(self, seccion, monkeypatch):
+        vista = await self._seccion(seccion, monkeypatch)
+        etiquetas = {getattr(h, "label", "").split(" \u00b7")[0].strip()
+                     for h in vista.children if getattr(h, "label", None)}
+        esperados = {c.etiqueta for c in esq.claves_de(seccion) if c.tipo == "bool"}
+        for ajena in ("Analizar los mensajes", "Avisar en el canal de registro",
+                      "Borrar los mensajes peligrosos", "No avisar de nada"):
+            if ajena not in esperados:
+                assert ajena not in etiquetas, (
+                    f"'{ajena}' aparece en la sección '{seccion}' y no le toca"
+                )
+
+    @pytest.mark.asyncio
+    async def test_cada_seccion_cabe_en_las_cinco_filas(self, monkeypatch):
+        from ui import panel as pan
+
+        for seccion in esq.secciones():
+            vista = await self._seccion(seccion, monkeypatch)
+            filas, ocupada = 1, 0
+            for hijo in vista.children:
+                ancho = getattr(hijo, "width", 5)
+                if ocupada + ancho > 5:
+                    filas, ocupada = filas + 1, 0
+                ocupada += ancho
+            assert filas <= pan.MAX_FILAS, f"{seccion} necesita {filas} filas"

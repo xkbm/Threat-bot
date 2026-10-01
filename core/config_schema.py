@@ -26,27 +26,24 @@ from typing import Any, Dict, List, Optional
 # --- Secciones -------------------------------------------------------------
 GENERAL = "general"
 AVISO = "aviso"
-FALLOS = "fallos"
 CONTENIDO = "contenido"
 MODERACION = "moderacion"
 EXCLUSIONES = "exclusiones"
 
 TITULOS_SECCION = {
     GENERAL: "General",
-    AVISO: "Aviso",
-    FALLOS: "Fallos",
+    AVISO: "Avisos",
     CONTENIDO: "Contenido",
     MODERACION: "Moderación",
     EXCLUSIONES: "Exclusiones",
 }
 
 DESCRIPCION_SECCION = {
-    GENERAL: "Qué se analiza y dónde se avisa.",
-    AVISO: "Cuándo se manda el embed al canal. Nada de esto toca la reacción.",
-    FALLOS: "Qué fallos merecen un aviso. No aplica a las amenazas, que avisan siempre.",
-    CONTENIDO: "Qué se considera NSFW y qué es contenido restringido.",
-    MODERACION: "Qué hace el bot sin preguntar.",
-    EXCLUSIONES: "Dónde no mirar.",
+    GENERAL: "Qué analiza el bot y dónde manda sus avisos.",
+    AVISO: "Qué te avisa el bot, y cómo.",
+    CONTENIDO: "Qué considera peligroso en las imágenes.",
+    MODERACION: "Qué hace el bot cuando encuentra algo.",
+    EXCLUSIONES: "Dónde el bot no mira.",
 }
 
 ACCIONES = ("ignorar", "borrar", "timeout", "banear")
@@ -195,53 +192,60 @@ def _e(nombre, seccion, etiqueta, default, opciones, ayuda="") -> Clave:
 
 ESQUEMA: tuple[Clave, ...] = (
     # --- General ---
-    _b("auto_scan_enabled", GENERAL, "Auto-scan", True,
-       "Analiza los enlaces y adjuntos de cada mensaje."),
-    _b("avisar_amenazas", GENERAL, "Avisar de amenazas", True,
-       "Poner en el canal de logs cuando algo se detecta. Antes solo se desactivaba "
-       "dejando el canal vacío, y eso se confundía con no haberlo configurado todavía."),
-    Clave("log_channel_id", "int", GENERAL, "Canal de logs", None, ayuda="Donde van las amenazas."),
+    _b("auto_scan_enabled", GENERAL, "Analizar los mensajes", True,
+       "Con esto apagado el bot solo responde cuando alguien usa /scan."),
+    _b("avisar_amenazas", GENERAL, "Avisar en el canal de registro", True,
+       "Marca cada hallazgo en el canal de registro. Puedes dejarlo apagado y seguir "
+       "recibiendo los avisos en el chat de donde salió el mensaje."),
+    Clave("log_channel_id", "int", GENERAL, "Canal de registro", None,
+          ayuda="Donde queda constancia de lo que se ha encontrado. Déjalo vacío si no "
+                "quieres registro."),
     # --- Aviso ---
-    _b("silent_mode", AVISO, "Interruptor general", True,
-       "Con él apagado no se avisa de nada, Botón de emergencia para silenciar el bot "
-       "de golpe sin tocar cada categoría."),
-    _b("reacciones", AVISO, "Reacciones", True,
-       "El emoji sobre el mensaje. Va aparte de los avisos: es retroalimentación, no "
-       "una notificación."),
+    _b("silent_mode", AVISO, "No avisar de nada", True,
+       "Silencia todo de golpe, sin tocar el resto. Para cuando el bot se está "
+       "comiendo un canal. Las reacciones siguen puestas."),
+    _b("reacciones", AVISO, "Poner un emoji en el mensaje", True,
+       "El emoji que resume cómo acabó el análisis. Es independiente de los avisos: "
+       "puedes querer el emoji pero no los mensajes largos."),
+    Clave("notificar", "list", AVISO, "Avisar de",
+          list(CATEGORIAS_POR_DEFECTO), opciones=CATEGORIAS_AVISO,
+          ayuda="Marca lo que quieres que llegue al canal. Lo que no marques, no suena."),
 
     # --- Contenido ---
-    _n("umbral_nudity", CONTENIDO, "Nudity explícita", 0.5, 0.0, 1.0),
-    _n("umbral_partial", CONTENIDO, "Nudity parcial", 0.45, 0.0, 1.0,
-       "Bikini, lencería, escote: lo que más llega a un servidor."),
-    _n("umbral_gore", CONTENIDO, "Gore", 0.5, 0.0, 1.0),
-    _n("umbral_offensive", CONTENIDO, "Ofensivo", 0.7, 0.0, 1.0),
-    _n("umbral_alcohol", CONTENIDO, "Alcohol (restringido)", 0.7, 0.0, 1.0),
-    _n("umbral_weapon", CONTENIDO, "Armas (restringido)", 0.6, 0.0, 1.0,
-       "Se ignoran juguetes y gestos: no son armas."),
-    _b("detectar_phishing", CONTENIDO, "Detectar suplantación", True,
-       "Comprobación local de texto, no gasta cuota de ninguna API."),
+    _n("umbral_nudity", CONTENIDO, "Desnudez explícita", 0.5, 0.0, 1.0,
+       ayuda="Contenido sexual directo. A 50% solo marca lo muy claro."),
+    _n("umbral_partial", CONTENIDO, "Desnudez parcial", 0.45, 0.0, 1.0,
+       ayuda="Bikini, lencería, escote. Es lo que más llega a un servidor, así que "
+             "suele querer un umbral más bajo que el de la explícita."),
+    _n("umbral_gore", CONTENIDO, "Gore", 0.5, 0.0, 1.0,
+       ayuda="Sangre, heridas, violencia gráfica. En servidores de juegos es habitual."),
+    _n("umbral_offensive", CONTENIDO, "Ofensivo", 0.7, 0.0, 1.0,
+       ayuda="Símbolos ofensivos y contenido de odio. Más alto que el resto porque "
+             "casi nunca es intencionado."),
+    _n("umbral_alcohol", CONTENIDO, "Alcohol", 0.7, 0.0, 1.0,
+       ayuda="Entra en 'restringido', que avisa pero no borra. Súbelo para ignorar "
+             "cervezas en un meme."),
+    _n("umbral_weapon", CONTENIDO, "Armas", 0.6, 0.0, 1.0,
+       ayuda="También en 'restringido', así que avisa pero no borra. Los juguetes y "
+             "los gestos con las manos no cuentan como arma."),
+    _b("detectar_phishing", CONTENIDO, "Buscar enlaces que imitan a una marca", True,
+       "Detecta cosas como rnicrosoft.com sin llamar a ninguna API, así que no gasta "
+       "cuota. Avisa, pero no borra el mensaje."),
     # `vt_para_imagenes` NO es configurable, por el mismo motivo que los límites: cada
     # imagen cuesta un request de VirusTotal, y dejar que un admin lo active es darle
     # la llave de tu cuota mensual. Ahora lo decide el código.
 
-    # --- Fallos ---
-    # En su propia sección, y no en Aviso, porque un desplegable ocupa una fila entera de
-    # las 5 que admite Discord, y la sección Aviso ya lleva sus interruptores.
-    Clave("notificar", "list", FALLOS, "Qué avisa en el canal",
-          list(CATEGORIAS_POR_DEFECTO), opciones=CATEGORIAS_AVISO,
-          ayuda="Un dial por categoría. Si no hay nada marcado, no se avisa de nada."),
-
     # --- Moderación ---
-    _b("strict_mode", MODERACION, "Modo estricto", True,
-       "Borra el mensaje ante una amenaza confirmada."),
-    _e("accion_restringido", MODERACION, "Acción ante restringido", "ignorar", ACCIONES),
-    _e("accion_phishing", MODERACION, "Acción ante suplantación", "ignorar", ACCIONES),
-    _e("accion_malicious", MODERACION, "Acción ante malware", "borrar", ACCIONES),
+    _b("strict_mode", MODERACION, "Borrar los mensajes peligrosos", True,
+       "Solo ante malware y NSFW confirmados. Ni el alcohol, ni las armas, ni un enlace "
+       "sospechoso borran nada por su cuenta."),
 
     # --- Exclusiones ---
     # Solo `whitelist` de esta sección: canales y roles exentos quedarían como
     # controles muertos. Se pueden añadir cuando se implementen de verdad.
-    Clave("whitelist", "list", EXCLUSIONES, "Dominios en whitelist", []),
+    Clave("whitelist", "list", EXCLUSIONES, "Dominios en los que no se mira", [],
+          ayuda="Los enlaces a estos dominios no se analizan. Sirve para los sitios "
+                "legítimos que mandan avisos falsos."),
 
     # No hay sección `CUOTA`, y es deliberado.
     #
@@ -337,19 +341,20 @@ def aplicar_config(umbrales: Optional[dict] = None) -> dict:
 def _legible_notificar(seleccion: List[str]) -> str:
     """Resumen de qué avisa, para el embed del panel.
 
-    La cuenta es lo que importa ("7 de 15"), no la lista entera: con quince categorías un
-    campo de embed quedaría en un muro de texto. Y las que faltan son las
-    interesantes: son las que están calladas.
+    La versión anterior listaba las categorías **apagadas**: "3 de 15 · sin avisar:
+    Suplantación de marca, Restringido (+10)". Con quince opciones eso es un muro de
+    texto, y además responde a la pregunta equivocada: quien abre la sección quiere ver
+    lo que SÍ va a sonar.
     """
-    total = len(CATEGORIAS)
     activos = [c for c in CATEGORIAS if c in set(seleccion)]
+    total = len(CATEGORIAS)
     if not activos:
-        return f"*Ninguno* \u00b7 {total} silenciados"
+        return "*Nada*. Solo quedará el emoji en los mensajes."
     if len(activos) == total:
-        return f"*Todas* ({total})"
-    faltan = [CATEGORIAS[c][0] for c in CATEGORIAS if c not in set(seleccion)]
-    return (f"**{len(activos)}** de {total} \u00b7 sin avisar: "
-            + ", ".join(faltan[:2]) + (f" (+{len(faltan) - 2})" if len(faltan) > 2 else ""))
+        return f"*Todo* ({total})"
+    return (f"**{len(activos)}** de {total} \u00b7 "
+            + ", ".join(CATEGORIAS[c][0] for c in activos[:3])
+            + (f" (+{len(activos) - 3})" if len(activos) > 3 else ""))
 
 
 def resumen_seccion(config: dict, seccion: str) -> List[tuple[str, str]]:

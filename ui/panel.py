@@ -383,11 +383,13 @@ class PanelConfig(discord.ui.View):
                     self.add_item(SelectorUmbral(
                         clave.nombre, clave.etiqueta, float(config.get(clave.nombre, clave.default))))
 
-        # Botones de los booleanos de esta sección. Fuera de "General" se añaden también
-        # los de General, que es donde casi siempre se quiere tocar algo junto.
+        # Solo los booleanos de ESTA sección.
+        #
+        # Antes se añadían también los de General a todas, "por si acaso". Renderizado se
+        # veía que "Analizar los mensajes" salía en Contenido, en Moderación y en
+        # Exclusiones, donde no tiene nada que ver: cuatro copias del mismo interruptor
+        # confunden en vez de ayudar. Cada sección muestra lo suyo y ya está.
         claves = [c for c in esq.claves_de(self.seccion) if c.tipo == "bool"]
-        if self.seccion != esq.GENERAL:
-            claves = [c for c in esq.claves_de(esq.GENERAL) if c.tipo == "bool"] + claves
 
         fila: list[discord.ui.Button] = []
         for clave in claves:
@@ -400,18 +402,12 @@ class PanelConfig(discord.ui.View):
         for boton in fila:
             self.add_item(boton)
 
-        if self.seccion == esq.FALLOS:
-            # La lista completa va en su propia seccion (se llama FALLOS pero contiene
-            # también hallazgos): en Aviso ya hay interruptores y los desplegables ocupan
-            # filas enteras de las cinco que admite Discord.
+        if self.seccion == esq.AVISO:
+            # Al final a proposito: los interruptores se leen de arriba abajo y el
+            # desplegable de 15 opciones es lo que menos se toca.
             self.add_item(SelectorNotificaciones(
                 list(config.get("notificar") or esq.CATEGORIAS_POR_DEFECTO)))
             self.add_item(SelectorPresetNotificaciones())
-
-        for clave in esq.claves_de(self.seccion):
-            if clave.tipo == "str" and clave.opciones and clave.nombre != "notificar":
-                self.add_item(SelectorAccion(
-                    clave.nombre, str(config.get(clave.nombre, clave.default))))
 
         self._avisar_si_no_cabe()
 
