@@ -3,6 +3,7 @@ from typing import Optional, Any
 import logging
 from core import state
 from core.config import DOMINIOS_PROTEGIDOS
+from core.aviso import config_aviso_por_defecto
 from core.database import guardar_datos
 
 log = logging.getLogger("guild_config")
@@ -21,7 +22,7 @@ async def remove_guild_lock(guild_id: int) -> None:
         _guild_locks.pop(guild_id, None)
 
 def _config_por_defecto() -> dict[str, Any]:
-    return {
+    cfg: dict[str, Any] = {
         "silent_mode": True,
         "strict_mode": True,
         "auto_scan_enabled": True,
@@ -30,6 +31,12 @@ def _config_por_defecto() -> dict[str, Any]:
         "infracciones": {},
         "infracciones_registradas": {},
     }
+    # Los interruptores de aviso no son una decisión del usuario todavía: se derivan
+    # de su `silent_mode` actual para que un servidor que actualice el bot no vea
+    # ningún cambio en lo que recibe. En cuanto los toque desde el panel se guardan
+    # explícitos y esta derivación ya no vuelve a aplicarse.
+    cfg.update(config_aviso_por_defecto(cfg["silent_mode"]))
+    return cfg
 
 
 def _asegurar_guild(guild_id: int) -> dict[str, Any]:
@@ -40,8 +47,21 @@ def _asegurar_guild(guild_id: int) -> dict[str, Any]:
     if guild_id not in state.bot.guilds_data:
         state.bot.guilds_data[guild_id] = _config_por_defecto()
     config = state.bot.guilds_data[guild_id]
+
+    # El orden importa y es la razón de que esta función exista. Los interruptores de
+    # aviso se derivan del `silent_mode` **de este** guild, y tienen que fijarse ANTES
+    # del `setdefault` genérico: si se pusieran después, el genérico ya habría metido
+    # `avisar_limpios` derivado del `silent_mode` por defecto (True), y una guild que
+    # tuviera `silent_mode: False` en su data.json se quedaría con `avisar_limpios:
+    # False` y dejaría de recibir los embeds de mensajes limpios al actualizar el bot.
+    for clave, valor in config_aviso_por_defecto(config.get("silent_mode", True)).items():
+        if clave == "silent_mode":
+            continue
+        config.setdefault(clave, valor)
+
     for key, default_val in _config_por_defecto().items():
         config.setdefault(key, default_val)
+
     return config
 
 

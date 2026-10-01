@@ -6,7 +6,7 @@ import time
 from typing import Optional
 import logging
 from core.utils import expandir_url, comprobar_antispam, formatear_espera, clave_analisis, vuelo
-from core.state import ANALYSIS_SEMAPHORE
+
 from ui import embed as emb
 
 log = logging.getLogger("analisis")
@@ -146,11 +146,12 @@ class AnalisisCog(commands.Cog):
 
             async def _analizar_archivo() -> tuple[str, discord.Embed, int]:
                 log.debug(f"SCAN ARCHIVO ANALIZANDO → {archivo.filename}")
-                async with ANALYSIS_SEMAPHORE:
-                    return await self.bot.analizar_archivo(
-                        archivo, file_bytes=file_bytes, file_hash=file_hash,
-                        guild_id=guild_id, guardar_cache=True, registrar_para=interaction.user
-                    )
+                # Sin ANALYSIS_SEMAPHORE: ver la nota de `_llamar_api`. `analizar_archivo`
+                # también sondea con esperas de 55s.
+                return await self.bot.analizar_archivo(
+                    archivo, file_bytes=file_bytes, file_hash=file_hash,
+                    guild_id=guild_id, guardar_cache=True, registrar_para=interaction.user
+                )
 
             try:
                 tipo_res, embed, mal = await vuelo(clave_cache, _analizar_archivo)
@@ -210,17 +211,18 @@ class AnalisisCog(commands.Cog):
             return
 
         async def _llamar_api() -> tuple[str, discord.Embed, int]:
+            # Sin ANALYSIS_SEMAPHORE a propósito. `analizar_url` y `analizar_archivo`
+            # duermen 55s entre sondeos de VirusTotal; retener un hueco del pool
+            # durante el sueño bloqueaba el análisis del resto del bot. La concurrencia
+            # de verdad ya la limita `adquirir_vt()`, que es la cuota de VT.
             if tipo.value == "url":
                 log.debug(f"SCAN URL ANALIZANDO → {valor}")
-                async with ANALYSIS_SEMAPHORE:
-                    return await self.bot.analizar_url(valor, guild_id=guild_id, guardar_cache=True, registrar_para=interaction.user)
+                return await self.bot.analizar_url(valor, guild_id=guild_id, guardar_cache=True, registrar_para=interaction.user)
             if tipo.value == "ip":
                 log.debug(f"SCAN IP ANALIZANDO → {valor}")
-                async with ANALYSIS_SEMAPHORE:
-                    return await self.bot.analizar_ip(valor, guild_id=guild_id, guardar_cache=True, registrar_para=interaction.user)
+                return await self.bot.analizar_ip(valor, guild_id=guild_id, guardar_cache=True, registrar_para=interaction.user)
             log.debug(f"SCAN HASH ANALIZANDO → {valor}")
-            async with ANALYSIS_SEMAPHORE:
-                return await self.bot.analizar_hash(valor, guild_id=guild_id, guardar_cache=True, registrar_para=interaction.user)
+            return await self.bot.analizar_hash(valor, guild_id=guild_id, guardar_cache=True, registrar_para=interaction.user)
 
         _t0 = time.time()
         try:

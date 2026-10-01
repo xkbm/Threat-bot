@@ -119,12 +119,79 @@ class TestAdquirirVt:
 
 class TestObtenerSiguienteSeKey:
     @pytest.mark.asyncio
-    async def test_cuenta_cuatro_ops_por_llamada(self, fake_bot, monkeypatch):
+    async def test_cuenta_una_op_por_modelo_pedido(self, fake_bot, monkeypatch):
+        """El coste sale de la lista real de modelos, no de un número fijo.
+
+        Añadir `gore-2.0` subió el coste por llamada de 4 a 5 operaciones. Con el plan
+        gratuito eso baja el techo de imágenes de 125 a 100 al día, así que el número
+        tiene que derivarse de `SE_OPS_PER_CALL` y no de un literal: si vuelve a
+        cambiar la lista de modelos, este test avisa en vez de romperse.
+        """
+        from core.config import SE_OPS_PER_CALL, SIGHTENGINE_MODELS
+
         par = ("user", "secret")
         monkeypatch.setattr(vt, "SE_API_KEYS_PAIRS", [par])
         assert await vt.obtener_siguiente_se_key() == par
-        assert fake_bot.se_key_daily_usage["user"]["count"] == 4
-        assert fake_bot.se_key_total_requests["user"] == 4
+        assert SE_OPS_PER_CALL == len(SIGHTENGINE_MODELS.split(","))
+        assert fake_bot.se_key_daily_usage["user"]["count"] == SE_OPS_PER_CALL
+        assert fake_bot.se_key_total_requests["user"] == SE_OPS_PER_CALL
+
+    @pytest.mark.asyncio
+    async def test_el_numero_de_ops_equivale_a_los_modelos(self):
+        """Guarda contra una lista de modelos y un coste que no cuadren."""
+        from core.config import SE_OPS_PER_CALL, SIGHTENGINE_MODELS
+
+        assert set(SIGHTENGINE_MODELS.split(",")) == {
+            "nudity-2.1", "weapon", "alcohol", "gore-2.0", "offensive",
+        }
+        assert SE_OPS_PER_CALL == 5
+
+
+class TestCuotaDelPlanGratuito:
+    """Los números que importan, calculados desde la lista real de modelos.
+
+    Sirven para que `/stats` y cualquier decisión sobre cuántos modelos pedir se
+    apoyen en estos valores y no en un número escrito a mano que se queda viejo.
+    """
+
+    def test_imagenes_por_mes_con_los_5_modelos(self):
+        from core.config import SE_MAX_OPS_PER_MONTH, SE_OPS_PER_CALL
+
+        # El tope que manda es el mensual: 2000/5 = 400 imágenes.
+        assert SE_MAX_OPS_PER_MONTH // SE_OPS_PER_CALL == 400
+
+    def test_el_tope_que_manda_es_el_mensual(self):
+        """500/día permitirían 3000 al mes, pero el plan solo da 2000.
+
+        Por eso el número real son ~13 imágenes al día de media, no 100: quien lea
+        `SE_MAX_OPS_PER_DAY` y concluya que puede analysing 100 imágenes diarias se
+        queda sin SightEngine a mitad de mes.
+        """
+        from core.config import SE_MAX_OPS_PER_DAY, SE_MAX_OPS_PER_MONTH, SE_OPS_PER_CALL
+
+        por_dia = SE_MAX_OPS_PER_DAY // SE_OPS_PER_CALL
+        techo_si_solo_contara_el_dia = por_dia * 30
+        real_por_mes = SE_MAX_OPS_PER_MONTH // SE_OPS_PER_CALL
+
+        assert por_dia == 100
+        assert techo_si_solo_contara_el_dia == 3000
+        assert real_por_mes == 400
+        # El mensual es el que corta antes.
+        assert real_por_mes < techo_si_solo_contara_el_dia
+
+    def test_cada_modelo_cuesta_un_20_por_ciento_de_la_capacidad(self):
+        """Coste marginal de añadir un modelo con el plan gratis."""
+        from core.config import SE_OPS_PER_CALL, SE_MAX_OPS_PER_MONTH
+
+        antes = SE_MAX_OPS_PER_MONTH / (SE_OPS_PER_CALL - 1)
+        ahora = SE_MAX_OPS_PER_MONTH / SE_OPS_PER_CALL
+        assert (antes - ahora) / antes == 0.2
+
+    def test_urls_de_virustotal_por_dia_en_el_peor_caso(self):
+        """Una URL sin分析 previa cuesta hasta 5 requests de los 500 del día."""
+        from core.config import VT_MAX_ANALYSES_PER_DAY, VT_REQUESTS_POR_URL_MAX
+
+        assert VT_MAX_ANALYSES_PER_DAY // VT_REQUESTS_POR_URL_MAX == 100
 
     @pytest.mark.asyncio
     async def test_respeta_el_tope_diario(self, fake_bot, monkeypatch):

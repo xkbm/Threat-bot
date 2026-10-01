@@ -15,6 +15,7 @@ from core.config import (
     VT_MAX_ANALYSES_PER_MINUTE,
     ANTISPAM_ANALYSIS_PER_HOUR, ANTISPAM_COOLDOWN, ANTISPAM_WINDOW,
 )
+from core.filetypes import mime_de_extension
 
 log = logging.getLogger("utils")
 _dns_cache: OrderedDict[str, tuple[float, str]] = OrderedDict()
@@ -63,16 +64,28 @@ async def _url_a_ip(url: str) -> tuple[Optional[str], Optional[str]]:
         return None, f"Error reconstruyendo URL: {e}"
 
 async def safe_remove_loading(bot: commands.Bot, msg: discord.Message) -> None:
+    """Quita el emoji de progreso sin poder tumbar nada.
+
+    Se llama desde bloques `finally`, así que cualquier excepción que se escape aquí
+    sustituye el resultado real del análisis por un error del todo ajeno: por eso
+    captura `Exception` y no solo las de Discord. `bot.user` puede además ser `None`
+    antes de que el bot esté listo.
+    """
     try:
-        await msg.remove_reaction(EMOJI_LOADING, bot.user)
-    except (discord.NotFound, discord.Forbidden, discord.HTTPException):
-        pass
+        usuario = getattr(bot, "user", None)
+        if usuario is None:
+            return
+        await msg.remove_reaction(EMOJI_LOADING, usuario)
+    except Exception as e:
+        log.debug(f"safe_remove_loading: {type(e).__name__}: {e}")
+
 
 async def safe_add_reaction(msg: discord.Message, emoji: str) -> None:
+    """Poner una reacción es cosmético: un fallo aquí no debe parar el análisis."""
     try:
         await msg.add_reaction(emoji)
-    except (discord.NotFound, discord.Forbidden, discord.HTTPException):
-        pass
+    except Exception as e:
+        log.debug(f"safe_add_reaction: {type(e).__name__}: {e}")
 
 async def safe_send(msg: discord.Message, embed: discord.Embed, reference: Optional[discord.Message] = None) -> None:
     try:
@@ -97,11 +110,65 @@ def dominio_en_whitelist(dominio: str, whitelist: list[str]) -> bool:
     return False
 
 def es_imagen(archivo: discord.Attachment) -> bool:
+    """¿Discord lo trata como imagen? Solo una PISTA, nunca un veredicto.
+
+    Decide por extensión y por el `Content-Type` que Discord deduce del nombre, así que
+    `malware.png` sale como imagen aunque su contenido sea un ejecutable. Por eso no debe
+    usarse para decidir a qué motor de análisis va un adjunto: para eso está
+    `core.filetypes.detectar`, que lee los bytes. Quedarse con esta función como criterio
+    era lo que hacía que un ejecutable con extensión de imagen nunca llegara a
+    VirusTotal.
+    """
     if any(archivo.filename.lower().endswith(ext) for ext in IMAGE_EXTENSIONS):
         return True
     if archivo.content_type and archivo.content_type.startswith('image/'):
         return True
     return False
+
+
+def verificar_nombre(filename: str, content_type: Optional[str], deteccion=None) -> tuple[bool, str]:
+    """Señales de que el archivo no es lo que dice ser.
+
+    Devuelve `(doble_extension, aviso_mime)`.
+
+    Estas dos comprobaciones vivían dentro de `_procesar_archivo`, así que solo se
+    aplicaban a los adjuntos que NO eran imagen: un `foto.exe.png` se saltaba las dos.
+    Ahora es una función pura y compartida, y la imagen pasa por ella igual.
+
+    Son dos chequeos distintos y ambos hacen falta:
+
+    1. **Nombre contra lo declarado**: `.png` pero Discord sirve `text/html`. El nombre
+       y la cabecera HTTP no cuadran. Es el scam clásico de la página falsa.
+    2. **Bytes contra lo declarado**: `.png` y `image/png`, pero el contenido es un
+       ejecutable. Aquí nombre y cabecera coinciden en mentir, y solo mirar los
+       bytes lo delata.
+
+    El primero necesita solo el nombre y el `Content-Type`; el segundo, los bytes. Si
+    no hay `deteccion` solo se puede hacer el primero.
+    """
+    doble_ext = tiene_doble_extension(filename)
+
+    declarado = (content_type or "").split(";")[0].strip()
+    if not declarado:
+        return doble_ext, ""
+
+    aviso = ""
+    # 1. El nombre promete una cosa y la cabecera otra.
+    esperado_por_nombre = mime_de_extension(filename)
+    if esperado_por_nombre and esperado_por_nombre.lower() != declarado.lower():
+        ext = (filename.rsplit(".", 1)[-1] if "." in filename else "").lower()
+        aviso = f"Extensión .{ext} pero tipo declarado {declarado}"
+
+    # 2. Los bytes dicen algo distinto de lo declarado. Solo si hay formato real
+    #    conocido y el aviso anterior no explica ya el problema.
+    if not aviso and deteccion is not None and deteccion.mime_esperado:
+        if deteccion.mime_esperado.lower() != declarado.lower():
+            aviso = (
+                f"Declarado {declarado} pero el contenido real es "
+                f"{deteccion.mime_esperado} (`{deteccion.formato}`)"
+            )
+
+    return doble_ext, aviso
 
 def _texto_exc(exc: BaseException) -> str:
     """str(exc) sin riesgo de que el propio formateador reviente.

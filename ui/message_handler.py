@@ -12,13 +12,19 @@ import logging
 import discord
 from discord.ext import commands
 from core.config import MAX_IMAGE_SIZE, MAX_FILE_SIZE, EMOJI_CORRECTO, EMOJI_ERROR, EMOJI_WARNING, EMOJI_WHITELIST, EMOJI_LOADING, EMOJI_LINK, EMOJI_FILE, EMOJI_COOLDOWN, EMOJI_REPLY, EMOJI_NSFW, EMOJI_GUARDIAN
-from core.utils import safe_remove_loading, safe_add_reaction, safe_send, dominio_en_whitelist, url_es_imagen, es_imagen, expandir_url, tiene_doble_extension, descargar_url_segura, clave_analisis, vuelo, SIN_RESPUESTA, comprobar_antispam, check_vt_user_limit
+from core.utils import safe_remove_loading, safe_add_reaction, safe_send, dominio_en_whitelist, url_es_imagen, es_imagen, verificar_nombre, expandir_url, tiene_doble_extension, descargar_url_segura, clave_analisis, vuelo, SIN_RESPUESTA, comprobar_antispam, check_vt_user_limit
+from core import filetypes as F
+from core.filetypes import CABECERA_BYTES
 from core.cache import get_from_cache_mem, set_cache_mem
 from core.database import obtener_analisis_db, guardar_metadatos_hash, obtener_hash_desde_metadatos
 from api.virustotal import analizar_url, analizar_archivo, enviar_log_guild
-from api.sightengine import analizar_imagen_multimodelo
-from core.guild_config import obtener_config_guild, registrar_infraccion, update_stats
+from api.sightengine import analizar_imagen_multimodelo, evaluar_contenido
+from core.veredictos import Veredicto
 from core.state import ANALYSIS_SEMAPHORE
+from core.guild_config import obtener_config_guild, registrar_infraccion, update_stats
+from core.senales import desde_tuplas
+from core.aviso import debe_enviar_embed, reacciones_activas
+from core.reacciones import ReactionController, resolver_reaccion
 from ui import embed as emb
 
 log = logging.getLogger("handler")
@@ -106,6 +112,7 @@ async def _construir_embed_unificado(
     img_results: list[tuple],       # (filename, tipo, models, content_hash)
     arch_results: list[tuple],      # (filename, tipo, mal, file_hash, wm, doble_ext)
     omitidos: int,
+    whitelist_omitidos: int = 0,
 ) -> discord.Embed:
     """Construye UN embed con toda la información disponible (URLs + imágenes + archivos).
 
@@ -169,7 +176,12 @@ async def _construir_embed_unificado(
     if err_count:
         desc += f"{EMOJI_ERROR} Errores: **{err_count}**\n"
     if omitidos:
-        desc += f"{EMOJI_COOLDOWN} **{omitidos}** archivo(s) omitido(s) (límite {MAX_ADJUNTOS_POR_MENSAJE} por mensaje)"
+        desc += f"{EMOJI_COOLDOWN} **{omitidos}** archivo(s) omitido(s) (límite {MAX_ADJUNTOS_POR_MENSAJE} por mensaje)\n"
+    # La whitelist es un dato, no un veredicto. Antes tenía su propia reacción, que se
+    # ponía antes de conocer el resultado y nunca se quitaba: un mensaje con un enlace
+    # en whitelist y otro malicioso salía marcado con las dos, que se lee contradictorio.
+    if whitelist_omitidos:
+        desc += f"{EMOJI_WHITELIST} **{whitelist_omitidos}** enlace(s) en whitelist, no analizados"
 
     embed = emb.aviso(titulo_texto, desc, color=color, icono=emb.EMOJI_SHIELD, con_pie=False)
 
@@ -279,26 +291,48 @@ async def _procesar_imagen(
     guild_id: int,
 ) -> tuple[str, str, dict, str]:
     log.debug(f"Imagen: {img.filename} ({img.size} bytes)")
+    # Señales de nombre, igual que en `_procesar_archivo`. Antes las imágenes no pasaban
+    # por esta comprobación porque vivía dentro del handler de archivos: un
+    # `foto.exe.png` o un `.png` cuyo contenido es otra cosa se colaba sin avisar.
+    doble_ext, aviso_mime = verificar_nombre(
+        img.filename, getattr(img, "content_type", None), _deteccion_de(img)
+    )
     if img.size > MAX_IMAGE_SIZE:
-        return (img.filename, "error", {"error": "too_large"}, "")
+        return (img.filename, "error", {"error": "too_large", "doble_extension": doble_ext, "aviso_mime": aviso_mime}, "")
     try:
         async with bot._download_sem:
             async with bot.session.get(img.url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
                 if resp.status != 200:
-                    return (img.filename, "error", {}, "")
+                    return (img.filename, "error", {"doble_extension": doble_ext, "aviso_mime": aviso_mime}, "")
                 img_data = await resp.read()
             if len(img_data) > MAX_IMAGE_SIZE:
-                return (img.filename, "error", {"error": "too_large"}, "")
+                return (img.filename, "error", {"error": "too_large", "doble_extension": doble_ext, "aviso_mime": aviso_mime}, "")
+            # Si no se pudo sniffear antes (falló la petición Range), se hace ahora con
+            # los bytes que ya están en memoria: no cuesta una descarga extra.
+            det = _deteccion_de(img)
+            if det is None:
+                det = F.detectar(img_data)
+                _cachear_deteccion(img, det)
+                doble_ext, aviso_mime = verificar_nombre(img.filename, getattr(img, "content_type", None), det)
             content_hash = hashlib.sha256(img_data).hexdigest()
             async with ANALYSIS_SEMAPHORE:
                 is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(content_hash, img_data)
-            if not models.get("error"):
-                await update_stats(guild_id, "nsfw" if is_nsfw else "seguro")
-            if is_nsfw and guild_id:
+            # El veredicto lo decide `evaluar_contenido`, que distingue tres cosas que
+            # antes iban todas a "seguro": no había nada, no se pudo comprobar, y era
+            # contenido restringido. Solo en cache-miss se cuentan estadísticas, para no
+            # inflar el contador al reproteger la misma imagen.
+            veredicto, confianza, detalle = evaluar_contenido(models)
+            if not from_cache and veredicto is Veredicto.SEGURO:
+                await update_stats(guild_id, "seguro")
+            if veredicto in (Veredicto.NSFW, Veredicto.RESTRINGIDO) and guild_id:
                 await registrar_infraccion(guild_id, message.author.id, f"nsfw:{content_hash}")
-            return (img.filename, "nsfw" if is_nsfw else "seguro", models, content_hash)
+            if doble_ext or aviso_mime:
+                models = dict(models or {})
+                models["doble_extension"] = doble_ext
+                models["aviso_mime"] = aviso_mime
+            return (img.filename, veredicto.value, models, content_hash)
     except Exception:
-        return (img.filename, "error", {}, "")
+        return (img.filename, "error", {"doble_extension": doble_ext, "aviso_mime": aviso_mime}, "")
 
 async def _procesar_archivo(
     bot: commands.Bot,
@@ -317,8 +351,9 @@ async def _procesar_archivo(
     log.debug(f"Archivo: {archivo.filename} ({archivo.size} bytes)")
     doble_ext = tiene_doble_extension(archivo.filename)
     wm = ""
-    if doble_ext:
-        await safe_add_reaction(message, EMOJI_WARNING)
+    # La doble extensión ya no pone ninguna reacción aquí: antes ponía un warning a
+    # mitad del análisis que luego se acumulaba con el veredicto final y dejaba el
+    # mensaje con dos emojis. Ahora viaja como señal hasta `resolver_reaccion`.
     if archivo.size > MAX_FILE_SIZE:
         return (archivo.filename, "error", 0, "", "", doble_ext)
     try:
@@ -333,13 +368,17 @@ async def _procesar_archivo(
                 # libera la conexión y no es un lugar fiable para consultar la respuesta.
                 content_type = resp.headers.get('Content-Type', '')
             file_hash = hashlib.sha256(file_data).hexdigest()
-            ct_lower = content_type.lower()
-            if archivo.filename.lower().endswith(('.jpg', '.jpeg')) and ct_lower not in ('image/jpeg', 'image/jpg'):
-                wm = f"Extensión .jpg pero tipo real {content_type}"
-            elif archivo.filename.lower().endswith('.png') and ct_lower != 'image/png':
-                wm = f"Extensión .png pero tipo real {content_type}"
+            # Detecta por bytes si el sniff previo no llegó. Se comparan los bytes con
+            # lo que declara el nombre, no solo `Content-Type` contra una lista de dos
+            # extensiones: antes solo se miraba .jpg y .png, así que un PDF renombrado a
+            # .webp o un ZIP a .gif pasaban sin aviso.
+            det = _deteccion_de(archivo)
+            if det is None:
+                det = F.detectar(file_data)
+                _cachear_deteccion(archivo, det)
+            doble_ext, wm = verificar_nombre(archivo.filename, content_type, det)
     except Exception:
-        return (archivo.filename, "error", 0, "", "", doble_ext)
+        return (archivo.filename, "error", 0, "", wm, doble_ext)
     clave = clave_analisis("file", file_hash)
 
     async def _resolver() -> tuple[str, discord.Embed, int]:
@@ -350,42 +389,128 @@ async def _procesar_archivo(
                 await set_cache_mem(clave, tipo, e, m)
         if e is not None:
             return tipo, e, m
-        async with ANALYSIS_SEMAPHORE:
-            return await analizar_archivo(archivo, file_bytes=file_data, file_hash=file_hash, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
+        # Sin ANALYSIS_SEMAPHORE: `analizar_archivo` sondea con `sleep(55)` y un hueco
+        # del pool no puede quedarse ocupado durmiendo.
+        return await analizar_archivo(archivo, file_bytes=file_data, file_hash=file_hash, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
 
     tipo, embed, mal = await vuelo(clave, _resolver)
     if tipo == "malicioso":
         await registrar_infraccion(guild_id, message.author.id, f"filehash:{file_hash}")
     return (archivo.filename, tipo, mal, file_hash, wm, doble_ext)
 
+_detecciones: dict[int, "F.Deteccion"] = {}
+
+
+def _cachear_deteccion(archivo: discord.Attachment, det) -> None:
+    """Guarda la detección por bytes para que los analizadores no la repitan.
+
+    `_analizar_adjuntos` ya leyó la cabecera; sin esto, `_procesar_imagen` y
+    `_procesar_archivo` tendrían que volver a descargar para poder hacer la verificación
+    de nombre.
+
+    Si el adjunto no trae `id` no se cachea y el llamante recalcula: es una optimización,
+    nunca un requisito. Un `AttributeError` aquí abortaría el análisis entero del
+    adjunto y lo dejaría como error sin hash.
+    """
+    clave = getattr(archivo, "id", None)
+    if det is not None and clave is not None:
+        _detecciones[clave] = det
+
+
+def _deteccion_de(archivo: discord.Attachment):
+    return _detecciones.get(getattr(archivo, "id", None))
+
+
+def _liberar_detecciones(adjuntos) -> None:
+    for a in adjuntos:
+        clave = getattr(a, "id", None)
+        if clave is not None:
+            _detecciones.pop(clave, None)
+
+
+async def _detectar_adjunto(bot: commands.Bot, archivo: discord.Attachment):
+    """Lee los primeros bytes del adjunto para clasificarlo de verdad.
+
+    Devuelve None si no se pudo leer, y en ese caso el llamante cae a `es_imagen()`,
+    que es la decisión por extensión que había antes: peor, pero nunca rompe el
+    análisis.
+
+    Solo se leen 4KB. Se pide un Range y, si el servidor lo ignora, se lee del flujo lo
+    justo y se sale del contexto, así que un adjunto de 32MB no se descarga entero solo
+    para classifying.
+    """
+    try:
+        async with bot._download_sem:
+            async with bot.session.get(
+                archivo.url,
+                headers={"Range": "bytes=0-4095"},
+                timeout=aiohttp.ClientTimeout(total=15),
+            ) as resp:
+                if resp.status not in (200, 206):
+                    return None
+                cabecera = await resp.content.read(CABECERA_BYTES)
+        if not cabecera:
+            return None
+        return F.detectar(cabecera)
+    except Exception as e:
+        log.debug(f"No se pudo detectar el tipo de {archivo.filename}: {type(e).__name__}")
+        return None
+
+
 async def _analizar_adjuntos(
     bot: commands.Bot,
     message: discord.Message,
     guild_id: int,
 ) -> tuple[list, list, int]:
-    """Analiza adjuntos y retorna (img_results, arch_results, omitidos) sin enviar nada."""
+    """Analiza adjuntos y retorna (img_results, arch_results, omitidos) sin enviar nada.
+
+    El reparto entre "imagen" y "archivo" lo deciden los bytes, no el nombre. Antes se
+    hacía con `es_imagen()`, que mira la extensión y el `Content-Type` que Discord deduce
+    del nombre: un ejecutable llamado `malware.png` pasaba por ahí, se.ibía solo a
+    SightEngine y el malware no se escaneaba nunca. Y al revés, `foto.exe.png` entraba
+    como imagen y se saltaba la verificación MIME y la detección de doble extensión.
+    """
     adjuntos = message.attachments[:MAX_ADJUNTOS_POR_MENSAJE]
     omitidos = max(0, len(message.attachments) - MAX_ADJUNTOS_POR_MENSAJE)
-    imagenes = [a for a in adjuntos if es_imagen(a)]
-    otros = [a for a in adjuntos if not es_imagen(a)]
+
+    # Detecta por bytes. Va en paralelo porque son peticiones de red y cada una puede
+    # tardar; si una falla, `None` hace que ese adjunto use la pista por extensión.
+    detecciones = await asyncio.gather(
+        *[_detectar_adjunto(bot, a) for a in adjuntos], return_exceptions=True
+    )
+
+    imagenes: list[discord.Attachment] = []
+    otros: list[discord.Attachment] = []
+    for archivo, det in zip(adjuntos, detecciones):
+        det = det if isinstance(det, F.Deteccion) else None
+        _cachear_deteccion(archivo, det)
+        # Los bytes mandan. Solo si no se pudo leer, la extensión.
+        es_img = det.es_imagen if det is not None else es_imagen(archivo)
+        (imagenes if es_img else otros).append(archivo)
+
     omit_msg = f", {omitidos} omitidos" if omitidos else ""
     log.debug(f"Adjuntos: {len(imagenes)} imágenes, {len(otros)} archivos{omit_msg}")
 
-    await safe_add_reaction(message, EMOJI_LOADING)
+    await _controlador_para(bot, message).loading()
     try:
         if imagenes:
             tareas_img = [_procesar_imagen(bot, message, img, guild_id) for img in imagenes]
-            resultados_img = await asyncio.gather(*tareas_img)
+            resultados_img = await asyncio.gather(*tareas_img, return_exceptions=True)
         else:
             resultados_img = []
 
         if otros:
             tareas_arch = [_procesar_archivo(bot, message, archivo, guild_id) for archivo in otros]
-            resultados_arch = await asyncio.gather(*tareas_arch)
+            resultados_arch = await asyncio.gather(*tareas_arch, return_exceptions=True)
         else:
             resultados_arch = []
     finally:
         await safe_remove_loading(bot, message)
+        #Va en el `finally`, no después: si un adjunto revienta, `gather` sin
+        # `return_exceptions` propagaba la excepción y `_detecciones` se quedaba con las
+        # entradas de ese mensaje para siempre. Como el mapa no tiene TTL, eso es una
+        # fuga que crece con cada mensaje problemático.
+        _liberar_detecciones(adjuntos)
 
     resultados_img = [r for r in resultados_img if isinstance(r, tuple)]
     resultados_arch = [r for r in resultados_arch if isinstance(r, tuple)]
@@ -405,6 +530,26 @@ def _limpiar_url(url: str) -> str:
     while url and url[-1] in ')]}>.,;:':
         url = url[:-1]
     return url
+
+
+def _controlador_para(bot: commands.Bot, message: discord.Message) -> ReactionController:
+    """Devuelve el ReactionController del mensaje, creándolo si no existe.
+
+    Vive en el bot y no como variable local a propósito: `on_message` y
+    `on_message_edit` pueden procesar el mismo mensaje a la vez, y dos instancias
+    compitiendo se quitarían y pondrían emojis sin coordinarse. Una vez puesto el
+    veredicto, el controlador se descarta: el siguiente análisis del mismo mensaje
+    necesita empezar limpio.
+    """
+    cache = getattr(bot, "_reaction_controllers", None)
+    if cache is None:
+        cache = {}
+        bot._reaction_controllers = cache
+    ctrl = cache.get(message.id)
+    if ctrl is None:
+        ctrl = ReactionController(message)
+        cache[message.id] = ctrl
+    return ctrl
 
 
 def debe_borrar(has_threat: bool, has_doble_ext: bool, has_mime_mismatch: bool, strict_mode: bool) -> bool:
@@ -453,6 +598,10 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
     img_results: list[tuple[str, str, dict, str]] = []          # (filename, tipo, models, content_hash)
     arch_results: list[tuple[str, str, int, str, str, bool]] = []  # (filename, tipo, mal, file_hash, wm, doble_ext)
     omitidos = 0
+    # Antes cada uno de estos eventos ponía su propia reacción. Ahora solo son señales
+    # y el embed los cuenta; la única reacción la decide `resolver_reaccion`.
+    _cooldown_activado = False
+    _whitelist_omitidos = 0
 
     url_fue_expandida = False
     url_original_str = ""
@@ -469,7 +618,10 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
             if not dominio_en_whitelist(dominio, whitelist):
                 todas_urls.append(url)
             else:
-                await safe_add_reaction(message, EMOJI_WHITELIST)
+                # Solo se cuenta. La reacción la pone al final `resolver_reaccion`, que
+                # además tiene en cuenta lo demás: ponerla aquí marcaba como confiable un
+                # mensaje que|resultara malicioso.
+                _whitelist_omitidos += 1
 
         if not todas_urls:
             # Todas en whitelist
@@ -503,7 +655,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                     log.debug(f"ANTISPAM → guild={guild_id} user={message.author.id} espera={espera}s")
 
             if not permitido:
-                await safe_add_reaction(message, EMOJI_COOLDOWN)
+                _cooldown_activado = True
                 img_results, arch_results, omitidos = await _analizar_adjuntos_si_hay(bot, message, guild_id)
             else:
                 # --- URL única ---
@@ -565,7 +717,9 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                                 else:
                                     content_hash = hashlib.sha256(img_data).hexdigest()
                                     is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(content_hash, img_data)
-                                    if not models.get("error"):
+                                    # Solo en cache-miss, igual que en `_procesar_imagen`
+                                    # y que en las URLs.
+                                    if not from_cache and not models.get("error"):
                                         await update_stats(guild_id, "nsfw" if is_nsfw else "seguro")
                                     await set_cache_mem(clave_meta_url, json.dumps({"hash": content_hash}), datos={"hash": content_hash})
                                     await guardar_metadatos_hash(clave_meta_url, content_hash)
@@ -726,8 +880,11 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                                 async def _llamar_vt() -> Optional[tuple[str, discord.Embed, int, bool]]:
                                     if not await check_vt_user_limit(bot, guild_id, message.author.id):
                                         return None
-                                    async with ANALYSIS_SEMAPHORE:
-                                        t, e, m = await analizar_url(url_exp, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
+                                    # Sin ANALYSIS_SEMAPHORE: `analizar_url` duerme 55s
+                                    # entre sondeos y sostener un hueco del pool durante el
+                                    # sueño bloqueaba el análisis del resto. El límite real
+                                    # de VT lo aplica `adquirir_vt()` por key.
+                                    t, e, m = await analizar_url(url_exp, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
                                     return t, e, m, True
 
                                 resolucion = await vuelo(clave_api, _llamar_vt)
@@ -760,44 +917,35 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
     if total_elementos == 0:
         return
 
-    has_malicious_url = any(r.tipo == "malicioso" for r in url_results)
-    has_suspicious_url = any(r.tipo == "sospechoso" for r in url_results)
-    has_nsfw_url = any(r.tipo == "nsfw" for r in img_url_results)
-    has_malicious_file = any(t == "malicioso" for _, t, _, _, _, _ in arch_results)
-    has_suspicious_file = any(t == "sospechoso" for _, t, _, _, _, _ in arch_results)
-    has_nsfw_img = any(t == "nsfw" for _, t, _, _ in img_results)
-    has_threat = has_malicious_url or has_nsfw_url or has_malicious_file or has_nsfw_img
-    has_suspicious = has_suspicious_url or has_suspicious_file
-    has_errors = (any(r.tipo == "error" for r in url_results)
-                  or any(r.tipo == "error" for r in img_url_results)
-                  or any(t == "error" for _, t, _, _ in img_results)
-                  or any(t == "error" for _, t, _, _, _, _ in arch_results))
-    has_doble_ext = any(d for _, _, _, _, _, d in arch_results)
-    has_mime_mismatch = any(w for _, _, _, _, w, _ in arch_results)
+    # --- Señales: una foto de todo lo que se ha detectado ---
+    # Reemplaza a las catorce variables locales que se arrastraban por la función. Las
+    # banderas son properties, así que no pueden quedar desincronizadas de los datos.
+    senales = desde_tuplas(url_results, img_url_results, img_results, arch_results)
+    senales.cooldown = _cooldown_activado
+    senales.omitidos = omitidos
+    senales.whitelist_omitidos = _whitelist_omitidos
+
+    has_threat = senales.hay_amenaza
+    has_doble_ext = senales.doble_ext
+    has_mime_mismatch = senales.mime_mismatch
 
     embed = await _construir_embed_unificado(
         message, url_results, img_url_results, img_results, arch_results, omitidos,
+        whitelist_omitidos=_whitelist_omitidos,
     )
 
-    # Enviar embed
-    if has_threat or has_suspicious or has_errors or omitidos or not silent_mode:
+    # Enviar embed. `debe_enviar_embed` separa los tres interruptores: antes esta
+    # condición era una suma de "algo salió mal" que no se podía desactivar por partes.
+    if debe_enviar_embed(senales, config):
         await safe_send(message, embed, reference=message)
 
-    # Reacción única por el peor resultado. Un nombre engañoso cuenta como peor que
-    # "seguro": el contenido puede estar limpio, pero el archivo no es de lo que dice
-    # ser, y marcarlo a la vez con el verde se lee como una contradicción.
-    if has_malicious_url or has_malicious_file:
-        await safe_add_reaction(message, EMOJI_WARNING)
-    elif has_nsfw_url or has_nsfw_img:
-        await safe_add_reaction(message, EMOJI_NSFW)
-    elif has_doble_ext or has_mime_mismatch:
-        await safe_add_reaction(message, EMOJI_WARNING)
-    elif has_suspicious:
-        await safe_add_reaction(message, EMOJI_GUARDIAN)
-    elif has_errors:
-        await safe_add_reaction(message, EMOJI_ERROR)
+    # Una sola reacción por mensaje. El controlador es quien garantiza el invariante:
+    # antes los emojis se añadían en cinco sitios y solo se quitaba el loading, así que
+    # un mensaje con whitelist + doble extensión + NSFW salía con tres a la vez.
+    if reacciones_activas(config):
+        await _controlador_para(bot, message).set(resolver_reaccion(senales))
     else:
-        await safe_add_reaction(message, EMOJI_CORRECTO)
+        await safe_remove_loading(bot, message)
 
     # Strict mode
     if debe_borrar(has_threat, has_doble_ext, has_mime_mismatch, strict_mode):
@@ -819,11 +967,11 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                     url_vt=r.vt_link, elemento_id=r.elemento_id,
                 )
         for r in img_url_results:
-            if r.tipo == "nsfw":
-                await enviar_log_guild(guild_id, "Imagen NSFW", r.url, r.detalles, message.author, elemento_id=r.elemento_id or None, es_nsfw=True)
+            if r.tipo in ("nsfw", "restringido"):
+                await enviar_log_guild(guild_id, "Imagen NSFW" if r.tipo == "nsfw" else "Contenido restringido", r.url, r.detalles, message.author, elemento_id=r.elemento_id or None, es_nsfw=(r.tipo == "nsfw"))
         for filename, tipo, models, content_hash in img_results:
-            if tipo == "nsfw" and content_hash:
-                await enviar_log_guild(guild_id, "Imagen NSFW (múltiples)", filename, "Detectado en análisis múltiple", message.author, elemento_id=f"nsfw:{content_hash}", es_nsfw=True)
+            if tipo in ("nsfw", "restringido") and content_hash:
+                await enviar_log_guild(guild_id, "Imagen NSFW" if tipo == "nsfw" else "Contenido restringido", filename, models.get("detalle") or "Detectado en análisis múltiple", message.author, elemento_id=f"nsfw:{content_hash}", es_nsfw=(tipo == "nsfw"))
         for filename, tipo, mal, file_hash, _wm, _doble_ext in arch_results:
             if tipo == "malicioso":
                 # Mismo elemento_id que usa _procesar_archivo al registrar la infracción.

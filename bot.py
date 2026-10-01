@@ -45,7 +45,10 @@ load_dotenv()
 
 intents = discord.Intents.default()
 intents.message_content = True
-intents.members = True
+# `members` es un intent privilegiado y el bot no lee miembros en ningún sitio
+# (ni `on_member_join` ni iteraciones sobre `guild.members`). Pedirlo obligaba a
+# habilitarlo en el developer portal sin ningún beneficio: si el portal no lo tiene,
+# el gateway lo rechaza y el bot no arranca.
 bot = commands.Bot(command_prefix="-", intents=intents, allowed_mentions=discord.AllowedMentions.none())
 state.bot = bot
 
@@ -108,6 +111,7 @@ from core.config import (
     EMOJI_LOADING, EMOJI_LOADING_ERROR, EMOJI_FILE, EMOJI_SHIELD, EMOJI_FINGERPRINT, EMOJI_GUARDIAN,
     EMOJI_STATS, EMOJI_WHITELIST, EMOJI_COOLDOWN, EMOJI_REPLY, EMOJI_KEY,
     EMOJI_KICK, EMOJI_BAN, EMOJI_CLEAN, EMOJI_GITHUB, EMOJI_NSFW,
+    EMOJI_RESTRINGIDO, EMOJI_PHISHING,
     COLOR_SEGURO, COLOR_ERROR,
     MAX_FILE_SIZE, CACHE_DURATION, DATA_FILE, DB_FILE,
     ANTISPAM_COOLDOWN, ANTISPAM_WINDOW,
@@ -137,6 +141,8 @@ bot.EMOJI_BAN = EMOJI_BAN
 bot.EMOJI_CLEAN = EMOJI_CLEAN
 bot.EMOJI_GITHUB = EMOJI_GITHUB
 bot.EMOJI_NSFW = EMOJI_NSFW
+bot.EMOJI_RESTRINGIDO = EMOJI_RESTRINGIDO
+bot.EMOJI_PHISHING = EMOJI_PHISHING
 bot.MAX_FILE_SIZE = MAX_FILE_SIZE
 bot.ANTISPAM_ANALYSIS_PER_HOUR = ANTISPAM_ANALYSIS_PER_HOUR
 bot.ANTISPAM_COOLDOWN = ANTISPAM_COOLDOWN
@@ -198,9 +204,10 @@ async def _limpiar_cron():
             expirados_huella = limpiar_cache_procesados()
             # F5: los contadores de uso de API y el antispam solo vivían en RAM y se
             # perdían en cada reinicio, así que /stats volvía a 0% de cuota consumida.
-            # include_runtime=True los vuelca a data.json; include_runtime=False (el
-            # default) solo persiste la configuración de los servidores.
-            await guardar_datos(inmediato=True, include_runtime=True)
+            # El volcado es siempre completo ahora; antes hacía falta `include_runtime`,
+            # y como la mayoría de los llamantes no lo pasaban, un solo análisis bastaba
+            # para borrar los contadores que este mismo guardado acababa de escribir.
+            await guardar_datos(inmediato=True)
             if expired_history or expired_anti or expired_vt or expirados_huella:
                 log.debug(
                     f"Cleanup: {len(expired_history)} history + {len(expired_anti)} antispam "
@@ -209,9 +216,30 @@ async def _limpiar_cron():
         except Exception as e:
             log.error(f"Error limpiando caché: {e}")
 
+def _es_emisor_que_ignoramos(message: discord.Message) -> bool:
+    """Mensajes que no disparan análisis.
+
+    Otros bots y webhooks se filtran porque sus mensajes son casi siempre automáticos:
+    analizarlos consume cuota de SightEngine y VirusTotal para nada y puede disparar el
+    antispam de un usuario que solo está pegando lo que le devuelve otra herramienta.
+    """
+    if message.author == bot.user:
+        return True
+    if getattr(message.author, "bot", False):
+        return True
+    # `webhook_id` no se rellena en todos los caminos de la librería; se comprueba sin
+    # asumir que existe.
+    if getattr(message, "webhook_id", None):
+        return True
+    return False
+
+
 @bot.event
 async def on_message(message):
-    if message.author == bot.user or not message.guild:
+    if not message.guild:
+        await bot.process_commands(message)
+        return
+    if _es_emisor_que_ignoramos(message):
         await bot.process_commands(message)
         return
     from ui.message_handler import procesar_analisis
@@ -224,7 +252,7 @@ async def on_message(message):
 
 @bot.event
 async def on_message_edit(before, after):
-    if before.author == bot.user or not after.guild:
+    if not after.guild or _es_emisor_que_ignoramos(after):
         return
     if before.content == after.content and len(before.attachments) == len(after.attachments):
         return
@@ -274,7 +302,7 @@ async def shutdown():
     if bot._background_tasks:
         await asyncio.gather(*bot._background_tasks, return_exceptions=True)
     from core.database import guardar_datos, POOL
-    await guardar_datos(inmediato=True, include_runtime=True)
+    await guardar_datos(inmediato=True)
     await POOL.stop()
     if bot.session:
         await bot.session.close()

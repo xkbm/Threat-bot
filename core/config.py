@@ -62,8 +62,27 @@ EXPIRACION: dict[str, int] = {
 }
 
 SIGHTENGINE_API_URL: str = "https://api.sightengine.com/1.0/check.json"
-SIGHTENGINE_MODELS: str = "nudity,weapon,alcohol,offensive"
+# `nudity` v1.0 está deprecated en favor de `nudity-2.1`, y se añade `gore-2.0` porque
+# la sangre/gore es contenido que de verdad aparece en un servidor y antes no se miraba.
+# Suman 5 operaciones por llamada, y ese número lo gasta SE_OPS_PER_CALL.
+SIGHTENGINE_MODELS: str = "nudity-2.1,weapon,alcohol,gore-2.0,offensive"
 NSFW_CONFIDENCE_THRESHOLD: float = 0.5
+
+# Umbrales por categoría. Se pueden sobrescribir por servidor desde /settings; estos son
+# los valores por defecto.
+#
+# `nudity_partial` va aparte de `nudity_raw` a propósito: `raw` es material explícito
+# tipo X y `partial` es bikini, lencería o escote. Antes solo se leía `raw`, que es justo
+# lo que menos aparece, así que el detector marcaba muy poco.
+UMBRALES_CONTENIDO: dict[str, float] = {
+    "nudity_raw": 0.5,
+    "nudity_partial": 0.45,
+    "gore": 0.5,
+    "offensive": 0.7,
+    # `restringido` son señales discutibles: avisan y se registran, pero no borran.
+    "alcohol": 0.7,
+    "weapon": 0.6,
+}
 
 EMOJI_CORRECTO: str = "<:SM_Correcto:1015080045410263051>"
 EMOJI_INCORRECTO: str = "<:SM_Incorrecto:1015080005950259300>"
@@ -87,6 +106,11 @@ EMOJI_BAN: str = "<:SM_Ban:1498412610704375848>"
 EMOJI_CLEAN: str = "<:SM_Clean:1498412609056014336>"
 EMOJI_GITHUB: str = "<:Github:1512615005588160562>"
 EMOJI_NSFW: str = "<:NSFW:1513756541931753544>"
+# Veredictos añadidos con la separación nsfw/restringido y el detector anti-phishing.
+# `Flag` es una bandera con el signo rojo: "prohibido", que es el vocabulario que
+# Discord usa para el contenido restringido por edad (alcohol, armas).
+EMOJI_RESTRINGIDO: str = "<:Flag:1555092175547801670>"
+EMOJI_PHISHING: str = "<:Phishing:1555091633865760808>"
 
 ANTIVIRUS_CONOCIDOS: list[str] = [
     "Kaspersky", "McAfee", "Avast", "Norton", "BitDefender", "ESET", "Symantec",
@@ -106,14 +130,33 @@ ANTISPAM_WINDOW: int = 3600
 
 # Cuotas de las APIs externas. Fuente única de verdad: la consumen api/virustotal.py
 # para aplicar los límites y cogs/stats.py para mostrarlos.
-# VirusTotal Public API: 4 req/min y 500 req/día por key (reset 00:00 UTC).
+#
+# Valores del plan gratuito, que es el que usa este bot. Si algún día se paga, los
+# límites cambian y hay que tocar aquí.
+#
+# VirusTotal Public API: 4 req/min, 500 req/día por key (reset 00:00 UTC). Una sola
+# URL puede costar hasta 5 requests (GET, POST, 2 sondeos y verificación final), así
+# que el techo realisticamente son ~100 enlaces nuevos al día, no 500.
 VT_MAX_ANALYSES_PER_MINUTE: int = 4
 VT_MAX_ANALYSES_PER_DAY: int = 500
-# SightEngine Free: 2000 operaciones/mes con tope duro de 500/día. Cada modelo pedido
-# en una misma llamada cuenta como una operación, por eso una llamada con 4 modelos
+# Coste máximo de un análisis de URL, para poder razonar sobre la cuota sin surprises.
+VT_REQUESTS_POR_URL_MAX: int = 5
+
+# SightEngine Free: 2.000 operaciones/mes con tope duro de 500/día, 1 req/s. Cada
+# modelo pedido en una misma llamada cuenta como una operación, así que una imagen
 # consume SE_OPS_PER_CALL unidades.
+#
+# OJO con el orden de magnitud: el tope que manda es el MENSUAL, no el diario. Con 5
+# modelos salen 2.000/5 = 400 imágenes al mes, unas 13 al día. Con los 4 modelos de
+# antes eran 500 al mes. El cambio a 5 modelos cuesta un 20% de capacidad a cambio de
+# detectar gore, que antes no se miraba.
+SE_MAX_OPS_PER_MONTH: int = 2000
 SE_MAX_OPS_PER_DAY: int = 500
-SE_OPS_PER_CALL: int = 4
+SE_MAX_REQUESTS_PER_SECOND: int = 1
+# Derivado de la lista real de modelos: cada uno pedido en la misma llamada cuenta como
+# una operación. Con `nudity-2.1,weapon,alcohol,gore-2.0,offensive` son 5, así que el
+# plan gratuito da 500/5 = 100 imágenes al día, no 125.
+SE_OPS_PER_CALL: int = len(SIGHTENGINE_MODELS.split(","))
 SE_MAX_REQUESTS_PER_MINUTE: int = 4
 
 IMAGE_EXTENSIONS: list[str] = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.ico', '.heic', '.heif']

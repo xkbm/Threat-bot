@@ -235,23 +235,35 @@ def _restaurar_claves_antispam(datos: dict) -> dict:
     return resultado
 
 
-async def _flush_datos(include_runtime: bool = False) -> None:
+async def _flush_datos() -> None:
+    """Vuelca TODO el estado a `data.json`.
+
+    Antes tenía un parámetro `include_runtime` que, por defecto, era False: la mayoría
+    de llamantes (`update_stats`, `registrar_infraccion`, `agregar_dominio`, los comandos
+    de configuración, el propio `sightengine`) guardaban sin esa bandera, así que
+    escribían el archivo **sin** `__api_usage__` ni `__antispam__` y los borraban. Bastaba
+    un análisis entre el guardado horario y el siguiente reinicio para perder los
+    contadores de cuota y el historial de antispam que ese guardado acababa de escribir.
+
+    Por eso el parámetro ya no existe: el volcado es siempre completo. Si alguna vez
+    hacen falta escrituras parciales, que se escriba en otro sitio en vez de abrir una
+    bandera para perder datos.
+    """
     async with DATA_LOCK:
         data_to_save = {str(gid): val for gid, val in state.bot.guilds_data.items()
                         if gid not in ("__api_usage__", "__antispam__")}
-        if include_runtime:
-            data_to_save["__api_usage__"] = {
-                "total_requests": state.bot.vt_key_total_requests,
-                "daily_usage": state.bot.vt_key_daily_usage,
-                "sightengine": {
-                    "total_requests": state.bot.se_key_total_requests,
-                    "daily_usage": state.bot.se_key_daily_usage,
-                }
+        data_to_save["__api_usage__"] = {
+            "total_requests": state.bot.vt_key_total_requests,
+            "daily_usage": state.bot.vt_key_daily_usage,
+            "sightengine": {
+                "total_requests": state.bot.se_key_total_requests,
+                "daily_usage": state.bot.se_key_daily_usage,
             }
-            data_to_save["__antispam__"] = {
-                "user_scan_history": {_serializar_clave_antispam(k): v for k, v in state.bot.user_scan_history.items()},
-                "antispam_scan": {_serializar_clave_antispam(k): v for k, v in state.bot.antispam_scan.items()},
-            }
+        }
+        data_to_save["__antispam__"] = {
+            "user_scan_history": {_serializar_clave_antispam(k): v for k, v in state.bot.user_scan_history.items()},
+            "antispam_scan": {_serializar_clave_antispam(k): v for k, v in state.bot.antispam_scan.items()},
+        }
         try:
             fd, tmp = tempfile.mkstemp(dir=os.path.dirname(DATA_FILE) or ".")
             with os.fdopen(fd, "w", encoding="utf-8") as f:
@@ -267,7 +279,7 @@ async def _flush_datos(include_runtime: bool = False) -> None:
         except Exception as e:
             log.error(f"Error al guardar datos: {e}")
 
-async def guardar_datos(inmediato: bool = False, include_runtime: bool = False) -> None:
+async def guardar_datos(inmediato: bool = False) -> None:
     global _guardar_datos_pendiente, _guardar_datos_task
     if inmediato:
         if _guardar_datos_task and not _guardar_datos_task.done():
@@ -277,7 +289,7 @@ async def guardar_datos(inmediato: bool = False, include_runtime: bool = False) 
             except asyncio.CancelledError:
                 pass
         _guardar_datos_pendiente = False
-        await _flush_datos(include_runtime=include_runtime)
+        await _flush_datos()
         return
     if not _guardar_datos_pendiente:
         _guardar_datos_pendiente = True
