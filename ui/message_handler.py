@@ -44,10 +44,12 @@ log = logging.getLogger("handler")
 # necesita también, y duplicarlos haría que cada vía mirara cosas distintas.
 PATRON_URL = PATRON_URL_D
 
-# Valores por defecto. Los límites reales salen de la config del guild
-# (`max_adjuntos` / `max_urls` del panel); estas constantes solo son el fallback cuando
-# la clave no está. Antes eran las dos cosas a la vez: el admin veía "Máximos adjuntos
-# por mensaje" en el panel, lo cambiaba a 25, y el bot seguía usando 5 sin decir nada.
+# Límites por mensaje. Fijos, y a propósito NO configurables por servidor.
+#
+# Las claves de las APIs las paga quien mantiene el bot y las comparten todos los
+# servidores. Si un administrador de un servidor puede subir su límite de adjuntos, cada
+# adjunto de más son más requests de VirusTotal contra la cuota mensual de quien lo
+# mantiene: le sale gratis y nadie se entera. Estos valores solo se cambian en el código.
 MAX_ADJUNTOS_POR_MENSAJE = 5
 MAX_URLS_POR_MENSAJE = 5
 
@@ -169,7 +171,7 @@ async def _construir_embed_unificado(
             desc += f"{v.emoji} {v.contador}: **{n}**\n"
     if senales.omitidos:
         desc += (f"{EMOJI_COOLDOWN} **{senales.omitidos}** archivo(s) omitido(s) "
-                 f"(límite {senales.max_adjuntos} por mensaje)\n")
+                 f"(límite {MAX_ADJUNTOS_POR_MENSAJE} por mensaje)\n")
     if senales.cooldown:
         desc += f"{EMOJI_COOLDOWN} Límite de análisis alcanzado: no se revisaron los enlaces\n"
     # La whitelist es un dato, no un veredicto. Antes tenía su propia reacción, que se
@@ -332,7 +334,7 @@ def _resumen_breve(senales: Senales) -> str:
 
 
 async def _reputacion_de_imagen(
-    bot: commands.Bot, content_hash: str, guild_id: int, user_id: int, config: dict
+    bot: commands.Bot, content_hash: str, guild_id: int, user_id: int
 ) -> tuple[str, int, Optional[str], Optional[str]]:
     """Consulta la reputación de malware de una imagen por hash, con caché y antispam.
 
@@ -346,12 +348,6 @@ async def _reputacion_de_imagen(
     contenido ni malgaste cuota en una que ya está condemnada.
     """
     if not VT_API_KEYS:
-        return "no_consultado", 0, None, None
-
-    # Este es el interruptor que hay que tocar si el bot va lento: una request de VT por
-    # imagen, con el plan gratis (4 req/min), compite directamente con los análisis de
-    # enlaces por el mismo cupo.
-    if not config.get("vt_para_imagenes", True):
         return "no_consultado", 0, None, None
 
     clave = clave_analisis("imgmal", content_hash)
@@ -419,7 +415,7 @@ async def _procesar_imagen(
             # dimensiones distintas y el bot solo miraba una. Cuesta una request de VT, y
             # solo si el hash no está ya en caché de disco.
             vt_veredicto, vt_mal, vt_link, vt_top = await _reputacion_de_imagen(
-                bot, content_hash, guild_id, message.author.id, config,
+                bot, content_hash, guild_id, message.author.id,
             )
 
             models = dict(models or {})
@@ -596,10 +592,8 @@ async def _analizar_adjuntos(
     SightEngine y el malware no se escaneaba nunca. Y al revés, `foto.exe.png` entraba
     como imagen y se saltaba la verificación MIME y la detección de doble extensión.
     """
-    config = config or {}
-    max_adj = config.get("max_adjuntos") or MAX_ADJUNTOS_POR_MENSAJE
-    adjuntos = message.attachments[:max_adj]
-    omitidos = max(0, len(message.attachments) - max_adj)
+    adjuntos = message.attachments[:MAX_ADJUNTOS_POR_MENSAJE]
+    omitidos = max(0, len(message.attachments) - MAX_ADJUNTOS_POR_MENSAJE)
 
     # Detecta por bytes. Va en paralelo porque son peticiones de red y cada una puede
     # tardar; si una falla, `None` hace que ese adjunto use la pista por extensión.
@@ -995,8 +989,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                     # --- Múltiples URLs ---
                     await safe_add_reaction(message, EMOJI_LOADING)
                     try:
-                        todas_urls = list(dict.fromkeys(todas_urls))[
-                            :config.get("max_urls") or MAX_URLS_POR_MENSAJE]
+                        todas_urls = list(dict.fromkeys(todas_urls))[:MAX_URLS_POR_MENSAJE]
 
                         async def _expandir_y_cache(url: str) -> Optional[tuple[str, str, str, discord.Embed, int, bool]]:
                             url_original = url
@@ -1101,7 +1094,6 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
     senales.cooldown = _cooldown_activado
     senales.omitidos = omitidos
     senales.whitelist_omitidos = _whitelist_omitidos
-    senales.max_adjuntos = config.get("max_adjuntos") or MAX_ADJUNTOS_POR_MENSAJE
 
     has_threat = senales.hay_amenaza
     has_doble_ext = senales.doble_ext

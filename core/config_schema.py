@@ -29,7 +29,6 @@ AVISO = "aviso"
 CONTENIDO = "contenido"
 MODERACION = "moderacion"
 EXCLUSIONES = "exclusiones"
-CUOTA = "cuota"
 
 TITULOS_SECCION = {
     GENERAL: "General",
@@ -37,7 +36,6 @@ TITULOS_SECCION = {
     CONTENIDO: "Contenido",
     MODERACION: "Moderación",
     EXCLUSIONES: "Exclusiones",
-    CUOTA: "Cuota",
 }
 
 DESCRIPCION_SECCION = {
@@ -46,7 +44,6 @@ DESCRIPCION_SECCION = {
     CONTENIDO: "Qué se considera NSFW y qué es contenido restringido.",
     MODERACION: "Qué hace el bot sin preguntar.",
     EXCLUSIONES: "Dónde no mirar.",
-    CUOTA: "Tope de análisis por usuario.",
 }
 
 ACCIONES = ("ignorar", "borrar", "timeout", "banear")
@@ -154,9 +151,9 @@ ESQUEMA: tuple[Clave, ...] = (
        "Se ignoran juguetes y gestos: no son armas."),
     _b("detectar_phishing", CONTENIDO, "Detectar suplantación", True,
        "Comprobación local de texto, no gasta cuota de ninguna API."),
-    _b("vt_para_imagenes", CONTENIDO, "Malware en imágenes", True,
-       "Un request de VirusTotal por imagen. Con el plan gratis ese request compite con "
-       "los análisis de enlaces: si notas lentitud, esto es lo primero que apagaría."),
+    # `vt_para_imagenes` NO es configurable, por el mismo motivo que los límites: cada
+    # imagen cuesta un request de VirusTotal, y dejar que un admin lo active es darle
+    # la llave de tu cuota mensual. Ahora lo decide el código.
 
     # --- Moderación ---
     _b("strict_mode", MODERACION, "Modo estricto", True,
@@ -170,17 +167,17 @@ ESQUEMA: tuple[Clave, ...] = (
     # controles muertos. Se pueden añadir cuando se implementen de verdad.
     Clave("whitelist", "list", EXCLUSIONES, "Dominios en whitelist", []),
 
-    # --- Cuota ---
-    # `antispam_por_hora` y `antispam_cooldown` NO están: los lee `core.utils` de
-    # `core.config`, como constantes de módulo, y no por guild. Declararlos aquí
-    # wouldn't hacer nada y sería un control muerto más.
-    Clave("max_adjuntos", "int", CUOTA, "Máximos adjuntos por mensaje", 5, 1, 25),
-    Clave("max_urls", "int", CUOTA, "Máximos enlaces por mensaje", 5, 1, 25),
+    # No hay sección `CUOTA`, y es deliberado.
+    #
+    # Las claves de las APIs son de quien mantiene el bot y las comparten todos los
+    # servidores. Si el administrador de un servidor puede subir sus propios límites,
+    # gasta la cuota mensual de quien lo mantiene: le sale gratis y nadie se entera. Por
+    # eso `max_adjuntos` y `max_urls` no son configurables; viven como constantes en
+    # `ui/message_handler.py` y solo el código las cambia.
 )
 
 POR_NOMBRE: Dict[str, Clave] = {c.nombre: c for c in ESQUEMA}
 
-# Claves que siguen viviendo dentro del blob de config y no son opciones del panel.
 # Claves que viven en la configuración pero no son opciones del panel.
 FUERA_DEL_ESQUEMA = (
     "infracciones",

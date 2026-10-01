@@ -254,55 +254,40 @@ class TestTitulosYContadoresSonDistintos:
             assert v.titulo and v.contador and v.emoji
 
 
-class TestElLookupDeImagenEsApagable:
-    """Con el plan gratis, una request de VT por imagen compite con los análisis de
-    enlaces por el mismo cupo de 4 req/min. Si el bot va lento, esto es lo que se apaga
-    primero, así que tiene que existir el interruptor."""
+class TestElLookupDeImagenNoEsConfigurable:
+    """Un request de VT por imagen es cuota de quien mantiene el bot.
 
-    def test_el_interruptor_esta_en_el_esquema(self):
+    Dejar que el administrador de un servidor active o desactive el lookup le da
+    acceso a tu cuota mensual: activado, cada imagen gasta un request que pagas tú. El
+    interruptor se quitó del esquema y ahora la decisión es del código.
+    """
+
+    def test_el_interruptor_no_existe(self):
         from core import config_schema as esq
 
-        assert "vt_para_imagenes" in esq.POR_NOMBRE
-        assert esq.POR_NOMBRE["vt_para_imagenes"].tipo == "bool"
+        assert "vt_para_imagenes" not in esq.POR_NOMBRE
 
-    def test_por_defecto_esta_encendido(self):
+    def test_no_hay_seccion_de_cuota(self):
         from core import config_schema as esq
 
-        assert esq.defaults()["vt_para_imagenes"] is True
+        assert "cuota" not in esq.secciones(), (
+            "una sección que ofrece tocar la cuota es exactamente el riesgo"
+        )
+
+    def test_los_limites_son_constantes_fijas(self):
+        """Nada por servidor puede ampliarlos."""
+        import pathlib
+
+        raiz = pathlib.Path(__file__).resolve().parent.parent
+        texto = (raiz / "ui" / "message_handler.py").read_text(encoding="utf-8")
+        assert "MAX_ADJUNTOS_POR_MENSAJE = 5" in texto
+        assert "MAX_URLS_POR_MENSAJE = 5" in texto
+        assert 'config.get("max_adjuntos")' not in texto
+        assert 'config.get("max_urls")' not in texto
 
     @pytest.mark.asyncio
-    async def test_apagado_no_gasta_request(self):
-        """Con el interruptor off, no se llama a `reputacion_hash`."""
-        import types as _t
-
-        from ui import message_handler as mh
-
-        llamadas = []
-
-        async def _nunca(hash_):
-            llamadas.append(hash_)
-            return "malicioso", 3, None, None
-        mh.reputacion_hash = _nunca
-        mh.VT_API_KEYS = ["clave"]
-
-        async def _vacia(*a, **k):
-            return None, None, 0
-        mh.obtener_analisis_db = _vacia
-        mh.guardar_analisis_db = _vacia
-
-        async def _permitido(*a, **k):
-            return True
-        mh.check_vt_user_limit = _permitido
-        mh.registrar_infraccion = _vacia
-
-        bot = _t.SimpleNamespace(vt_api_keys=["k"])
-        resultado = await mh._reputacion_de_imagen(
-            bot, "hash123", 42, 7, {"vt_para_imagenes": False})
-        assert resultado[0] == "no_consultado"
-        assert llamadas == [], "se gastó una request con el interruptor apagado"
-
-    @pytest.mark.asyncio
-    async def test_encendido_si_consulta(self):
+    async def test_el_lookup_sigue_funcionando(self):
+        """Quitamos el interruptor, no la comprobación."""
         import types as _t
 
         from ui import message_handler as mh
@@ -311,9 +296,9 @@ class TestElLookupDeImagenEsApagable:
 
         async def _fake(hash_):
             llamadas.append(hash_)
-            return "malicioso", 3, "link", "Windows"
+            return "malicioso", 3, None, None
         mh.reputacion_hash = _fake
-        mh.VT_API_KEYS = ["clave"]
+        mh.VT_API_KEYS = ["clave"]      # sin esto sale antes: no hay claves
 
         async def _vacia(*a, **k):
             return None, None, 0
@@ -325,10 +310,9 @@ class TestElLookupDeImagenEsApagable:
         mh.check_vt_user_limit = _permitido
         mh.registrar_infraccion = _vacia
 
-        bot = _t.SimpleNamespace(vt_api_keys=["k"])
-        veredicto, mal, link, top = await mh._reputacion_de_imagen(
-            bot, "hash123", 42, 7, {"vt_para_imagenes": True})
-        assert llamadas == ["hash123"]
+        bot = _t.SimpleNamespace()
+        veredicto, mal, _link, _top = await mh._reputacion_de_imagen(bot, "h", 42, 7)
+        assert llamadas == ["h"]
         assert veredicto == "malicioso" and mal == 3
 
 

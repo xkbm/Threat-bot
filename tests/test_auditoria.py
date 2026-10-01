@@ -336,9 +336,8 @@ class TestElPanelNoTieneControlesMuertos:
     @pytest.mark.parametrize(
         "clave",
         [
-            "max_adjuntos", "max_urls", "umbral_nudity", "umbral_partial", "umbral_gore",
-            "umbral_offensive", "umbral_alcohol", "umbral_weapon",
-            "vt_para_imagenes", "detectar_phishing",
+            "umbral_nudity", "umbral_partial", "umbral_gore", "umbral_offensive",
+            "umbral_alcohol", "umbral_weapon", "detectar_phishing",
         ],
     )
     def test_toda_clave_util_se_lee_en_alguna_pista(self, clave):
@@ -371,11 +370,41 @@ class TestElPanelNoTieneControlesMuertos:
                     break
         assert leida, f"la clave '{clave}' se ofrece en el panel pero nadie la lee"
 
+    @pytest.mark.parametrize(
+        "clave",
+        [
+            # Estas SÍ gastan cuota, y las claves de API las paga quien mantiene el bot
+            # y las comparten todos los servidores. Que un admin de un servidor pueda
+            # subirlas es darle acceso a tu cuota mensual.
+            "max_adjuntos", "max_urls", "vt_para_imagenes",
+        ],
+    )
+    def test_las_claves_de_cuota_no_son_configurables(self, clave):
+        """Ni en el esquema, ni leídas de la config en ninguna parte."""
+        import pathlib
+
+        from core.config_schema import POR_NOMBRE
+
+        assert clave not in POR_NOMBRE, (
+            f"'{clave}' vuelve a ser configurable por servidor: eso gasta la cuota de "
+            f"quien mantiene el bot, no la del admin que lo cambia"
+        )
+
+        raiz = pathlib.Path(__file__).resolve().parent.parent
+        for sub in ("core", "ui", "cogs", "api"):
+            for f in (raiz / sub).glob("*.py"):
+                if f.name == "config_schema.py":
+                    continue
+                assert f'"{clave}"' not in f.read_text(encoding="utf-8"), (
+                    f"{f} lee '{clave}' de la config del servidor"
+                )
+
     def test_no_vuelven_las_claves_muerto(self):
         import core.config_schema as esq
 
         for muerta in ("prefijo_log", "canales_exentos", "roles_exentos",
-                       "antispam_por_hora", "antispam_cooldown", "avisar_ignorados"):
+                       "antispam_por_hora", "antispam_cooldown", "avisar_ignorados",
+                       "max_adjuntos", "max_urls", "vt_para_imagenes"):
             assert muerta not in esq.POR_NOMBRE, (
                 f"'{muerta}' se quitó: no la leía nadie y era un control muerto"
             )
