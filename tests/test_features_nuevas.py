@@ -312,3 +312,123 @@ class TestTablaEventos:
         import core.database as db
 
         assert "min(limite, 25)" in inspect.getsource(db.obtener_eventos)
+
+
+class TestHistoryEnviaUnEmbedYNoSuTexto:
+    """Regresión de `/history`: el bot escribía `<discord.embeds.Embed object at 0x…>`.
+
+    `_safe_followup` usa `*args`, así que un embed pasado POSICIONAL se convierte en el
+    contenido del mensaje y Discord lo stringify. Se vio en producción.
+
+    La diferencia con los otros tests de este fichero es que aquí se ejecuta el comando y
+    se mira lo que sale: los tests anteriores solo comprobaban la firma de los callbacks.
+    """
+
+    @staticmethod
+    def _interaccion(canal):
+        import types
+
+        enviados = []
+
+        class _Canal:
+            id = canal.id
+            mention = f"<#{canal.id}>"
+            name = "paja"
+
+        class _Resp:
+            async def defer(self, **k):
+                return None
+
+        class _Interaccion:
+            def __init__(self):
+                self.guild = types.SimpleNamespace(id=7)
+                self.channel = _Canal()
+                self.response = _Resp()
+                self.followup_enviados = enviados
+
+            class _F:
+                def __init__(self, sink):
+                    self.sink = sink
+
+                async def send(self, *args, **kwargs):
+                    self.sink.append((args, kwargs))
+
+            @property
+            def followup(self):
+                return self._F(self.followup_enviados)
+
+        return _Interaccion()
+
+    @pytest.mark.asyncio
+    async def test_con_datos_manda_embed_de_verdad(self, monkeypatch):
+        from cogs import historial as h
+
+        eventos = [{
+            "channel_id": 5, "message_id": 6, "author_id": 7, "total": 2,
+            "veredicto": "malicioso", "detalle": "malicioso", "created_at": 1000.0,
+        }]
+
+        async def _eventos(*a, **k):
+            return eventos
+
+        monkeypatch.setattr(h, "obtener_eventos", _eventos)
+
+        import types as _t
+        import discord
+
+        canal = _t.SimpleNamespace(id=5, name="paja", mention="<#5>")
+        interaccion = self._interaccion(canal)
+        cog = h.HistorialCog(_t.SimpleNamespace())
+
+        await cog.history.callback(cog, interaccion, canal, None, 10)
+
+        enviados = interaccion.followup_enviados
+        assert enviados, "no se envió nada"
+        args, kwargs = enviados[0]
+        assert "embed" in kwargs, (
+            f"el embed fue pasado como argumento posicional y se stringify: {args}"
+        )
+        assert isinstance(kwargs["embed"], discord.Embed)
+
+    @pytest.mark.asyncio
+    async def test_sin_datos_tambien_manda_embed(self, monkeypatch):
+        from cogs import historial as h
+
+        async def _vacio(*a, **k):
+            return []
+
+        monkeypatch.setattr(h, "obtener_eventos", _vacio)
+
+        import types as _t
+        import discord
+
+        canal = _t.SimpleNamespace(id=5, name="paja", mention="<#5>")
+        interaccion = self._interaccion(canal)
+        cog = h.HistorialCog(_t.SimpleNamespace())
+
+        await cog.history.callback(cog, interaccion, canal, None, 10)
+
+        args, kwargs = interaccion.followup_enviados[0]
+        assert isinstance(kwargs.get("embed"), discord.Embed), (
+            f"la rama de 'sin historial' tiene el mismo fallo: {args}"
+        )
+
+
+class TestNingunEmbedSeConvierteEnTexto:
+    """Guarda sobre todo el bot: un embed pasado como posicional no es un embed."""
+
+    @pytest.mark.parametrize("ruta", ["cogs/historial.py", "cogs/analisis.py",
+                                      "cogs/configuracion.py", "cogs/stats.py",
+                                      "cogs/help.py", "cogs/rep.py", "cogs/about.py"])
+    def test_ningun_followup_manda_un_embed_posicional(self, ruta):
+        import pathlib
+        import re
+
+        raiz = pathlib.Path(__file__).resolve().parent.parent
+        texto = (raiz / ruta).read_text(encoding="utf-8")
+        # Busca `enviar(\n ... emb.` con la llamada sin keyword `embed=`.
+        # Cualquier llamada a `send` con un embed como primer argumento posicional.
+        patron = re.compile(r"\.send\(\s*(?:interaccion\.)?emb\.", re.IGNORECASE)
+        assert not patron.search(texto), (
+            f"{ruta}: hay un embed pasado como posicional; se stringify en el canal"
+        )

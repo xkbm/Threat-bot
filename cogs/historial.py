@@ -40,6 +40,15 @@ class HistorialCog(commands.Cog):
         except discord.errors.NotFound:
             pass
 
+    async def _embed(self, interaction: discord.Interaction, embed, ephemeral: bool = True) -> None:
+        """Envía un embed.
+
+        Existe porque `_safe_followup` con `*args` es una trampa: al pasar un embed
+        POSICIONAL se convierte en el contenido del mensaje y el bot escribe literalmente
+        `<discord.embeds.Embed object at 0x...>` en el canal. Pasó con `/history`.
+        """
+        await self._safe_followup(interaction, embed=embed, ephemeral=ephemeral)
+
     @app_commands.command(
         name="history",
         description="Muestra los últimos análisis de un canal (solo mods)",
@@ -76,7 +85,7 @@ class HistorialCog(commands.Cog):
         log.debug(f"HISTORY → guild={interaction.guild.id} canal={objetivo.id} n={len(eventos)}")
 
         if not eventos:
-            await self._safe_followup(
+            await self._embed(
                 interaction,
                 emb.aviso(
                     "Sin historial",
@@ -99,10 +108,9 @@ class HistorialCog(commands.Cog):
                 linea += f" \u00b7 {ev['detalle']}"
             lineas.append(linea)
 
-        await self._safe_followup(
+        await self._embed(
             interaction,
             emb.aviso(f"Historial \u00b7 {objetivo.name}", "\n".join(lineas)[:4000], con_pie=False),
-            ephemeral=True,
         )
 
 
