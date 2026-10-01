@@ -121,14 +121,22 @@ class TestComportamientoEquivalenteAntesYDespues:
         assert config["avisar_errores"] is True
         assert debe_enviar_embed(s, config) is True
 
-    @pytest.mark.parametrize("silent_mode", [True, False])
-    def test_con_omitidos_respeta_el_comportamiento_antiguo(self, guild_vacia, silent_mode):
-        guild_vacia.guilds_data[1] = {"silent_mode": silent_mode}
+    def test_omitidos_ya_no_avisa_por_defecto(self, guild_vacia):
+        """Aquí SÍ se cambia el comportamiento, a propósito.
+
+        "Demasiados adjuntos o enlaces" es ruido informativo en cualquier servidor con
+        tráfico normal: pasa cada día y no requiere ninguna acción. Antes compartía el
+        interruptor con "se acabó la cuota", que sí requiere acción. Separarlos por
+        motivo permite callar el ruido sin callar el aviso que de verdad importa.
+        """
+        guild_vacia.guilds_data[1] = {"silent_mode": True}
         config = gc._asegurar_guild(1)
 
         s = Senales()
         s.omitidos = 2
-        assert debe_enviar_embed(s, config) is True
+        assert debe_enviar_embed(s, config) is False
+        # Y si el admin lo quiere, se activa sin tocar nada más.
+        assert debe_enviar_embed(s, {**config, "motivos_fallo": ["omitidos"]}) is True
 
 
 class TestNoSePierdeNadaDeLaConfigVieja:

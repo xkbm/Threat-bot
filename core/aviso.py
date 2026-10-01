@@ -63,17 +63,46 @@ def debe_enviar_embed(senales: Senales, config: Mapping[str, Any]) -> bool:
         return True
     if config.get("avisar_sospechosos", True) and senales.hay_hallazgo:
         return True
-    if senales.whitelist_omitidos > 0:
-        # El bot ha ignorado enlaces a propósito. Es información que el usuario pidió
-        # él mismo, no ruido: si tiene la whitelist activa, quiere saber que se aplicó.
-        return True
-    if senales.error or senales.cooldown or senales.omitidos > 0:
-        # Hay un fallo que contar. Solo se enseña si el usuario quiere ver errores; el
-        # interruptor de limpios no lo activa: "muéstrame lo limpio" no significa
-        # "muéstrame también lo que no pude comprobar".
-        return bool(config.get("avisar_errores", True))
+    if _hay_fallo(senales):
+        # Hay un fallo que contar. El interruptor de limpios no lo activa: "muéstrame
+        # lo limpio" no significa "muéstrame también lo que no pude comprobar".
+        if not config.get("avisar_errores", True):
+            return False
+        # Y de entre los fallos, solo los motivos que el usuario dejó activados. Antes
+        # eran un interruptor único para cosas que no significan lo mismo: que se acaba
+        # la cuota (el bot deja de trabajar) y que un archivo era grande (no pasa nada).
+        motivos = senales.motivos_calculados
+        return bool(motivos & _motivos_aviso(config))
     # No hay hallazgos ni fallos: es un mensaje limpio de verdad.
     return bool(config.get("avisar_limpios", False))
+
+
+def _hay_fallo(senales: Senales) -> bool:
+    """¿Hay algún fallo que contar?
+
+    La whitelist cuenta como fallo a propósito: el bot ha ignorado enlaces y quien
+    configura el bot quiere saber que se aplicó, no enterarse por el absence de un
+    mensaje. Por eso vive en la lista de motivos y no en un caso aparte.
+    """
+    return bool(
+        senales.error or senales.cooldown or senales.omitidos > 0
+        or senales.whitelist_omitidos > 0
+    )
+
+
+def _motivos_aviso(config: Mapping[str, Any]) -> set:
+    """Los motivos que el usuario ha dejado activados.
+
+    Un motivo vacío significa "sin configurar": se usan los del catálogo por defecto, no
+    el conjunto vacío, para que un `data.json` viejo que no tenga la clave siga
+    comportándose como antes en vez de callarse entero.
+    """
+    from core.config_schema import MOTIVOS_POR_DEFECTO
+
+    motivos = config.get("motivos_fallo")
+    if motivos is None:
+        return set(MOTIVOS_POR_DEFECTO)
+    return set(motivos)
 
 
 def reacciones_activas(config: Mapping[str, Any]) -> bool:
@@ -99,17 +128,19 @@ def razon_para_embeder(senales: Senales, config: Mapping[str, Any]) -> str:
         return "amenaza confirmada"
     if config.get("avisar_sospechosos", True) and senales.hay_hallazgo:
         return "hallazgo"
-    if senales.whitelist_omitidos > 0:
-        return "enlaces en whitelist"
-    if config.get("avisar_errores", True):
+    if _hay_fallo(senales):
+        if not config.get("avisar_errores", True):
+            return "fallo silenciado"
+        motivos = senales.motivos_calculados & _motivos_aviso(config)
+        if not motivos:
+            return "fallo de motivo silenciado"
         if senales.error:
             return "error de análisis"
         if senales.cooldown:
-            return "cooldown de antispam"
-        if senales.omitidos > 0:
-            return "adjuntos omitidos"
-    elif senales.error or senales.cooldown or senales.omitidos > 0:
-        return "fallo silenciado"
+            return "límite de escaneos"
+        if senales.whitelist_omitidos > 0:
+            return "enlaces en whitelist"
+        return "adjuntos omitidos"
     if config.get("avisar_limpios", False):
         return "mensaje limpio"
     return "silenciado"

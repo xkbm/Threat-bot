@@ -379,15 +379,29 @@ class TestWhitelistSola:
 
 
 class TestAvisoDeWhitelist:
-    def test_se_avisa_aunque_esten_los_tres_apagados(self):
-        """El usuario pidió esa whitelist: tiene que ver que se aplicó."""
+    def test_se_avisa_con_el_master_de_errores_activo(self):
+        """El usuario puso esa whitelist: tiene que ver que se aplicó.
+
+        Antes la whitelist se saltaba el interruptor maestro y avisaba siempre. Ahora es
+        un motivo más, gobernado por "Avisar errores" y por su propio interruptor. El
+        default lo tiene activo, así que el comportamiento observable no cambia; lo que
+        cambia es que ahora se puede callar, que es lo que se pidió.
+        """
         from core.aviso import debe_enviar_embed
 
         cfg = {**config_aviso_por_defecto(True), "avisar_limpios": False,
-               "avisar_sospechosos": False, "avisar_errores": False}
+               "avisar_sospechosos": False, "avisar_errores": True}
         s = Senales()
         s.whitelist_omitidos = 1
         assert debe_enviar_embed(s, cfg) is True
+
+    def test_se_puede_callar_la_whitelist(self):
+        from core.aviso import debe_enviar_embed
+
+        cfg = {**config_aviso_por_defecto(True), "motivos_fallo": ["sin_cuota"]}
+        s = Senales()
+        s.whitelist_omitidos = 1
+        assert debe_enviar_embed(s, cfg) is False
 
     def test_sin_whitelist_sigue_respetando_los_interruptores(self):
         from core.aviso import debe_enviar_embed
