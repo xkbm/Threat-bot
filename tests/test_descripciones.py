@@ -422,3 +422,51 @@ class TestPanel:
         for hijo in panel.children:
             if isinstance(hijo, discord.ui.Button):
                 assert len(hijo.label) <= 80
+
+
+class TestElEnlaceAlInformeSeMuestra:
+    """El enlace a VT se guardaba en `models` pero no se mostraba nunca.
+
+    Consecuencia: el acierto de caché daba menos información que el camino fresco, que
+    es justo al revés de lo que sirve una caché. El moderador veía "3 detecciones" sin
+    forma de ir al informe a comprobarlo.
+    """
+
+    @pytest.mark.asyncio
+    async def test_una_imagen_maliciosa_muestra_el_enlace(self):
+        e = await _construir(_senales(
+            Elemento(nombre="mala.png", tipo="image", veredicto=Veredicto.MALICIOSO, mal=3,
+                     modelos={"vt_link": "https://vt/gui/file/abc"}),
+        ))
+        linea = next(f for f in e.fields if f.name.endswith("Imágenes (adjuntas)"))
+        assert "vt/gui/file/abc" in linea.value
+        assert "3 detecciones" in linea.value
+
+    @pytest.mark.asyncio
+    async def test_una_limpia_no_inventa_enlace(self):
+        e = await _construir(_senales(
+            Elemento(nombre="ok.png", tipo="image", veredicto=Veredicto.SEGURO, mal=0,
+                     modelos={}),
+        ))
+        linea = next(f for f in e.fields if f.name.endswith("Imágenes (adjuntas)"))
+        assert "vt/gui" not in linea.value
+
+    @pytest.mark.asyncio
+    async def test_sin_enlace_por_un_camino_malicioso_seguira_funcionando(self):
+        """Que no haya enlace no puede romper la línea."""
+        e = await _construir(_senales(
+            Elemento(nombre="mala.png", tipo="image", veredicto=Veredicto.MALICIOSO, mal=2,
+                     modelos={}),
+        ))
+        linea = next(f for f in e.fields if f.name.endswith("Imágenes (adjuntas)"))
+        assert "2 detecciones" in linea.value
+
+    @pytest.mark.asyncio
+    async def test_una_no_comprobada_lo_dice_tambien_si_viene_de_cache(self):
+        """La regresión: el acierto de caché devolvía "desconocido" y no ponía la marca."""
+        e = await _construir(_senales(
+            Elemento(nombre="nueva.png", tipo="image", veredicto=Veredicto.SEGURO,
+                     modelos={"vt_omitido": True}),
+        ))
+        linea = next(f for f in e.fields if f.name.endswith("Imágenes (adjuntas)"))
+        assert "Sin comprobar en VirusTotal" in linea.value

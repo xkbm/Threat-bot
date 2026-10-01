@@ -294,6 +294,29 @@ async def obtener_analisis_db(clave: str) -> tuple[Optional[str], Optional[disco
     return tipo, embed, mal
 
 
+async def obtener_datos_analisis(clave: str) -> Optional[dict]:
+    """El `datos` crudo de una entrada, sin renderizar.
+
+    `obtener_analisis_db` devuelve `(tipo, embed, mal)` y descarta el diccionario, así que
+    quien necesite un dato que el embed no lleva (el enlace al informe de VT, los nombres
+    de los antivirus) no lo puede recuperar. Aquí sí.
+
+    Se recorre el `expira` igual que allí: una entrada caducada se trata como ausente.
+    """
+    row = await POOL.fetchone(
+        'SELECT expira, datos FROM analisis WHERE clave = ?', (clave,)
+    )
+    if not row:
+        return None
+    expira, datos_json = row
+    if time.time() >= expira or not datos_json:
+        return None
+    try:
+        return json.loads(datos_json)
+    except (TypeError, ValueError):
+        return None
+
+
 def renderizar_embed(tipo_analisis: str, datos: dict, mal: int) -> Optional[discord.Embed]:
     """Construye el embed de un análisis cacheado. Import diferido a propósito:
     ui.embed no depende de la capa de datos, pero importarlo arriba cargaría el

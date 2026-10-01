@@ -22,7 +22,8 @@ from core.filetypes import CABECERA_BYTES
 from core.phishing import detectar as detectar_phishing
 from core.cache import get_from_cache_mem, set_cache_mem
 from core.database import (
-    obtener_analisis_db, guardar_analisis_db, guardar_metadatos_hash,
+    obtener_analisis_db, obtener_datos_analisis, guardar_analisis_db,
+    guardar_metadatos_hash,
     obtener_hash_desde_metadatos, registrar_evento,
 )
 from api.virustotal import (
@@ -53,6 +54,10 @@ PATRON_URL = PATRON_URL_D
 # mantiene: le sale gratis y nadie se entera. Estos valores solo se cambian en el código.
 MAX_ADJUNTOS_POR_MENSAJE = 5
 MAX_URLS_POR_MENSAJE = 5
+
+# Tipo de la entrada de caché que dice "VirusTotal no ha visto este archivo". Distinto
+# de `imgmal:` (la clave, que es el hash) para que se lea qué es cada cosa.
+TIPO_HASH_DESCONOCIDO: str = "imgmal_desconocido"
 
 # Huellas de mensajes ya procesados, para no reprocesar un mensaje editado cuyo contenido
 # no cambió (o dos eventos on_message/on_message_edit que llegan juntos). Mismo patrón que
@@ -233,6 +238,16 @@ async def _construir_embed_unificado(
                 extra = _motivo_de_error(e.modelos)
             else:
                 extra = "imagen"
+
+            # El enlace al informe de VT y los nombres de los antivirus se guardan en
+            # `models` pero no se mostraban nunca. Sin eso, el acierto de caché daba
+            # menos información que el camino fresco, que es justo al revés de lo que
+            # sirve una caché: el moderador de una imagen marcada no tenía forma de ir
+            # al informe a comprobarlo.
+            vt_link = e.modelos.get("vt_link")
+            if vt_link and e.veredicto in (Veredicto.MALICIOSO, Veredicto.SOSPECHOSO):
+                extra = f"{extra} · {emb.enlace_informe(vt_link)}"
+
             linea = _linea(e, extra)
             if e.modelos.get("vt_omitido"):
                 linea += f"\n   {EMOJI_REPLY} Sin comprobar en VirusTotal"
@@ -355,16 +370,41 @@ async def _reputacion_de_imagen(
     clave = clave_analisis("imgmal", content_hash)
     tipo, _embed, mal = await obtener_analisis_db(clave)
     if tipo is not None:
-        return tipo, mal or 0, None, None
+        # El enlace al informe venía de la respuesta de VT y `obtener_analisis_db` no lo
+        # devuelve, así que se relee del dato crudo. Sin esto, el acierto de caché
+        # mostraba el veredicto pero no dónde comprobarlo, que es el único dato que
+        # necesita un moderador ante una imagen marcada.
+        bruto = await obtener_datos_analisis(clave) or {}
+        return tipo, mal or 0, bruto.get("vt_link"), bruto.get("top")
 
     if not await check_vt_user_limit(bot, guild_id, user_id):
         return "no_consultado", 0, None, None
 
     veredicto, detecciones, vt_link, top = await reputacion_hash(content_hash)
-    if veredicto in ("desconocido", "sin_cuota", "error"):
+    if veredicto == "desconocido":
+        # VirusTotal no conoce este archivo. Es determinista: mientras nadie lo suba, un
+        # 404 seguirá siendo un 404. Sin cachearlo, cada reaparición de la misma imagen
+        # gastaba una request de la cuota gratuita para volver a aprender lo mismo.
+        # Se guarda "no_consultado" y no "desconocido": lo que se relee de caché tiene que
+        # ser EXACTAMENTE lo que devuelve el camino fresco, o los dos caminos discreparían
+        # en lo que le dicen a `_procesar_imagen`. Con "desconocido", el acierto de caché
+        # no ponía la marca de "sin comprobar en VirusTotal" y la imagen salía como
+        # comprobada cuando no se había comprobado.
+        await guardar_analisis_db(clave, TIPO_HASH_DESCONOCIDO, "no_consultado")
+        return "no_consultado", 0, None, None
+    if veredicto in ("sin_cuota", "error"):
+        # Estos NO se cachean: son transitorios. La cuota se resetea, la red vuelve, y
+        # cachearlos dejaría al bot sin comprobar imágenes de forma permanente por un
+        # fallo pasajero.
         return "no_consultado", 0, None, None
 
-    await guardar_analisis_db(clave, veredicto, veredicto, mal=detecciones)
+    # El enlace al informe y los antivirus se guardan en `datos`, no solo en `mal`. Al
+    # releer de caché solo se recupera `(tipo, embed, mal)`, así que sin esto el acierto
+    # perdía justo lo que el moderador necesita para comprobar la detección.
+    await guardar_analisis_db(
+        clave, veredicto, veredicto, mal=detecciones,
+        datos={"tipo": veredicto, "mal": detecciones, "vt_link": vt_link, "top": top},
+    )
     await set_cache_mem(clave, veredicto, mal=detecciones)
     if veredicto == "malicioso":
         await registrar_infraccion(guild_id, user_id, f"filehash:{content_hash}")

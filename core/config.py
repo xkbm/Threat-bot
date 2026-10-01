@@ -59,6 +59,13 @@ EXPIRACION: dict[str, int] = {
     "ip": 7 * 24 * 3600,
     "file": 30 * 24 * 3600,
     "nsfw": 30 * 24 * 3600,
+    # "VirusTotal todavía no ha visto este archivo". Caducidad corta a propósito: el
+    # resultado es determinista mientras nadie suba el archivo, así que cachearlo evita
+    # gastar una request de la cuota gratuita en cada reaparición de la misma imagen.
+    # En cuanto alguien lo suba, ya hay algo que mirar, así que no se guarda 30 días como
+    # un veredicto: el compromiso es una request por imagen y día, a cambio de poder
+    # retrasar como mucho un día la detección de un archivo que suba otra persona.
+    "imgmal_desconocido": 24 * 3600,
 }
 
 SIGHTENGINE_API_URL: str = "https://api.sightengine.com/1.0/check.json"
