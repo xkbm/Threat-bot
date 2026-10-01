@@ -1,9 +1,13 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from typing import Any
+from typing import Any, Optional
 import logging
+
+from core import config_schema as esq
+from core.guild_config import actualizar_config
 from ui import embed as emb
+from ui.panel import panel_por_guild
 
 log = logging.getLogger("configuracion")
 
@@ -25,9 +29,7 @@ class ConfiguracionCog(commands.Cog):
         if not interaction.guild:
             await self._safe_followup(interaction, f"{self.bot.EMOJI_INCORRECTO} Este comando solo funciona en servidores.", ephemeral=True)
             return
-        config = await self.bot.obtener_config_guild(interaction.guild.id)
-        config["silent_mode"] = estado
-        await self.bot.guardar_datos(inmediato=True)
+        await actualizar_config(interaction.guild.id, inmediato=True, silent_mode=estado)
         log.debug(f"SILENTMODE → guild={interaction.guild.id} estado={estado} admin={interaction.user.id}")
         await self._safe_followup(interaction, f"{self.bot.EMOJI_CORRECTO} Modo silencioso {'activado' if estado else 'desactivado'}.", ephemeral=True)
 
@@ -39,9 +41,7 @@ class ConfiguracionCog(commands.Cog):
         if not interaction.guild:
             await self._safe_followup(interaction, f"{self.bot.EMOJI_INCORRECTO} Este comando solo funciona en servidores.", ephemeral=True)
             return
-        config = await self.bot.obtener_config_guild(interaction.guild.id)
-        config["strict_mode"] = estado
-        await self.bot.guardar_datos(inmediato=True)
+        await actualizar_config(interaction.guild.id, inmediato=True, strict_mode=estado)
         log.debug(f"STRICTMODE → guild={interaction.guild.id} estado={estado} admin={interaction.user.id}")
         await self._safe_followup(interaction, f"{self.bot.EMOJI_CORRECTO} Modo estricto {'activado' if estado else 'desactivado'}.", ephemeral=True)
 
@@ -53,9 +53,7 @@ class ConfiguracionCog(commands.Cog):
         if not interaction.guild:
             await self._safe_followup(interaction, f"{self.bot.EMOJI_INCORRECTO} Este comando solo funciona en servidores.", ephemeral=True)
             return
-        config = await self.bot.obtener_config_guild(interaction.guild.id)
-        config["auto_scan_enabled"] = estado
-        await self.bot.guardar_datos(inmediato=True)
+        await actualizar_config(interaction.guild.id, inmediato=True, auto_scan_enabled=estado)
         log.debug(f"AUTOSCAN → guild={interaction.guild.id} estado={estado} admin={interaction.user.id}")
         await self._safe_followup(interaction, f"{self.bot.EMOJI_CORRECTO} Auto-scan {'activado' if estado else 'desactivado'}.", ephemeral=True)
 
@@ -67,9 +65,7 @@ class ConfiguracionCog(commands.Cog):
         if not interaction.guild:
             await self._safe_followup(interaction, f"{self.bot.EMOJI_INCORRECTO} Este comando solo funciona en servidores.", ephemeral=True)
             return
-        config = await self.bot.obtener_config_guild(interaction.guild.id)
-        config["log_channel_id"] = canal.id
-        await self.bot.guardar_datos(inmediato=True)
+        await actualizar_config(interaction.guild.id, inmediato=True, log_channel_id=canal.id)
         log.debug(f"SETLOGCHANNEL → guild={interaction.guild.id} canal={canal.id} admin={interaction.user.id}")
         await self._safe_followup(interaction, f"{self.bot.EMOJI_CORRECTO} Canal de logs establecido a {canal.mention}.", ephemeral=True)
 
@@ -80,44 +76,39 @@ class ConfiguracionCog(commands.Cog):
         if not interaction.guild:
             await self._safe_followup(interaction, f"{self.bot.EMOJI_INCORRECTO} Este comando solo funciona en servidores.", ephemeral=True)
             return
-        config = await self.bot.obtener_config_guild(interaction.guild.id)
-        config["log_channel_id"] = None
-        await self.bot.guardar_datos(inmediato=True)
+        await actualizar_config(interaction.guild.id, inmediato=True, log_channel_id=None)
         log.debug(f"DISABLELOGCHANNEL → guild={interaction.guild.id} admin={interaction.user.id}")
         await self._safe_followup(interaction, f"{self.bot.EMOJI_CORRECTO} Logs desactivados.", ephemeral=True)
 
-    @app_commands.command(name="settings", description="Muestra la configuración actual del bot en este servidor (solo admins)")
+    @app_commands.command(
+        name="settings",
+        description="Abre los ajustes del bot en este servidor (solo admins)",
+    )
     @app_commands.default_permissions(administrator=True)
-    async def settings(self, interaction: discord.Interaction) -> None:
-        await interaction.response.defer(ephemeral=True)
-        if not interaction.guild:
-            await self._safe_followup(interaction, f"{self.bot.EMOJI_INCORRECTO} Este comando solo funciona en servidores.", ephemeral=True)
-            return
-        config = await self.bot.obtener_config_guild(interaction.guild.id)
-        silent = config.get("silent_mode", True)
-        strict = config.get("strict_mode", True)
-        auto_scan = config.get("auto_scan_enabled", True)
-        log_id = config.get("log_channel_id")
-        log_channel = interaction.guild.get_channel(log_id) if log_id else None
+    @app_commands.describe(seccion="Sección a la que abrir el panel. Por defecto, Aviso.")
+    async def settings(
+        self,
+        interaction: discord.Interaction,
+        seccion: Optional[str] = None,
+    ) -> None:
+        """Abre el panel de configuración.
 
-        descripcion = (
-            f"{self.bot.EMOJI_SHIELD} **Auto-scan:** {'Activado' if auto_scan else 'Desactivado'}\n"
-            f"{self.bot.EMOJI_GUARDIAN} **Modo silencioso:** {'Activado' if silent else 'Desactivado'}\n"
-            f"{self.bot.EMOJI_WARNING} **Modo estricto:** {'Activado' if strict else 'Desactivado'}\n"
-            f"{self.bot.EMOJI_LINK} **Canal de logs:** {log_channel.mention if log_channel else '*No configurado*'}"
-        )
-        embed = emb.aviso(
-            "Configuración del servidor",
-            descripcion,
-            campos=[
-                (f"{self.bot.EMOJI_SHIELD} Auto-scan", "Activado" if auto_scan else "Desactivado", True),
-                (f"{self.bot.EMOJI_GUARDIAN} Modo silencioso", "Activado" if silent else "Desactivado", True),
-                (f"{self.bot.EMOJI_WARNING} Modo estricto", "Activado" if strict else "Desactivado", True),
-                (f"{self.bot.EMOJI_LINK} Canal de logs", log_channel.mention if log_channel else "*No configurado*", False),
-            ],
-        )
-        log.debug(f"SETTINGS → guild={interaction.guild.id} admin={interaction.user.id}")
-        await self._safe_followup(interaction, embed=embed, ephemeral=True)
+        Antes esto imprimía los ajustes y no dejaba cambiar nada: cada opción exigía su
+        propio comando. Ahora abre el panel, y el panel se construye recorriendo
+        `core.config_schema`, así que no puede mostrar una clave inexistente ni dejar
+        fuera una nueva.
+        """
+        if not interaction.guild:
+            await self._safe_followup(
+                interaction, f"{self.bot.EMOJI_INCORRECTO} Este comando solo funciona en servidores.",
+                ephemeral=True)
+            return
+
+        elegida = seccion if seccion in esq.secciones() else esq.AVISO
+        embed, vista = await panel_por_guild(interaction.guild, elegida)
+        log.debug(f"SETTINGS → guild={interaction.guild.id} seccion={elegida}")
+        await self._safe_followup(interaction, embed=embed, view=vista, ephemeral=True)
+
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(ConfiguracionCog(bot))

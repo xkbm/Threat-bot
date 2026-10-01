@@ -6,6 +6,7 @@ import discord
 import pytest
 
 from ui import embed as emb
+from core.senales import desde_tuplas
 from ui.message_handler import (
     ImgUrlResult,
     UrlResult,
@@ -171,9 +172,16 @@ class TestImgUrlResult:
 
 
 def construir(urls=(), imgs_url=(), imgs=(), archs=(), omitidos=0, **kw):
-    return _construir_embed_unificado(
-        fake_message(), list(urls), list(imgs_url), list(imgs), list(archs), omitidos, **kw
-    )
+    """Adapta las tuplas de siempre a `Senales` y llama al embed.
+
+    El embed recibe `Senales` (una sola fuente de verdad para veredicto, título, color e
+    icono) en vez de las cuatro listas de tuplas. El helper traduce para que los tests
+    sigan describiendo el caso con la forma que ya usaban.
+    """
+    senales = desde_tuplas(list(urls), list(imgs_url), list(imgs), list(archs))
+    senales.omitidos = omitidos
+    senales.whitelist_omitidos = kw.get("whitelist_omitidos", 0)
+    return _construir_embed_unificado(fake_message(), senales)
 
 
 class TestEmbedUnificado:

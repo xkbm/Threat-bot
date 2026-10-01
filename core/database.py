@@ -33,8 +33,126 @@ class DatabasePool:
             )''')
             await conn.execute('CREATE INDEX IF NOT EXISTS idx_expira ON analisis(expira)')
             await self._asegurar_columna_datos(conn)
+            await self._asegurar_tablas_config(conn)
             await conn.commit()
             self._conns.append(conn)
+
+    async def _asegurar_tablas_config(self, conn: aiosqlite.Connection) -> None:
+        """Crea las tablas de configuración, infracciones y eventos, y migra `data.json`.
+
+        Por qué: la configuración de cada servidor y las infracciones vivían en un único
+        `data.json` reescrito entero en cada cambio. Eso no escala, y cada escritura
+        tocaba todo el fichero, así que un solo análisis reescribía la config de todos los
+        servidores a la vez.
+
+        `guild_config` guarda la config como un blob JSON por guild: así
+        `core.config_schema` sigue siendo la fuente de verdad sin una columna por opción.
+        `infracciones` sí es relacional porque hay que consultar y purgar por fecha.
+
+        Es **additive y con salida**: si algo falla, `data.json` sigue intacto y el bot
+        arranca con él. Perder la configuración de un servidor es inaceptable, así que
+        nada de esto borra el fichero original.
+        """
+        try:
+            await conn.execute('''CREATE TABLE IF NOT EXISTS guild_config (
+                guild_id INTEGER PRIMARY KEY, data TEXT NOT NULL, updated_at REAL
+            )''')
+            await conn.execute('''CREATE TABLE IF NOT EXISTS infracciones (
+                guild_id INTEGER, user_id TEXT, elemento_id TEXT, created_at REAL,
+                PRIMARY KEY (guild_id, user_id, elemento_id)
+            )''')
+            await conn.execute('''CREATE TABLE IF NOT EXISTS runtime (
+                key TEXT PRIMARY KEY, value TEXT
+            )''')
+            await conn.execute('''CREATE TABLE IF NOT EXISTS eventos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER, channel_id INTEGER, message_id INTEGER,
+                author_id INTEGER, total INTEGER, peor_veredicto TEXT,
+                detalle TEXT, created_at REAL
+            )''')
+            # La purga de infracciones y la consulta de /history filtran por fecha.
+            await conn.execute('CREATE INDEX IF NOT EXISTS idx_infrac_fecha ON infracciones(created_at)')
+            await conn.execute('''CREATE INDEX IF NOT EXISTS idx_eventos_canal
+                ON eventos(guild_id, channel_id, created_at)''')
+        except Exception as e:
+            log.error(f"No se pudieron crear las tablas de configuración: {e}. "
+                      f"Se seguirá usando data.json.")
+            self.config_migrada = False
+            return
+
+        await self._migrar_data_json(conn)
+
+    async def _migrar_data_json(self, conn: aiosqlite.Connection) -> None:
+        """Importa `data.json` una sola vez. Idempotente por diseño.
+
+        Solo migra si `guild_config` está vacía. Si ya tiene filas, el proceso ya corrió y
+        volver a lanzarse sobrescribiría los cambios hechos en SQLite con el estado viejo
+        del JSON, que es justo lo que se quiere evitar. `data.json` no se borra: se deja
+        como respaldo.
+        """
+        if getattr(self, "config_migrada", False):
+            return
+        try:
+            async with conn.execute('SELECT COUNT(*) FROM guild_config') as cur:
+                fila = await cur.fetchone()
+            if fila and fila[0] > 0:
+                self.config_migrada = True
+                return
+
+            if not os.path.exists(DATA_FILE):
+                self.config_migrada = True
+                return
+
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                datos = json.loads(f.read())
+
+            guilds = infrac = runtime = 0
+            ahora = time.time()
+            for gid, val in datos.items():
+                if gid in ("__api_usage__", "__antispam__", "__global__"):
+                    continue
+                try:
+                    guild_id = int(gid)
+                except ValueError:
+                    continue
+                if not isinstance(val, dict):
+                    continue
+                # `infracciones_registradas` sale del blob y pasa a la tabla, donde se
+                # puede purgar por fecha. Dejarlo dentro sería duplicar la verdad.
+                registros = val.pop("infracciones_registradas", {}) or {}
+                await conn.execute(
+                    'INSERT OR REPLACE INTO guild_config (guild_id, data, updated_at) VALUES (?, ?, ?)',
+                    (guild_id, json.dumps(val, ensure_ascii=False), ahora),
+                )
+                guilds += 1
+                for uid, elementos in registros.items():
+                    for elemento in elementos or []:
+                        await conn.execute(
+                            'INSERT OR IGNORE INTO infracciones '
+                            '(guild_id, user_id, elemento_id, created_at) VALUES (?, ?, ?, ?)',
+                            (guild_id, str(uid), elemento, ahora),
+                        )
+                        infrac += 1
+
+            for clave in ("__api_usage__", "__antispam__"):
+                if clave in datos:
+                    await conn.execute(
+                        'INSERT OR REPLACE INTO runtime (key, value) VALUES (?, ?)',
+                        (clave, json.dumps(datos[clave], ensure_ascii=False)),
+                    )
+                    runtime += 1
+
+            await conn.commit()
+            self.config_migrada = True
+            log.info(
+                f"Migración data.json → SQLite: {guilds} servidores, {infrac} infracciones, "
+                f"{runtime} bloques de estado. data.json se conserva como respaldo."
+            )
+        except Exception as e:
+            # Un JSON corrupto o un SQLite lleno no pueden impedir que el bot arranque.
+            self.config_migrada = False
+            log.error(f"La migración de data.json falló ({e}). "
+                      f"El bot seguirá funcionando con data.json.")
 
     async def _asegurar_columna_datos(self, conn: aiosqlite.Connection) -> None:
         """Añade la columna `datos` a una base creada antes del sistema de embeds.
@@ -301,6 +419,32 @@ async def guardar_datos(inmediato: bool = False) -> None:
                 await _flush_datos()
         _guardar_datos_task = asyncio.create_task(_debounced())
 
+async def sincronizar_config_sqlite() -> int:
+    """Vuelca en SQLite los guilds que solo estaban en `data.json`.
+
+    Sin esto, un guild nuevo se creaba en memoria al usarse por primera vez y su
+    config solo llegaba a SQLite cuando alguien cambiaba un ajuste. En SQLite, ese
+    `data.json` es un volcado, no una fuente: si se perdiera, ese guild se perdía con él.
+    Best effort: si la base no está lista, se salta sin romper el arranque.
+    """
+    volcados = 0
+    try:
+        existentes = set(await listar_guilds_db())
+    except Exception:
+        return 0
+    for guild_id, config in list(state.bot.guilds_data.items()):
+        if guild_id in existentes or guild_id == "__global__" or not isinstance(config, dict):
+            continue
+        try:
+            await guardar_config_db(guild_id, config)
+            volcados += 1
+        except Exception as e:
+            log.debug(f"No se pudo volcar el guild {guild_id} a SQLite: {type(e).__name__}")
+    if volcados:
+        log.info(f"{volcados} configuracion(es) volcadas de data.json a SQLite")
+    return volcados
+
+
 async def cargar_datos() -> None:
     def _read_json():
         if not os.path.exists(DATA_FILE):
@@ -351,5 +495,213 @@ async def cargar_datos() -> None:
         if "__global__" not in state.bot.guilds_data:
             state.bot.guilds_data["__global__"] = {"total_analisis": 0, "seguros": 0, "sospechosos": 0, "maliciosos": 0, "nsfw": 0, "errores": 0}
             await guardar_datos(inmediato=True)
+        await sincronizar_config_sqlite()
     except Exception as e:
         log.error(f"Error al cargar datos: {e}")
+
+
+# --- Configuración e infracciones en SQLite --------------------------------
+#
+# La escritura de `guild_config` es deliberadamente poco fina: un `INSERT OR REPLACE`
+# por guild. Reescribir un blob de unos pocos cientos de bytes es más barato y simple que
+# diffing columna a columna, y evita que dos escrituras simultáneas se entrelacen dejando
+# campos a medias. El JSON se guarda entero.
+
+async def guardar_config_db(guild_id: int, config: dict) -> None:
+    """Persiste la configuración de un guild. Lanza si falla: aquí sí es crítico.
+
+    A diferencia del registro de eventos, perder esta escritura significa perder ajustes
+    que un administrador acaba de hacer, así que no se traga la excepción.
+    """
+    # Las infracciones viven en su tabla; meterlas en el blob las duplicaría y dejaría
+    # dos fuentes de verdad para lo mismo.
+    limpio = {k: v for k, v in config.items() if k != "infracciones_registradas"}
+    await POOL.execute(
+        'INSERT OR REPLACE INTO guild_config (guild_id, data, updated_at) VALUES (?, ?, ?)',
+        (guild_id, json.dumps(limpio, ensure_ascii=False), time.time()),
+    )
+
+
+async def obtener_config_db(guild_id: int) -> Optional[dict]:
+    """Config de un guild, o None si no está en SQLite (aún no migrada, o no existe)."""
+    row = await POOL.fetchone('SELECT data FROM guild_config WHERE guild_id = ?', (guild_id,))
+    if not row:
+        return None
+    try:
+        return json.loads(row[0])
+    except (TypeError, ValueError):
+        log.error(f"Config ilegible en SQLite para el guild {guild_id}; se ignora.")
+        return None
+
+
+async def listar_guilds_db() -> list[int]:
+    try:
+        async with POOL._read_conn().execute('SELECT guild_id FROM guild_config') as cur:
+            return [f[0] for f in await cur.fetchall()]
+    except Exception as e:
+        log.debug(f"No se pudieron listar los guilds: {type(e).__name__}")
+        return []
+
+
+async def registrar_infraccion_db(
+    guild_id: int, user_id: int, elemento_id: str, creada: Optional[float] = None
+) -> bool:
+    """Registra una infracción. Devuelve True si es nueva, False si ya estaba.
+
+    La clave primaria compuesta hace la deduplicación en la base, no en memoria: con el
+    modelo anterior la lista vivía en el JSON y crecía sin límite en cada guild.
+
+    `INSERT OR IGNORE` no lanza si la fila existe, así que el éxito no se deduce del
+    hecho de que no haya error: hay que mirar `rowcount`. Devolver True siempre hacía que
+    cada reaparición de un elemento contara como infracción nueva.
+    """
+    try:
+        async with POOL._write_lock:
+            cur = await POOL._conns[0].execute(
+                'INSERT OR IGNORE INTO infracciones (guild_id, user_id, elemento_id, created_at) '
+                'VALUES (?, ?, ?, ?)',
+                (guild_id, str(user_id), elemento_id, creada or time.time()),
+            )
+            await POOL._conns[0].commit()
+            return bool(cur.rowcount)
+    except Exception as e:
+        log.error(f"No se pudo registrar la infracción: {e}")
+        return False
+
+
+async def contar_infracciones_db(guild_id: int, user_id: int) -> int:
+    row = await POOL.fetchone(
+        'SELECT COUNT(*) FROM infracciones WHERE guild_id = ? AND user_id = ?',
+        (guild_id, str(user_id)),
+    )
+    return int(row[0]) if row else 0
+
+
+async def infracciones_de_db(guild_id: int, user_id: int) -> list[str]:
+    """Elementos ya registrados por un usuario. Sirve para no volver a contar."""
+    try:
+        async with POOL._read_conn().execute(
+            'SELECT elemento_id FROM infracciones WHERE guild_id = ? AND user_id = ?',
+            (guild_id, str(user_id)),
+        ) as cur:
+            return [f[0] for f in await cur.fetchall()]
+    except Exception as e:
+        log.debug(f"No se pudieron leer las infracciones: {type(e).__name__}")
+        return []
+
+
+async def borrar_infraccion_db(guild_id: int, user_id: int, elemento_id: str) -> bool:
+    """Descuenta una infracción. Es lo que hace el botón "Ignorar" del log de amenazas.
+
+    Antes restaba un número de una lista en el JSON, lo que dejaba el contador y la lista
+    permanentemente desincronizados. Aquí es un `DELETE` real.
+    """
+    try:
+        async with POOL._write_lock:
+            await POOL._conns[0].execute(
+                'DELETE FROM infracciones WHERE guild_id = ? AND user_id = ? AND elemento_id = ?',
+                (guild_id, str(user_id), elemento_id),
+            )
+            await POOL._conns[0].commit()
+        return True
+    except Exception as e:
+        log.error(f"No se pudo borrar la infracción: {e}")
+        return False
+
+
+async def purgar_infracciones(dias: int = 90) -> int:
+    """Borra infracciones más antiguas que `dias`. Lo llama el cron de limpieza.
+
+    Sin esto la tabla crece para siempre: cada elemento distinto que alguien publica
+    añade una fila, y nadie las borra.
+    """
+    try:
+        async with POOL._write_lock:
+            cur = await POOL._conns[0].execute(
+                'DELETE FROM infracciones WHERE created_at < ?', (time.time() - dias * 86400,)
+            )
+            await POOL._conns[0].commit()
+            borradas = cur.rowcount or 0
+        if borradas:
+            log.info(f"Purgadas {borradas} infracciones de más de {dias} días")
+        return borradas
+    except Exception as e:
+        log.debug(f"No se pudieron purgar las infracciones: {type(e).__name__}")
+        return 0
+
+
+# --- Eventos para /history ---------------------------------------------------
+
+async def registrar_evento(
+    guild_id: int,
+    channel_id: int,
+    message_id: int,
+    author_id: int,
+    total: int,
+    peor_veredicto: str,
+    detalle: str = "",
+) -> None:
+    """Guarda un análisis para `/history`. Nunca lanza.
+
+    El análisis del mensaje ya se ha hecho y publicado cuando esto corre: perder un
+    registro informativo no puede justificar tumbar ese resultado.
+    """
+    try:
+        await POOL.execute(
+            """INSERT INTO eventos
+               (guild_id, channel_id, message_id, author_id, total, peor_veredicto, detalle, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (guild_id, channel_id, message_id, author_id, total, peor_veredicto, detalle, time.time()),
+        )
+    except Exception as e:
+        log.debug(f"No se pudo registrar el evento para /history: {type(e).__name__}")
+
+
+async def obtener_eventos(
+    guild_id: int,
+    channel_id: Optional[int] = None,
+    author_id: Optional[int] = None,
+    limite: int = 10,
+) -> list[dict]:
+    """Últimos análisis de un canal (o de todo el servidor). Para `/history`."""
+    condiciones = ["guild_id = ?"]
+    params: list = [guild_id]
+    if channel_id:
+        condiciones.append("channel_id = ?")
+        params.append(channel_id)
+    if author_id:
+        condiciones.append("author_id = ?")
+        params.append(author_id)
+    params.append(max(1, min(limite, 25)))
+    try:
+        async with POOL._read_conn().execute(
+            f"""SELECT channel_id, message_id, author_id, total, peor_veredicto, detalle, created_at
+                FROM eventos WHERE {" AND ".join(condiciones)}
+                ORDER BY created_at DESC LIMIT ?""",
+            tuple(params),
+        ) as cur:
+            filas = await cur.fetchall()
+    except Exception as e:
+        log.debug(f"No se pudieron leer los eventos: {type(e).__name__}")
+        return []
+    return [
+        {
+            "channel_id": f[0], "message_id": f[1], "author_id": f[2], "total": f[3],
+            "veredicto": f[4], "detalle": f[5] or "", "created_at": f[6],
+        }
+        for f in filas
+    ]
+
+
+async def purgar_eventos(dias: int = 30) -> int:
+    """Borra eventos más antiguos que `dias`. Lo llama el cron de limpieza."""
+    try:
+        async with POOL._write_lock:
+            cur = await POOL._conns[0].execute(
+                'DELETE FROM eventos WHERE created_at < ?', (time.time() - dias * 86400,)
+            )
+            await POOL._conns[0].commit()
+            return cur.rowcount or 0
+    except Exception as e:
+        log.debug(f"No se pudieron purgar los eventos: {type(e).__name__}")
+        return 0

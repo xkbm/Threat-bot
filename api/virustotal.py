@@ -170,6 +170,51 @@ def _error_tamanio(filename: str) -> discord.Embed:
     )
 
 
+async def reputacion_hash(file_hash: str) -> tuple[str, int, Optional[str], Optional[str]]:
+    """Solo consulta la reputación de un hash, sin subir nada.
+
+    Devuelve `(veredicto, detecciones, vt_link, top_text)`. El veredicto es
+    `"desconocido"` cuando VirusTotal no ha visto ese archivo: no se sube, porque subir
+    gastaría una request extra del plan gratuito y porque un archivo recién subido no
+    tiene análisis todavía.
+
+    Existe para las imágenes, que hasta ahora solo pasaban por SightEngine: una imagen
+    marcada como malware por el hash se reportaba como "NSFW limpio". Con el plan
+    gratuito el coste es una request por imagen, y solo cuando el hash no está ya en
+    caché de disco.
+    """
+    key = await adquirir_vt()
+    if not key:
+        return "sin_cuota", 0, None, None
+    try:
+        async with state.bot.session.get(
+            f"https://www.virustotal.com/api/v3/files/{file_hash}",
+            headers={"x-apikey": key},
+            timeout=VT_TIMEOUT,
+        ) as resp:
+            if resp.status == 404:
+                log.debug(f"VT HASH NUEVO → {file_hash}")
+                return "desconocido", 0, None, None
+            if resp.status != 200:
+                log.debug(f"VT HASH ERROR → {file_hash} status={resp.status}")
+                return "error", 0, None, None
+            data = await resp.json()
+            attrs = data.get("data", {}).get("attributes", {})
+            stats = attrs.get("last_analysis_stats") or {}
+            results = attrs.get("last_analysis_results") or {}
+            mal = int(stats.get("malicious", 0))
+            veredicto = _veredicto(stats) if stats else "desconocido"
+            vt_link = f"https://www.virustotal.com/gui/file/{file_hash}"
+            top = obtener_top_antivirus(results) if mal else None
+            return veredicto, mal, vt_link, (", ".join(top) if top else None)
+    except asyncio.TimeoutError:
+        log.error(f"VT HASH TIMEOUT → {file_hash}")
+        return "error", 0, None, None
+    except Exception as e:
+        log.error(f"VT HASH EXCEPTION → {file_hash}: {e}")
+        return "error", 0, None, None
+
+
 async def analizar_url(url: str, guild_id: Optional[int] = None, mensaje_original: Optional[discord.Message] = None, guardar_cache: bool = True, registrar_para: Optional[discord.abc.User] = None) -> tuple[str, discord.Embed, int]:
     _t0 = time.time()
     log.debug(f"VT URL INICIO → {url}")

@@ -182,12 +182,17 @@ async def on_ready():
     log.info("Bot Ready - comandos slash sincronizados")
 
 async def _limpiar_cron():
-    from core.database import limpiar_db_expirados
+    from core.database import limpiar_db_expirados, purgar_eventos, purgar_infracciones
     from ui.message_handler import limpiar_cache_procesados
     while True:
         await asyncio.sleep(3600)
         try:
             await limpiar_db_expirados()
+            # Las infracciones y los eventos vivían en listas/JSON que crecían sin
+            # límite. Ahora son tablas y se pueden purgar por fecha. Sin esto, cada
+            # elemento distinto que alguien publica añade una fila para siempre.
+            await purgar_infracciones(90)
+            await purgar_eventos(30)
             ahora = time.time()
             expired_history = [k for k, v in bot.user_scan_history.items()
                               if not v or ahora - v[-1] > 3600]

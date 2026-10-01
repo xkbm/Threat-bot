@@ -19,21 +19,23 @@ class HelpCog(commands.Cog):
 
         embed.add_field(
             name=f"{self.bot.EMOJI_LUPA} Análisis [1]",
-            value="`/scan`",
+            value="`/scan` \u00b7 url \u00b7 archivo \u00b7 hash \u00b7 ip\n"
+            "También con el clic derecho sobre cualquier mensaje.",
             inline=False
         )
 
         embed.add_field(
             name=f"{self.bot.EMOJI_STATS} Utilidades [6]",
-            value="`/stats` • `/about` • `/uptime` • `/ping` • `/help` • `/usercheck`",
+            value="`/stats` \u00b7 `/about` \u00b7 `/uptime` \u00b7 `/ping` \u00b7 `/help` \u00b7 `/usercheck`",
             inline=False
         )
 
         embed.add_field(
-            name=f"{self.bot.EMOJI_GUARDIAN} Moderación [7]",
+            name=f"{self.bot.EMOJI_GUARDIAN} Moderación [8]",
             value=(
-                "`/autoscan` • `/silentmode` • `/strictmode` • "
-                "`/whitelist` • `/setlogchannel` • `/disablelogchannel` • `/settings`"
+                "`/settings` \u00b7 **panel con todos los ajustes**\n"
+                "`/autoscan` \u00b7 `/silentmode` \u00b7 `/strictmode` \u00b7 `/whitelist` \u00b7 "
+                "`/setlogchannel` \u00b7 `/disablelogchannel` \u00b7 `/history`"
             ),
             inline=False
         )
@@ -41,13 +43,27 @@ class HelpCog(commands.Cog):
         embed.add_field(
             name=f"{self.bot.EMOJI_LOADING} Reacciones",
             value=(
-                f"{self.bot.EMOJI_CORRECTO} Seguro · "
-                f"{self.bot.EMOJI_WARNING} Amenaza · "
-                f"{self.bot.EMOJI_NSFW} NSFW\n"
-                f"{self.bot.EMOJI_ERROR} Error · "
-                f"{self.bot.EMOJI_LOADING} Cargando · "
-                f"{self.bot.EMOJI_COOLDOWN} Cooldown\n"
-                f"{self.bot.EMOJI_WHITELIST} Whitelist"
+                f"Cada mensaje lleva **una sola** reacción, la de su peor resultado.\n"
+                f"{self.bot.EMOJI_CORRECTO} Seguro \u00b7 "
+                f"{self.bot.EMOJI_GUARDIAN} Sospechoso \u00b7 "
+                f"{self.bot.EMOJI_RESTRINGIDO} Restringido\n"
+                f"{self.bot.EMOJI_NSFW} NSFW \u00b7 "
+                f"{self.bot.EMOJI_WARNING} Amenaza \u00b7 "
+                f"{self.bot.EMOJI_PHISHING} Suplantación\n"
+                f"{self.bot.EMOJI_ERROR} Sin comprobar \u00b7 "
+                f"{self.bot.EMOJI_COOLDOWN} Límite alcanzado \u00b7 "
+                f"{self.bot.EMOJI_LOADING} Analizando"
+            ),
+            inline=False
+        )
+
+        embed.add_field(
+            name=f"{self.bot.EMOJI_GUARDIAN} Veredictos",
+            value=(
+                "**Restringido** (alcohol, armas) es informativo: avisa y queda "
+                "registrado, pero no borra. Solo **Amenaza** y **NSFW** borran en modo "
+                "estricto. **Sin comprobar** significa que el análisis falló o no había "
+                "cuota: nunca se muestra como seguro."
             ),
             inline=False
         )

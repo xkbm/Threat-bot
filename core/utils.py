@@ -572,3 +572,23 @@ def formatear_espera(segundos: int) -> str:
     """'4m 12s' o '12s', para los mensajes de límite de tasa."""
     minutos, segs = divmod(max(0, int(segundos)), 60)
     return f"{minutos}m {segs}s" if minutos else f"{segs}s"
+
+
+# --- Extracción de enlaces --------------------------------------------------
+#
+# Vive aquí y no en `ui/message_handler` porque lo usan dos sitios: el autoescaneo y el
+# menú contextual de `cogs/historial`. Si cada uno tuviera su patrón, "analizar este
+# mensaje" y el autoescaneo mirarían cosas distintas.
+
+PATRON_URL_D = re.compile(r'https?://[^\s]+')
+
+
+def limpiar_url(url: str) -> str:
+    """Quita la puntuación final que se cuela al copiar un enlace de un texto.
+
+    Discord no pone enlaces entre paréntesis, así que al copiar "mira (https://x.com)."
+    el punto y el paréntesis acaban siendo parte de la URL y la búsqueda falla.
+    """
+    while url and url[-1] in ')]}>.,;:':
+        url = url[:-1]
+    return url

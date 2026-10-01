@@ -1,8 +1,6 @@
 from typing import Optional
 import discord
 from core.config import EMOJI_BAN, EMOJI_KICK, EMOJI_CLEAN, EMOJI_FINGERPRINT, EMOJI_SHIELD, EMOJI_LINK, EMOJI_COOLDOWN
-from core.guild_config import obtener_config_guild
-from core.database import guardar_datos
 from ui import embed as emb
 
 class RazonModal(discord.ui.Modal, title="Razón de la acción"):
@@ -46,21 +44,21 @@ class RazonModal(discord.ui.Modal, title="Razón de la acción"):
             else:
                 await self.parent_view._finalizar_accion(interaction, "Kick", self.razon_texto)
         elif self.accion == "ignore":
-            config = await obtener_config_guild(self.parent_view.guild_id)
-            uid = str(self.parent_view.user_id)
-            if self.parent_view.elemento_id and uid in config.get("infracciones_registradas", {}):
-                registradas = config["infracciones_registradas"][uid]
-                if self.parent_view.elemento_id in registradas:
-                    registradas.remove(self.parent_view.elemento_id)
-                    if uid in config["infracciones"]:
-                        config["infracciones"][uid] = max(0, config["infracciones"].get(uid, 1) - 1)
-                    await guardar_datos(inmediato=True)
-                    await interaction.response.send_message(f"Infracción eliminada.\n**Razón:** {self.razon_texto}", ephemeral=True)
-                    await self.parent_view._finalizar_accion(interaction, "Ignorar", self.razon_texto)
-                else:
-                    await interaction.response.send_message("Esa infracción ya no existe.", ephemeral=True)
-            else:
-                await interaction.response.send_message("No se pudo identificar la infracción.", ephemeral=True)
+            # Un DELETE real sobre la fila, no un `max(0, n-1)` sobre un número. El
+            # contador se recalcula después, así que el número y la lista ya no pueden
+            # quedar desincronizados, que era lo que pasaba antes.
+            from core.guild_config import ignorar_infraccion
+            elemento = self.parent_view.elemento_id
+            if not elemento:
+                await interaction.response.send_message(
+                    "No se pudo identificar la infracción.", ephemeral=True)
+                return
+            await ignorar_infraccion(
+                self.parent_view.guild_id, self.parent_view.user_id, elemento
+            )
+            await interaction.response.send_message(
+                f"Infracción eliminada.\n**Razón:** {self.razon_texto}", ephemeral=True)
+            await self.parent_view._finalizar_accion(interaction, "Ignorar", self.razon_texto)
 
     async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
         await interaction.response.send_message(f"Error: {error}", ephemeral=True)
@@ -138,12 +136,12 @@ class LogActionView(discord.ui.View):
         if not interaction.user.guild_permissions.administrator:
             await interaction.response.send_message("Solo administradores pueden ignorar infracciones.", ephemeral=True)
             return
-        config = await obtener_config_guild(self.guild_id)
-        uid = str(self.user_id)
-        if not self.elemento_id or uid not in config.get("infracciones_registradas", {}):
+        if not self.elemento_id:
             await interaction.response.send_message("No se pudo identificar la infracción.", ephemeral=True)
             return
-        if self.elemento_id not in config["infracciones_registradas"][uid]:
+        # Las infracciones viven en su tabla, no en el JSON: se comprueba contra ella.
+        from core.guild_config import contar_infracciones
+        if await contar_infracciones(self.guild_id, self.user_id) == 0:
             await interaction.response.send_message("Esa infracción ya no existe.", ephemeral=True)
             return
         modal = RazonModal("ignore", self, interaction)

@@ -62,7 +62,19 @@ class Veredicto(Enum):
 
     @property
     def titulo(self) -> str:
+        """Titular del mensaje cuando este veredicto es el más grave."""
         return _TITULOS[self]
+
+    @property
+    def contador(self) -> str:
+        """Sustantivo para la línea de recuento del embed.
+
+        Distinto de `titulo` a propósito: `titulo` es una frase para encabezar un
+        mensaje ("Amenazas detectadas") y `contador` un sustantivo para contar
+        ("Maliciosos: **2**"). Con un único campo los contadores salían como
+        "Todos los elementos son seguros: **3**".
+        """
+        return _CONTADORES[self]
 
     @property
     def borra_en_modo_estricto(self) -> bool:
@@ -112,25 +124,59 @@ _EMOJIS: Dict[Veredicto, str] = {
 }
 
 _TITULOS: Dict[Veredicto, str] = {
-    Veredicto.SEGURO: "Sin detecciones",
+    Veredicto.SEGURO: "Todos los elementos son seguros",
     Veredicto.SOSPECHOSO: "Elementos sospechosos",
     Veredicto.MALICIOSO: "Amenazas detectadas",
     Veredicto.NSFW: "Contenido NSFW detectado",
     Veredicto.RESTRINGIDO: "Contenido restringido detectado",
     Veredicto.PHISHING: "Posible suplantación de marca",
-    Veredicto.ERROR: "No se pudo completar el análisis",
+    Veredicto.ERROR: "Análisis completado con errores",
 }
+
+_CONTADORES: Dict[Veredicto, str] = {
+    Veredicto.SEGURO: "Seguros",
+    Veredicto.SOSPECHOSO: "Sospechosos",
+    Veredicto.MALICIOSO: "Maliciosos",
+    Veredicto.NSFW: "NSFW",
+    Veredicto.RESTRINGIDO: "Restringidos",
+    Veredicto.PHISHING: "Suplantaciones",
+    Veredicto.ERROR: "Errores",
+}
+
+# Orden en que se muestran los contadores en el embed. Distinto de PRECEDENCIA: aquí va
+# de menos a más grave, porque es una lista de recuento y se lee como un resumen.
+#
+# Debe contener TODOS los veredictos: si uno falta, su contador no sale y la suma de las
+# líneas deja de cuadrar con el total. Pasó con `phishing`, que se añadió al enumerado y
+# se olvidó en esta tupla, así que un mensaje solo de suplantación mostraba "Seguros: 0"
+# y ningún recuento de lo encontrado.
+ORDEN_CONTADORES = (
+    Veredicto.SEGURO,
+    Veredicto.SOSPECHOSO,
+    Veredicto.RESTRINGIDO,
+    Veredicto.PHISHING,
+    Veredicto.NSFW,
+    Veredicto.MALICIOSO,
+    Veredicto.ERROR,
+)
 
 # De peor a mejor. Cuando hay varios elementos en un mensaje manda el primero de la
 # lista. El orden es la definición de "peor", así que no debe cambiar por whim: si un
 # veredicto nuevo aparece, hay que decidir deliberadamente dónde se coloca.
+#
+# `SOSPECHOSO` va antes que `ERROR` a propósito. Un hallazgo confirmado es accionable;
+# un error es "no se pudo comprobar". Si un mensaje trae un sospechoso y además un
+# elemento que falló, lo que el moderador necesita ver primero es el sospechoso: el
+# error se sigue contando en el embed, pero no tapa el hallazgo. Al revés, el mensaje
+# entero se pone en rojo porque algo no se pudo comprobar, y eso es peor que mostrar
+# ámbar con el recuento de lo que no se pudo comprobar.
 PRECEDENCIA = (
     Veredicto.MALICIOSO,
     Veredicto.NSFW,
     Veredicto.RESTRINGIDO,
     Veredicto.PHISHING,
-    Veredicto.ERROR,
     Veredicto.SOSPECHOSO,
+    Veredicto.ERROR,
     Veredicto.SEGURO,
 )
 

@@ -30,9 +30,10 @@ class ReputacionCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         guild_id = interaction.guild.id
-        config = await self.bot.obtener_config_guild(guild_id)
-        infracciones = config.get("infracciones", {})
-        count = infracciones.get(str(usuario.id), 0)
+        # Las infracciones viven en su tabla, no dentro del JSON de configuración: así
+        # se pueden purgar por fecha y el contador nunca se desincroniza de las filas.
+        from core.guild_config import contar_infracciones
+        count = await contar_infracciones(guild_id, usuario.id)
 
         if count > 0:
             color = emb.COLOR_MALICIOSO

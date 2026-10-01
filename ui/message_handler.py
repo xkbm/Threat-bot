@@ -1,4 +1,3 @@
-import re
 import aiohttp
 import time
 import asyncio
@@ -6,28 +5,44 @@ import hashlib
 import json
 import urllib.parse
 import base64
-from collections import OrderedDict
+from collections import Counter, OrderedDict
 from typing import NamedTuple, Optional
 import logging
 import discord
 from discord.ext import commands
-from core.config import MAX_IMAGE_SIZE, MAX_FILE_SIZE, EMOJI_CORRECTO, EMOJI_ERROR, EMOJI_WARNING, EMOJI_WHITELIST, EMOJI_LOADING, EMOJI_LINK, EMOJI_FILE, EMOJI_COOLDOWN, EMOJI_REPLY, EMOJI_NSFW, EMOJI_GUARDIAN
-from core.utils import safe_remove_loading, safe_add_reaction, safe_send, dominio_en_whitelist, url_es_imagen, es_imagen, verificar_nombre, expandir_url, tiene_doble_extension, descargar_url_segura, clave_analisis, vuelo, SIN_RESPUESTA, comprobar_antispam, check_vt_user_limit
+from core.config import (
+    MAX_IMAGE_SIZE, MAX_FILE_SIZE, VT_API_KEYS, EMOJI_WHITELIST, EMOJI_LOADING,
+    EMOJI_LINK, EMOJI_FILE, EMOJI_COOLDOWN, EMOJI_REPLY, EMOJI_NSFW,
+)
+from core.utils import safe_remove_loading, safe_add_reaction, safe_send, dominio_en_whitelist, url_es_imagen, es_imagen, verificar_nombre, expandir_url, tiene_doble_extension, descargar_url_segura, clave_analisis, vuelo, SIN_RESPUESTA, comprobar_antispam, check_vt_user_limit, PATRON_URL_D, limpiar_url
 from core import filetypes as F
+from core import veredictos
 from core.filetypes import CABECERA_BYTES
+from core.phishing import detectar as detectar_phishing
 from core.cache import get_from_cache_mem, set_cache_mem
-from core.database import obtener_analisis_db, guardar_metadatos_hash, obtener_hash_desde_metadatos
-from api.virustotal import analizar_url, analizar_archivo, enviar_log_guild
+from core.database import (
+    obtener_analisis_db, guardar_analisis_db, guardar_metadatos_hash,
+    obtener_hash_desde_metadatos, registrar_evento,
+)
+from api.virustotal import (
+    analizar_url, analizar_archivo, enviar_log_guild, reputacion_hash,
+)
 from api.sightengine import analizar_imagen_multimodelo, evaluar_contenido
-from core.veredictos import Veredicto
+from core.veredictos import ORDEN_CONTADORES, Veredicto
 from core.state import ANALYSIS_SEMAPHORE
-from core.guild_config import obtener_config_guild, registrar_infraccion, update_stats
-from core.senales import desde_tuplas
+from core.guild_config import (
+    obtener_config_guild, registrar_infraccion, update_stats,
+)
+from core.senales import Elemento, Senales, desde_tuplas
 from core.aviso import debe_enviar_embed, reacciones_activas
 from core.reacciones import ReactionController, resolver_reaccion
 from ui import embed as emb
 
 log = logging.getLogger("handler")
+
+# Alias: el patrón y el limpiado viven en `core.utils` porque el menú contextual los
+# necesita también, y duplicarlos haría que cada vía mirara cosas distintas.
+PATRON_URL = PATRON_URL_D
 
 MAX_ADJUNTOS_POR_MENSAJE = 5
 MAX_URLS_POR_MENSAJE = 5
@@ -107,181 +122,235 @@ class ImgUrlResult(NamedTuple):
 
 async def _construir_embed_unificado(
     message: discord.Message,
-    url_results: list[UrlResult],
-    img_url_results: list[ImgUrlResult],
-    img_results: list[tuple],       # (filename, tipo, models, content_hash)
-    arch_results: list[tuple],      # (filename, tipo, mal, file_hash, wm, doble_ext)
-    omitidos: int,
-    whitelist_omitidos: int = 0,
+    senales: Senales,
 ) -> discord.Embed:
-    """Construye UN embed con toda la información disponible (URLs + imágenes + archivos).
+    """Construye UN embed con toda la información disponible.
 
-    No recibe la información de redirección por parámetro: se deduce de
-    `UrlResult.redireccion`, que rellena cada rama (la de una URL y la de varias).
+    Todo sale de `senales` y de `Veredicto`. Antes esta función reinterpretaba las
+    tuplas con su propia lógica y con umbrales escritos a mano, y eso producía mensajes
+    que se contradecían a sí mismos: una imagen con alcohol salía con el título
+    "Todos los elementos son seguros" en verde, con el contador "Seguros: 1", con el
+    icono de error en su línea y con la reacción de bandera. Cuatro cosas distintas
+    para el mismo elemento, porque ninguna compartía la tabla de veredictos con las
+    demás. Ahora hay una sola y las cuatro salen de ahí.
+
+    Igual con los detalles de SightEngine: se leía `models['nudity']` con umbral 0.5,
+    pero `models` ya no tiene esa clave (ahora es `nudity_raw` / `nudity_partial` /
+    `gore` / ...), así que el detalle salía siempre como "contenido inapropiado" sin
+    decir qué se había detectado. Se usa el `detalle` que ya calcula `evaluar_contenido`.
     """
-    total_urls = len(url_results) + len(img_url_results)
-    total_imgs = len(img_results)
-    total_archs = len(arch_results)
-    total = total_urls + total_imgs + total_archs
+    elementos = senales.elementos
+    total = len(elementos)
 
-    has_malicious_url = any(r.tipo == "malicioso" for r in url_results)
-    has_suspicious_url = any(r.tipo == "sospechoso" for r in url_results)
-    has_nsfw_url = any(r.tipo == "nsfw" for r in img_url_results)
-    has_malicious_file = any(t == "malicioso" for _, t, _, _, _, _ in arch_results)
-    has_suspicious_file = any(t == "sospechoso" for _, t, _, _, _, _ in arch_results)
-    has_nsfw_img = any(t == "nsfw" for _, t, _, _ in img_results)
-    has_errors_url = any(r.tipo == "error" for r in url_results)
-    has_errors_img = any(r.tipo == "error" for r in img_url_results) or any(t == "error" for _, t, _, _ in img_results)
-    has_errors_file = any(t == "error" for _, t, _, _, _, _ in arch_results)
+    # Título y color: manda el peor veredicto, con la misma precedencia que usa la
+    # reacción. Así el embed y el emoji no pueden discrepar.
+    peor = veredictos.peor(senales.veredictos)
+    color, titulo_texto = peor.color, peor.titulo
 
-    is_threat = has_malicious_url or has_nsfw_url or has_malicious_file or has_nsfw_img
-    # Un sospechoso no es una amenaza: se informa, pero no borra ni genera infracción.
-    is_suspicious = has_suspicious_url or has_suspicious_file
-    has_errors = has_errors_url or has_errors_img or has_errors_file
+    conteo = Counter(e.veredicto for e in elementos)
 
-    mal_count = sum(1 for r in url_results if r.tipo == "malicioso") + sum(1 for _, t, _, _, _, _ in arch_results if t == "malicioso")
-    susp_count = sum(1 for r in url_results if r.tipo == "sospechoso") + sum(1 for _, t, _, _, _, _ in arch_results if t == "sospechoso")
-    nsfw_count = sum(1 for r in img_url_results if r.tipo == "nsfw") + sum(1 for _, t, _, _ in img_results if t == "nsfw")
-    err_count = (sum(1 for r in url_results if r.tipo == "error")
-                 + sum(1 for r in img_url_results if r.tipo == "error")
-                 + sum(1 for _, t, _, _ in img_results if t == "error")
-                 + sum(1 for _, t, _, _, _, _ in arch_results if t == "error"))
-    seguros = total - mal_count - susp_count - nsfw_count - err_count
-
-    # Determinar título y color. El color sigue el mismo modelo que el resto de
-    # embeds: ámbar/rojo si hay una amenaza, rojo si falló algo, verde si todo limpio.
-    if is_threat:
-        color = emb.COLOR_NSFW if has_nsfw_url or has_nsfw_img else emb.COLOR_MALICIOSO
-        titulo_texto = "Contenido NSFW detectado" if not (has_malicious_url or has_malicious_file) else "Amenazas detectadas"
-    elif is_suspicious:
-        color = emb.COLOR_SOSPECHOSO
-        titulo_texto = "Elementos sospechosos"
-    elif has_errors:
-        color = emb.COLOR_ERROR
-        titulo_texto = "Análisis completado con errores"
-    else:
-        color = emb.COLOR_SEGURO
-        titulo_texto = "Todos los elementos son seguros"
-
-    # Descripción: los contadores van siempre, en el mismo orden, para que dos
-    # mensajes con resultados distintos se lean igual.
     desc = f"**{total}** elemento(s) analizado(s) en el mensaje de {message.author.mention}:\n"
-    desc += f"{EMOJI_CORRECTO} Seguros: **{seguros}**\n"
-    if susp_count:
-        desc += f"{EMOJI_GUARDIAN} Sospechosos: **{susp_count}**\n"
-    if mal_count:
-        desc += f"{EMOJI_WARNING} Maliciosos: **{mal_count}**\n"
-    if nsfw_count:
-        desc += f"{EMOJI_NSFW} NSFW: **{nsfw_count}**\n"
-    if err_count:
-        desc += f"{EMOJI_ERROR} Errores: **{err_count}**\n"
-    if omitidos:
-        desc += f"{EMOJI_COOLDOWN} **{omitidos}** archivo(s) omitido(s) (límite {MAX_ADJUNTOS_POR_MENSAJE} por mensaje)\n"
+    # "Seguros" se muestra siempre, incluso a 0: un 0 ahí dice "de esto no había nada
+    # limpio", que es información. Los demás solo cuando hay, para no llenar el embed
+    # de filas a cero.
+    for v in ORDEN_CONTADORES:
+        n = conteo.get(v, 0)
+        if n or v is Veredicto.SEGURO:
+            desc += f"{v.emoji} {v.contador}: **{n}**\n"
+    if senales.omitidos:
+        desc += (f"{EMOJI_COOLDOWN} **{senales.omitidos}** archivo(s) omitido(s) "
+                 f"(límite {MAX_ADJUNTOS_POR_MENSAJE} por mensaje)\n")
+    if senales.cooldown:
+        desc += f"{EMOJI_COOLDOWN} Límite de análisis alcanzado: no se revisaron los enlaces\n"
     # La whitelist es un dato, no un veredicto. Antes tenía su propia reacción, que se
     # ponía antes de conocer el resultado y nunca se quitaba: un mensaje con un enlace
     # en whitelist y otro malicioso salía marcado con las dos, que se lee contradictorio.
-    if whitelist_omitidos:
-        desc += f"{EMOJI_WHITELIST} **{whitelist_omitidos}** enlace(s) en whitelist, no analizados"
+    if senales.whitelist_omitidos:
+        desc += (f"{EMOJI_WHITELIST} **{senales.whitelist_omitidos}** enlace(s) en "
+                 "whitelist, no analizados")
 
-    embed = emb.aviso(titulo_texto, desc, color=color, icono=emb.EMOJI_SHIELD, con_pie=False)
+    embed = emb.aviso(titulo_texto, desc.rstrip("\n"), color=color,
+                      icono=emb.EMOJI_SHIELD, con_pie=False)
 
-    # Una línea por elemento: estado al principio, enlace al informe al final y
-    # separado por un guion. Antes el enlace iba pegado a la URL con la etiqueta
-    # "VT" y además las URLs maliciosas se repetían en un segundo campo, así que
-    # el mismo enlace aparecía etiquetado de dos maneras distintas.
-    def _linea(icono: str, valor: str, extra: str = "") -> str:
-        linea = f"{icono} `{valor}`"
+    def _linea(elemento: Elemento, extra: str = "") -> str:
+        linea = f"{elemento.veredicto.emoji} `{elemento.nombre}`"
         if extra:
             linea += f" — {extra}"
         return linea
 
-    def _icono_de_estado(tipo: str, nsfw: bool = False) -> str:
-        if tipo == "nsfw":
-            return EMOJI_NSFW
-        if tipo == "malicioso":
-            return EMOJI_WARNING
-        # Sospechoso lleva el guardian y no el warning: el warning queda reservado a lo
-        # que está confirmado, y la barra lateral ya los separa por color.
-        if tipo == "sospechoso":
-            return EMOJI_GUARDIAN
-        if tipo == "seguro":
-            return EMOJI_CORRECTO
-        return EMOJI_ERROR
+    def _extra_url(e: Elemento) -> str:
+        if e.veredicto is Veredicto.MALICIOSO:
+            return f"{e.mal} detecciones"
+        if e.veredicto is Veredicto.SOSPECHOSO:
+            return "sospechoso"
+        if e.veredicto is Veredicto.PHISHING:
+            return e.detalle_contenido or "suplanta una marca"
+        if e.veredicto is Veredicto.ERROR:
+            return _motivo_de_error(e.modelos)
+        return ""
 
-    # --- Campo: URLs ---
-    if url_results:
-        lineas = [
-            _linea(
-                _icono_de_estado(r.tipo),
-                r.url,
-                emb.enlace_informe(r.vt_link) if r.vt_link else "",
-            )
-            for r in url_results
-        ]
+    urls = [e for e in elementos if e.tipo == "url"]
+    if urls:
+        lineas = []
+        for e in urls:
+            extra = _extra_url(e)
+            if e.vt_link:
+                etiqueta = emb.enlace_informe(e.vt_link)
+                extra = f"{extra} · {etiqueta}" if extra else etiqueta
+            lineas.append(_linea(e, extra))
         embed.add_field(name=f"{EMOJI_LINK} URLs", value="\n".join(lineas)[:1024], inline=False)
 
-    # --- Campo: Imágenes (URLs) ---
-    if img_url_results:
-        lineas = [_linea(_icono_de_estado(r.tipo, nsfw=True), r.url, r.detalles) for r in img_url_results]
-        embed.add_field(name=f"{EMOJI_NSFW} Imágenes (URL)", value="\n".join(lineas)[:1024], inline=False)
+    imgs_url = [e for e in elementos if e.tipo == "image_url"]
+    if imgs_url:
+        lineas = [_linea(e, e.detalle_contenido) for e in imgs_url]
+        embed.add_field(name=f"{EMOJI_NSFW} Imágenes (URL)",
+                        value="\n".join(lineas)[:1024], inline=False)
 
-    # --- Campo: Imágenes (adjuntas) ---
-    if img_results:
+    imgs = [e for e in elementos if e.tipo == "image"]
+    if imgs:
         lineas = []
-        for filename, tipo, models, _ in img_results:
-            if tipo == "nsfw":
-                detectados = []
-                if models.get('nudity', 0.0) >= 0.5: detectados.append(f"Desnudez {models['nudity']*100:.0f}%")
-                if models.get('weapon', 0.0) >= 0.5: detectados.append(f"Armas {models['weapon']*100:.0f}%")
-                if models.get('offensive', 0.0) >= 0.7: detectados.append(f"Ofensivo {models['offensive']*100:.0f}%")
-                if models.get('alcohol', 0.0) >= 0.7: detectados.append(f"Alcohol {models['alcohol']*100:.0f}%")
-                extra = "NSFW: " + (", ".join(detectados) if detectados else "contenido inapropiado")
-            elif tipo == "seguro":
-                extra = "imagen"
-            else:
-                extra = "error"
-            lineas.append(_linea(_icono_de_estado(tipo, nsfw=True), filename, extra))
-        embed.add_field(name=f"{EMOJI_FILE} Imágenes (adjuntas)", value="\n".join(lineas)[:1024], inline=False)
-
-    # --- Campo: Archivos ---
-    if arch_results:
-        lineas = []
-        for filename, tipo, mal, _, wm, doble_ext in arch_results:
-            if tipo == "malicioso":
-                extra = f"{mal} detecciones"
-            elif tipo == "sospechoso":
+        for e in imgs:
+            if e.veredicto in (Veredicto.NSFW, Veredicto.RESTRINGIDO):
+                extra = e.detalle_contenido or e.veredicto.titulo
+            elif e.veredicto is Veredicto.MALICIOSO:
+                extra = f"{e.mal} detecciones de malware"
+            elif e.veredicto is Veredicto.SOSPECHOSO:
                 extra = "sospechoso"
+            elif e.veredicto is Veredicto.ERROR:
+                extra = _motivo_de_error(e.modelos)
             else:
-                extra = "limpio" if tipo == "seguro" else "error"
-            linea = _linea(_icono_de_estado(tipo), filename, extra)
-            if wm or doble_ext:
-                # Indentada y con el emoji de reply, para que se lea como aviso del
-                # archivo de arriba y no como un archivo más de la lista.
-                if doble_ext:
-                    linea += f"\n   {EMOJI_REPLY} Doble extensión: el nombre del archivo esconde la real"
-                if wm:
-                    linea += f"\n   {EMOJI_REPLY} {wm}"
+                extra = "imagen"
+            linea = _linea(e, extra)
+            if e.modelos.get("vt_omitido"):
+                linea += f"\n   {EMOJI_REPLY} Sin comprobar en VirusTotal"
+            if e.hay_senal_de_nombre:
+                linea += _avisos_de_nombre(e)
+            lineas.append(linea)
+        embed.add_field(name=f"{EMOJI_FILE} Imágenes (adjuntas)",
+                        value="\n".join(lineas)[:1024], inline=False)
+
+    archivos = [e for e in elementos if e.tipo == "file"]
+    if archivos:
+        lineas = []
+        for e in archivos:
+            if e.veredicto is Veredicto.MALICIOSO:
+                extra = f"{e.mal} detecciones"
+            elif e.veredicto is Veredicto.SOSPECHOSO:
+                extra = "sospechoso"
+            elif e.veredicto is Veredicto.ERROR:
+                extra = _motivo_de_error(e.modelos)
+            else:
+                extra = "limpio"
+            linea = _linea(e, extra)
+            if e.hay_senal_de_nombre:
+                linea += _avisos_de_nombre(e)
             lineas.append(linea)
         embed.add_field(name=f"{EMOJI_FILE} Archivos", value="\n".join(lineas)[:1024], inline=False)
 
-    # --- Campo: Redirección ---
-    # Se generan desde los propios resultados, así que funciona igual con una URL
-    # que con cinco. Antes solo se rellenaba en la rama de URL única.
-    redirecciones = [r for r in url_results if r.es_redireccion]
+    # Redirecciones: se generan desde los propios resultados, así que funciona igual con
+    # una URL que con cinco. Antes solo se rellenaba en la rama de URL única.
+    redirecciones = [e for e in urls if e.redireccion]
     if redirecciones:
-        lineas = [f"`{r.url}`\n→ `{r.redireccion}`" for r in redirecciones]
+        lineas = [f"`{e.nombre}`\n→ `{e.redireccion}`" for e in redirecciones]
         etiqueta = "Redirección" if len(redirecciones) == 1 else "Redirecciones"
-        embed.add_field(
-            name=f"{EMOJI_REPLY} {etiqueta}",
-            value="\n".join(lineas)[:1024],
-            inline=False,
-        )
-
-    # No hay campo aparte de "enlaces maliciosos": las URLs ya salen en el campo
-    # URLs con su icono de estado y su informe, y repetirlas aquí solo duplicaba
-    # la misma información con otra etiqueta.
+        embed.add_field(name=f"{EMOJI_REPLY} {etiqueta}",
+                        value="\n".join(lineas)[:1024], inline=False)
 
     return emb.pie(embed, f"Análisis de mensaje · {total} elemento(s)")
+
+
+def _motivo_de_error(modelos: Optional[dict]) -> str:
+    """Texto legible para un elemento que no se pudo comprobar.
+
+    Nunca dice "seguro". La razón concreta importa: "sin cuota" y "demasiado grande"
+    llevan a acciones distintas para quien lee el mensaje.
+    """
+    if not modelos:
+        return "no se pudo comprobar"
+    motivo = modelos.get("error")
+    if not motivo:
+        return "no se pudo comprobar"
+    legibles = {
+        "too_large": "demasiado grande para analizarlo",
+        "sin_claves": "análisis de contenido no configurado",
+        "sin_cuota": "cuota de la API agotada",
+        "sin_bytes": "no se pudo leer el archivo",
+        "sin_modelos": "la API no devolvió resultados",
+        "modelo_no_disponible": "modelos no disponibles en la cuenta",
+        "error_http": "error de la API de análisis",
+        "error_excepcion": "error inesperado en el análisis",
+    }
+    base = legibles.get(str(motivo), str(motivo))
+    detalle = modelos.get("detalle")
+    return f"{base} ({detalle})" if detalle else base
+
+
+def _avisos_de_nombre(elemento: Elemento) -> str:
+    """Líneas de aviso sobre el nombre del archivo.
+
+    Indentadas y con el emoji de reply, para que se lean como aviso del archivo de
+    arriba y no como un archivo más de la lista.
+    """
+    texto = ""
+    if elemento.doble_extension:
+        texto += f"\n   {EMOJI_REPLY} Doble extensión: el nombre del archivo esconde la real"
+    if elemento.aviso_mime:
+        texto += f"\n   {EMOJI_REPLY} {elemento.aviso_mime}"
+    return texto
+
+
+def _resumen_breve(senales: Senales) -> str:
+    """Una línea con lo esencial, para que `/history` se lea de un vistazo."""
+    partes = []
+    if senales.malicious:
+        partes.append("malicioso")
+    if senales.nsfw:
+        partes.append("nsfw")
+    if senales.restringido:
+        partes.append("restringido")
+    if senales.phishing:
+        partes.append("phishing")
+    if senales.suspicious:
+        partes.append("sospechoso")
+    if senales.error:
+        partes.append("sin comprobar")
+    if senales.cooldown:
+        partes.append("límite alcanzado")
+    if senales.whitelist_omitidos:
+        partes.append(f"{senales.whitelist_omitidos} en whitelist")
+    return ", ".join(partes)
+
+
+async def _reputacion_de_imagen(
+    bot: commands.Bot, content_hash: str, guild_id: int, user_id: int
+) -> tuple[str, int, Optional[str], Optional[str]]:
+    """Consulta la reputación de malware de una imagen por hash, con caché y antispam.
+
+    Devuelve `("no_consultado", 0, None, None)` si no procede: sin claves de VT, si el
+    usuario agotó su cuota, o si el hash ya está en caché de disco. Un fallo aquí NO
+    convierte la imagen en error: el análisis de contenido ya se hizo y es válido; lo que
+    no se pudo es la comprobación extra de malware, y eso se anota aparte.
+    """
+    if not VT_API_KEYS:
+        return "no_consultado", 0, None, None
+
+    clave = clave_analisis("imgmal", content_hash)
+    tipo, _embed, mal = await obtener_analisis_db(clave)
+    if tipo is not None:
+        return tipo, mal or 0, None, None
+
+    if not await check_vt_user_limit(bot, guild_id, user_id):
+        return "no_consultado", 0, None, None
+
+    veredicto, detecciones, vt_link, top = await reputacion_hash(content_hash)
+    if veredicto in ("desconocido", "sin_cuota", "error"):
+        return "no_consultado", 0, None, None
+
+    await guardar_analisis_db(clave, veredicto, veredicto, mal=detecciones)
+    await set_cache_mem(clave, veredicto, mal=detecciones)
+    if veredicto == "malicioso":
+        await registrar_infraccion(guild_id, user_id, f"filehash:{content_hash}")
+    return veredicto, detecciones, vt_link, top
 
 
 async def _procesar_imagen(
@@ -317,17 +386,41 @@ async def _procesar_imagen(
             content_hash = hashlib.sha256(img_data).hexdigest()
             async with ANALYSIS_SEMAPHORE:
                 is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(content_hash, img_data)
-            # El veredicto lo decide `evaluar_contenido`, que distingue tres cosas que
-            # antes iban todas a "seguro": no había nada, no se pudo comprobar, y era
-            # contenido restringido. Solo en cache-miss se cuentan estadísticas, para no
-            # inflar el contador al reproteger la misma imagen.
+            # El veredicto de contenido lo decide `evaluar_contenido`, que distingue
+            # tres cosas que antes iban todas a "seguro": no había nada, no se pudo
+            # comprobar, y era contenido restringido.
             veredicto, confianza, detalle = evaluar_contenido(models)
+
+            # Reputación de malware por hash. Una imagen puede estar limpia para
+            # SightEngine y aun así ser un ejecutable con extensión .png: son dos
+            # dimensiones distintas y el bot solo miraba una. Cuesta una request de VT, y
+            # solo si el hash no está ya en caché de disco.
+            vt_veredicto, vt_mal, vt_link, vt_top = await _reputacion_de_imagen(
+                bot, content_hash, guild_id, message.author.id
+            )
+
+            models = dict(models or {})
+            if vt_veredicto in ("malicioso", "sospechoso"):
+                models["vt_mal"] = vt_mal
+                models["vt_link"] = vt_link
+                models["vt_top"] = vt_top
+                # El malware manda sobre el contenido: una imagen que es las dos cosas se
+                # reporta como maliciosa, que es la etiqueta con la que un moderador
+                # actúa.
+                if vt_veredicto == "malicioso":
+                    veredicto = Veredicto.MALICIOSO
+                elif veredicto is Veredicto.SEGURO:
+                    veredicto = Veredicto.SOSPECHOSO
+            elif vt_veredicto == "no_consultado":
+                # Constancia de que la comprobación de malware no se hizo, para que nadie
+                # lea "limpio" como "comprobado por los dos lados".
+                models["vt_omitido"] = True
+
             if not from_cache and veredicto is Veredicto.SEGURO:
                 await update_stats(guild_id, "seguro")
             if veredicto in (Veredicto.NSFW, Veredicto.RESTRINGIDO) and guild_id:
                 await registrar_infraccion(guild_id, message.author.id, f"nsfw:{content_hash}")
             if doble_ext or aviso_mime:
-                models = dict(models or {})
                 models["doble_extension"] = doble_ext
                 models["aviso_mime"] = aviso_mime
             return (img.filename, veredicto.value, models, content_hash)
@@ -526,10 +619,7 @@ async def _analizar_adjuntos_si_hay(
         return await _analizar_adjuntos(bot, message, guild_id)
     return [], [], 0
 
-def _limpiar_url(url: str) -> str:
-    while url and url[-1] in ')]}>.,;:':
-        url = url[:-1]
-    return url
+_limpiar_url = limpiar_url
 
 
 def _controlador_para(bot: commands.Bot, message: discord.Message) -> ReactionController:
@@ -588,8 +678,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
     log_channel_id = config["log_channel_id"]
     whitelist = config.get("whitelist", [])
 
-    url_pattern = r'https?://[^\s]+'
-    urls = [_limpiar_url(u) for u in re.findall(url_pattern, message.content)]
+    urls = [_limpiar_url(u) for u in PATRON_URL.findall(message.content)]
     log.debug(f"Mensaje de {message.author} en guild={guild_id}: {len(urls)} URLs, {len(message.attachments)} adjuntos")
 
     # --- Colectores de resultados para el embed unificado ---
@@ -623,15 +712,37 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                 # mensaje que|resultara malicioso.
                 _whitelist_omitidos += 1
 
+        # Anti-phishing local, antes de gastar cuota en nada.
+        #
+        # Va aquí, por encima de las dos ramas de análisis de URL, porque la detección es
+        # de texto puro: no necesita red ni VirusTotal. Así los dominios claramente
+        # falsos no consumen ni una request de la cuota gratuita, que es el recurso escaso.
+        # El veredicto es informativo: no borra ni registra infracción.
+        urls_sospechosas: list[UrlResult] = []
+        if todas_urls and config.get("detectar_phishing", True):
+            urls_limpias: list[str] = []
+            for url in todas_urls:
+                veredicto = detectar_phishing(url)
+                if veredicto.es_phishing:
+                    log.info(f"PHISHING → {url} :: {veredicto.razon}")
+                    urls_sospechosas.append(UrlResult(
+                        url, "phishing", 0, None, f"phish:{url}", True, None,
+                    ))
+                else:
+                    urls_limpias.append(url)
+            todas_urls = urls_limpias
+
         if not todas_urls:
-            # Todas en whitelist
-            if not silent_mode:
+            # Todas en whitelist o ya marcadas como phishing.
+            if not silent_mode and not urls_sospechosas:
                 try:
                     await message.reply(f"{EMOJI_WHITELIST} **Dominio(s) en whitelist.** No se requiere análisis.", mention_author=False)
                 except (discord.errors.Forbidden, discord.errors.NotFound):
                     pass
             img_results, arch_results, omitidos = await _analizar_adjuntos_si_hay(bot, message, guild_id)
+            url_results = urls_sospechosas
         else:
+            url_results = urls_sospechosas
             log.debug(f"URLs tras whitelist: {len(todas_urls)} de {len(urls)}")
 
             # Sólo se cobra cuota de antispam si el mensaje va a consumir API de verdad:
@@ -929,10 +1040,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
     has_doble_ext = senales.doble_ext
     has_mime_mismatch = senales.mime_mismatch
 
-    embed = await _construir_embed_unificado(
-        message, url_results, img_url_results, img_results, arch_results, omitidos,
-        whitelist_omitidos=_whitelist_omitidos,
-    )
+    embed = await _construir_embed_unificado(message, senales)
 
     # Enviar embed. `debe_enviar_embed` separa los tres interruptores: antes esta
     # condición era una suma de "algo salió mal" que no se podía desactivar por partes.
@@ -946,6 +1054,18 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
         await _controlador_para(bot, message).set(resolver_reaccion(senales))
     else:
         await safe_remove_loading(bot, message)
+
+    # Registro para /history. Nunca lanza: es un extra informativo, y perder un
+    # registro no puede tumbar un análisis que ya se ha hecho y publicado.
+    if total_elementos:
+        try:
+            await registrar_evento(
+                guild_id, message.channel.id, message.id, message.author.id,
+                total_elementos, veredictos.peor(senales.veredictos).value,
+                _resumen_breve(senales),
+            )
+        except Exception as e:
+            log.debug(f"No se registró el evento de /history: {type(e).__name__}")
 
     # Strict mode
     if debe_borrar(has_threat, has_doble_ext, has_mime_mismatch, strict_mode):

@@ -4,12 +4,19 @@ import logging
 from core import state
 from core.config import DOMINIOS_PROTEGIDOS
 from core.aviso import config_aviso_por_defecto
-from core.database import guardar_datos
+from core.config_schema import validar
+from core.database import (
+    guardar_datos, guardar_config_db, registrar_infraccion_db,
+    contar_infracciones_db, infracciones_de_db,
+)
 
 log = logging.getLogger("guild_config")
 _guild_locks: dict[int, asyncio.Lock] = {}
 _guild_locks_lock = asyncio.Lock()
 _global_lock = asyncio.Lock()
+# Respaldo en memoria de infracciones para cuando SQLite no está disponible.
+# No se persiste: es solo para no perder la cuenta si la base falla.
+_infracciones_memoria: dict[int, dict[str, list[str]]] = {}
 
 async def _get_guild_lock(guild_id: int) -> asyncio.Lock:
     async with _guild_locks_lock:
@@ -66,8 +73,59 @@ def _asegurar_guild(guild_id: int) -> dict[str, Any]:
 
 
 async def obtener_config_guild(guild_id: int) -> dict[str, Any]:
+    """Devuelve la config del guild. **El dict es la referencia viva**, no una copia.
+
+    El panel y los comandos dependen de eso: `_asegurar_guild` rellena las claves nuevas
+    la primera vez y quien llama ve ese relleno. Pero significa que mutarlo fuera del
+    lock es una carrera, y por eso `actualizar_config` es la vía correcta para escribir.
+    """
     async with await _get_guild_lock(guild_id):
         return _asegurar_guild(guild_id)
+
+
+async def actualizar_config(
+    guild_id: int,
+    inmediato: bool = False,
+    **campos: Any,
+) -> dict[str, Any]:
+    """Escribe campos de configuración bajo el lock del guild y persiste.
+
+    Todo el camino de escritura pasa por aquí: los siete comandos de configuración, el
+    panel y lo que se añada. Antes cada uno mutaba el dict y llamaba a `guardar_datos` por
+    su cuenta, que además solía mutar fuera del lock.
+
+    `inmediato=True` fuerza la escritura en vez de esperar al debounce. Lo usan los
+    comandos de administración: si un moderador activa el modo estricto y el bot se cae
+    dos segundos después, el ajuste debería estar aplicado.
+
+    Los valores se validan con el esquema antes de guardar, y un valor imposible se
+    sustituye por su default. Un umbral fuera de rango se recorta, no se rechaza: es
+    mucho más probable que un 0.99 tecleado por error rompa el panel si se rechaza a
+    medias que si se recorta.
+    """
+    async with await _get_guild_lock(guild_id):
+        config = _asegurar_guild(guild_id)
+        config.update(validar(campos))
+    await _persistir_config(guild_id, config, inmediato)
+    log.debug(f"CONFIG UPDATE → guild={guild_id} claves={sorted(campos)}")
+    return config
+
+
+async def _persistir_config(guild_id: int, config: dict[str, Any], inmediato: bool) -> None:
+    """Guarda la config en SQLite, y en `data.json` como respaldo.
+
+    SQLite es la fuente de verdad. El volcado a `data.json` se mantiene porque es lo que
+    permite volver atrás leyendo el fichero si algo va mal con la base, y porque
+    `cargar_datos` sigue siendo la vía de arranque. No es un segundo sitio donde
+    configurar: nada lee de ahí en caliente.
+    """
+    try:
+        await guardar_config_db(guild_id, config)
+    except Exception as e:
+        # La base puede no existir todavía (tests, arranque temprano). No es motivo para
+        # tumbar un cambio de configuración: el volcado al JSON lo conserva.
+        log.debug(f"No se pudo guardar la config en SQLite (guild={guild_id}): {type(e).__name__}")
+    await guardar_datos(inmediato=inmediato)
 
 
 async def agregar_dominio(guild_id: int, dominio: str) -> bool:
@@ -77,7 +135,7 @@ async def agregar_dominio(guild_id: int, dominio: str) -> bool:
         if dominio in config["whitelist"]:
             return False
         config["whitelist"].append(dominio)
-    await guardar_datos(inmediato=True)
+    await _persistir_config(guild_id, config, True)
     log.debug(f"WHITELIST ADD → guild={guild_id} dominio={dominio}")
     return True
 
@@ -89,7 +147,7 @@ async def quitar_dominio(guild_id: int, dominio: str) -> bool:
         if dominio not in config["whitelist"]:
             return False
         config["whitelist"].remove(dominio)
-    await guardar_datos(inmediato=True)
+    await _persistir_config(guild_id, config, True)
     log.debug(f"WHITELIST REMOVE → guild={guild_id} dominio={dominio}")
     return True
 
@@ -128,14 +186,60 @@ async def update_stats(guild_id: Optional[int], tipo: str) -> None:
     log.debug(f"STATS UPDATE → guild={guild_id} tipo={tipo} total={global_stats['total_analisis']}")
 
 async def registrar_infraccion(guild_id: int, user_id: int, elemento_id: str) -> int:
+    """Suma una infracción y devuelve el total del usuario.
+
+    La deduplicación la hace la clave primaria de la tabla, no una lista en memoria.
+    Antes `infracciones_registradas` era una lista por usuario que **nunca se purgaba**:
+    crecía sin límite y `data.json` se reescribía entero en cada infracción, con cada
+    elemento distinto que alguien publica añadía una entrada más.
+
+    Si SQLite no está disponible (arranque temprano, base caída) cae a un mapa en
+    memoria. Perder el registro de una infracción en ese instante es aceptable; perder
+    el contador entero del guild no lo sería, así que el respaldo mantiene la cuenta.
+    """
     async with await _get_guild_lock(guild_id):
-        config = _asegurar_guild(guild_id)
-        uid = str(user_id)
-        config["infracciones_registradas"].setdefault(uid, [])
-        if elemento_id in config["infracciones_registradas"][uid]:
-            return config["infracciones"].get(uid, 0)
-        config["infracciones_registradas"][uid].append(elemento_id)
-        config["infracciones"][uid] = config["infracciones"].get(uid, 0) + 1
-    await guardar_datos()
-    log.debug(f"INFRACCION → guild={guild_id} user={user_id} elemento={elemento_id} total={config['infracciones'][uid]}")
-    return config["infracciones"][uid]
+        _asegurar_guild(guild_id)          # asegura que el guild existe
+        try:
+            if elemento_id in await infracciones_de_db(guild_id, user_id):
+                return await contar_infracciones_db(guild_id, user_id)
+            await registrar_infraccion_db(guild_id, user_id, elemento_id)
+            total = await contar_infracciones_db(guild_id, user_id)
+        except Exception as e:
+            log.warning(
+                f"Infracciones en memoria para el guild {guild_id} (SQLite no disponible: "
+                f"{type(e).__name__}). No se persistirán hasta el próximo reinicio."
+            )
+            elementos = _infracciones_memoria.setdefault(guild_id, {}).setdefault(str(user_id), [])
+            if elemento_id in elementos:
+                return len(elementos)
+            elementos.append(elemento_id)
+            return len(elementos)
+    log.debug(f"INFRACCION → guild={guild_id} user={user_id} elemento={elemento_id} total={total}")
+    return total
+
+
+async def contar_infracciones(guild_id: int, user_id: int) -> int:
+    """Total de infracciones de un usuario. Lo que usa `/usercheck`."""
+    try:
+        return await contar_infracciones_db(guild_id, user_id)
+    except Exception:
+        return len(_infracciones_memoria.get(guild_id, {}).get(str(user_id), []))
+
+
+async def ignorar_infraccion(guild_id: int, user_id: int, elemento_id: str) -> int:
+    """Descuenta una infracción. Es lo que hace el botón "Ignorar" del log.
+
+    Antes restaba un número de una lista, lo que dejaba el contador y la lista
+    permanentemente desincronizados. Aquí es un `DELETE` real sobre la fila.
+    """
+    from core.database import borrar_infraccion_db
+
+    async with await _get_guild_lock(guild_id):
+        try:
+            await borrar_infraccion_db(guild_id, user_id, elemento_id)
+            return await contar_infracciones_db(guild_id, user_id)
+        except Exception:
+            elementos = _infracciones_memoria.get(guild_id, {}).get(str(user_id), [])
+            if elemento_id in elementos:
+                elementos.remove(elemento_id)
+            return len(elementos)

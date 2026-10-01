@@ -27,11 +27,14 @@ class Elemento:
     """
 
     nombre: str
-    tipo: str                      # 'url' | 'file' | 'image' | 'ip' | 'hash'
+    tipo: str                      # 'url' | 'file' | 'image' | 'image_url' | 'ip' | 'hash'
     veredicto: Veredicto = Veredicto.SEGURO
     mal: int = 0
     vt_link: Optional[str] = None
     elemento_id: Optional[str] = None
+    # URL a la que llevaba el acortador, si lo hubo. Antes vivía en `UrlResult` y el
+    # embed la tenía que leer de las tuplas; aquí viaja con el elemento.
+    redireccion: Optional[str] = None
     # Contenido (SightEngine). Antes se perdía al cruzar funciones.
     detalle_contenido: str = ""
     modelos: Dict[str, Any] = field(default_factory=dict)
@@ -144,25 +147,33 @@ def desde_tuplas(
     senales = Senales()
 
     for r in url_results or []:
-        nombre, tipo, mal, vt_link, eid, _ya_logueado, _redir = r
+        nombre, tipo, mal, vt_link, eid, _ya_logueado, redireccion = (list(r) + [None] * 7)[:7]
         senales.anadir(Elemento(
-            nombre=nombre, tipo=tipo, veredicto=Veredicto.desde(tipo), mal=mal or 0,
-            vt_link=vt_link, elemento_id=eid,
+            nombre=nombre, tipo="url", veredicto=Veredicto.desde(tipo), mal=mal or 0,
+            vt_link=vt_link, elemento_id=eid, redireccion=redireccion,
         ))
 
     for r in img_url_results or []:
-        nombre, tipo, detalle, eid = (list(r) + [None, "", None])[:4]
+        nombre, tipo, detalle, eid = (list(r) + ["", "", None])[:4]
         senales.anadir(Elemento(
-            nombre=nombre, tipo="image", veredicto=Veredicto.desde(tipo),
+            nombre=nombre, tipo="image_url", veredicto=Veredicto.desde(tipo),
             detalle_contenido=detalle or "", elemento_id=eid,
         ))
 
     for r in img_results or []:
         nombre, tipo, modelos, content_hash = (list(r) + [None, {}, None])[:4]
+        modelos = modelos or {}
         senales.anadir(Elemento(
             nombre=nombre, tipo="image", veredicto=Veredicto.desde(tipo),
-            modelos=modelos or {},
+            modelos=modelos,
+            # `evaluar_contenido` ya deja el texto con los umbrales aplicados. Se copia
+            # aquí para que el embed no tenga que recalcularlo: antes leía
+            # `models['nudity']`, clave que ya no existe, y por eso nunca nombraba qué
+            # se había detectado.
+            detalle_contenido=str(modelos.get("detalle") or ""),
             elemento_id=f"nsfw:{content_hash}" if content_hash else None,
+            aviso_mime=modelos.get("aviso_mime") or None,
+            doble_extension=bool(modelos.get("doble_extension")),
         ))
 
     for r in arch_results or []:

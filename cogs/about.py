@@ -55,9 +55,21 @@ class InfoCog(commands.Cog):
         embed = emb.aviso(
             "Acerca de Threat",
             "Threat fue desarrollado para mantener las comunidades más seguras.\n"
-            "Protege tu servidor automáticamente usando VirusTotal y Sightengine, "
-            "evitando malware, phishing y NSFW.",
+            "Protege tu servidor automáticamente usando **VirusTotal** (malware) y "
+            "**SightEngine** (contenido de imágenes), revisando enlaces, adjuntos e "
+            "imágenes.\n"
+            "Cada archivo se clasifica por su contenido real, no por su extensión, y lo "
+            "que no se pudo comprobar se reporta como error: nunca como limpio.",
             campos=[
+                ("Qué detecta", (
+                    "• **Malware** en URLs, archivos e imágenes (por hash)\n"
+                    f"• **{self.bot.EMOJI_NSFW} NSFW**: desnudez, gore y ofensivo\n"
+                    f"• **{self.bot.EMOJI_RESTRINGIDO} Restringido**: alcohol y armas, "
+                    "avisa pero no borra\n"
+                    f"• **{self.bot.EMOJI_PHISHING} Suplantación**: `rnicrosoft.com` y "
+                    "compañía, local y sin coste\n"
+                    "• **Nombres engañosos**: doble extensión y extensión que no cuadra"
+                ), False),
                 (f"{self.bot.EMOJI_GITHUB} Licencia", "Open source bajo AGPL-3.0. Código fuente disponible en GitHub.", False),
             ],
         )

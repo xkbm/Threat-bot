@@ -1,0 +1,261 @@
+"""Esquema declarativo de la configuración por servidor.
+
+Motivo: la configuración eran cinco booleanos y una lista repartidos por `dict` sueltos en
+cinco ficheros. Añadir un ajuste era tocar cinco sitios y era fácil que uno se quedara
+sin cubrir, que es como aparecieron los descuadres entre `/settings`, `/silentmode` y la
+lógica real.
+
+Aquí cada clave se declara **una vez**, con su tipo, su rango, su sección y su etiqueta.
+A partir de ahí:
+
+- la validación y el recorte ("clampar") salen del esquema, no de un `if` por comando;
+- el panel se dibuja recorriendo el esquema, así que no puede mostrar una clave que no
+  exista ni dejar fuera una que sí;
+- `/settings` y los atajos de un paso leen y escriben por el mismo sitio.
+
+Los valores por defecto de los interruptores de aviso NO se fijan aquí: se derivan de
+`silent_mode` la primera vez que se ve un servidor, para que actualizar el bot no cambie
+lo que recibe nadie. Ver `core.aviso.config_aviso_por_defecto`.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
+
+# --- Secciones -------------------------------------------------------------
+GENERAL = "general"
+AVISO = "aviso"
+CONTENIDO = "contenido"
+MODERACION = "moderacion"
+EXCLUSIONES = "exclusiones"
+CUOTA = "cuota"
+
+TITULOS_SECCION = {
+    GENERAL: "General",
+    AVISO: "Aviso",
+    CONTENIDO: "Contenido",
+    MODERACION: "Moderación",
+    EXCLUSIONES: "Exclusiones",
+    CUOTA: "Cuota",
+}
+
+DESCRIPCION_SECCION = {
+    GENERAL: "Qué se analiza y dónde se avisa.",
+    AVISO: "Cuándo se manda el embed al canal. Nada de esto toca la reacción.",
+    CONTENIDO: "Qué se considera NSFW y qué es contenido restringido.",
+    MODERACION: "Qué hace el bot sin preguntar.",
+    EXCLUSIONES: "Dónde no mirar.",
+    CUOTA: "Tope de análisis por usuario.",
+}
+
+ACCIONES = ("ignorar", "borrar", "timeout", "banear")
+
+
+@dataclass(frozen=True)
+class Clave:
+    """Una opción de configuración."""
+
+    nombre: str
+    tipo: str                       # 'bool' | 'float' | 'int' | 'str' | 'list'
+    seccion: str
+    etiqueta: str
+    default: Any
+    minimo: Optional[float] = None
+    maximo: Optional[float] = None
+    opciones: Optional[List[str]] = None   # valores admitidos si es elección cerrada
+    ayuda: str = ""
+
+    def valida(self, valor: Any) -> Any:
+        """Normaliza un valor o lanza `ValueError` si no se puede representar.
+
+        Los números fuera de rango se recortan en lugar de fallar: un `0.99` calculado a
+        mano no debería dejar el bot sin poder arrancar.
+        """
+        if self.tipo == "bool":
+            if isinstance(valor, bool):
+                return valor
+            if isinstance(valor, str):
+                bajo = valor.strip().lower()
+                if bajo in ("true", "1", "si", "sí", "yes"):
+                    return True
+                if bajo in ("false", "0", "no"):
+                    return False
+            if isinstance(valor, (int, float)):
+                return bool(valor)
+            raise ValueError(f"{self.nombre}: se esperaba booleano, llegó {valor!r}")
+
+        if self.tipo in ("int", "float"):
+            try:
+                numero = float(valor)
+            except (TypeError, ValueError):
+                raise ValueError(f"{self.nombre}: se esperaba un número, llegó {valor!r}")
+            if self.minimo is not None and numero < self.minimo:
+                numero = self.minimo
+            if self.maximo is not None and numero > self.maximo:
+                numero = self.maximo
+            return int(numero) if self.tipo == "int" else float(numero)
+
+        if self.tipo == "list":
+            if isinstance(valor, str):
+                valor = [v.strip() for v in valor.split(",") if v.strip()]
+            if not isinstance(valor, list):
+                raise ValueError(f"{self.nombre}: se esperaba una lista, llegó {valor!r}")
+            return [str(v) for v in valor]
+
+        texto = str(valor)
+        if self.opciones is not None and texto not in self.opciones:
+            raise ValueError(
+                f"{self.nombre}: '{texto}' no es válido. Vale: {', '.join(self.opciones)}"
+            )
+        return texto
+
+
+def _b(nombre, seccion, etiqueta, default, ayuda="") -> Clave:
+    return Clave(nombre, "bool", seccion, etiqueta, default, ayuda=ayuda)
+
+
+def _n(nombre, seccion, etiqueta, default, minimo=None, maximo=None, ayuda="") -> Clave:
+    return Clave(nombre, "float", seccion, etiqueta, default, minimo, maximo, ayuda=ayuda)
+
+
+def _e(nombre, seccion, etiqueta, default, opciones, ayuda="") -> Clave:
+    return Clave(nombre, "str", seccion, etiqueta, default, opciones=opciones, ayuda=ayuda)
+
+
+ESQUEMA: tuple[Clave, ...] = (
+    # --- General ---
+    _b("auto_scan_enabled", GENERAL, "Auto-scan", True,
+       "Analiza los enlaces y adjuntos de cada mensaje."),
+    Clave("log_channel_id", "int", GENERAL, "Canal de logs", None, ayuda="Donde van las amenazas."),
+    Clave("prefijo_log", "str", GENERAL, "Prefijo del log", "[Threat]", maximo=32),
+
+    # --- Aviso ---
+    _b("silent_mode", AVISO, "Modo silencioso", True,
+       "General: con él activo solo se avisa si hay algo que mirar."),
+    _b("avisar_limpios", AVISO, "Avisar limpios", False,
+       "Manda el embed aunque no haya nada. Se deriva del modo silencioso."),
+    _b("avisar_sospechosos", AVISO, "Avisar sospechosos", True),
+    _b("avisar_errores", AVISO, "Avisar errores", True,
+       "Elementos que no se pudieron comprobar por falta de cuota o por fallo."),
+    _b("reacciones", AVISO, "Reacciones", True,
+       "La reacción no se rige por los interruptores de aviso: va aparte."),
+
+    # --- Contenido ---
+    _n("umbral_nudity", CONTENIDO, "Nudity explícita", 0.5, 0.0, 1.0),
+    _n("umbral_partial", CONTENIDO, "Nudity parcial", 0.45, 0.0, 1.0,
+       "Bikini, lencería, escote: lo que más llega a un servidor."),
+    _n("umbral_gore", CONTENIDO, "Gore", 0.5, 0.0, 1.0),
+    _n("umbral_offensive", CONTENIDO, "Ofensivo", 0.7, 0.0, 1.0),
+    _n("umbral_alcohol", CONTENIDO, "Alcohol (restringido)", 0.7, 0.0, 1.0),
+    _n("umbral_weapon", CONTENIDO, "Armas (restringido)", 0.6, 0.0, 1.0,
+       "Se ignoran juguetes y gestos: no son armas."),
+    _b("detectar_phishing", CONTENIDO, "Detectar suplantación", True,
+       "Comprobación local de texto, no gasta cuota de ninguna API."),
+
+    # --- Moderación ---
+    _b("strict_mode", MODERACION, "Modo estricto", True,
+       "Borra el mensaje ante una amenaza confirmada."),
+    _e("accion_restringido", MODERACION, "Acción ante restringido", "ignorar", ACCIONES),
+    _e("accion_phishing", MODERACION, "Acción ante suplantación", "ignorar", ACCIONES),
+    _e("accion_malicious", MODERACION, "Acción ante malware", "borrar", ACCIONES),
+    _b("avisar_ignorados", MODERACION, "Avisar de ignorados", False),
+
+    # --- Exclusiones ---
+    Clave("canales_exentos", "list", EXCLUSIONES, "Canales sin escaneo", [],
+          ayuda="El bot no analiza nada en estos canales."),
+    Clave("roles_exentos", "list", EXCLUSIONES, "Roles exentos", [],
+          ayuda="Los miembros con estos roles no consumen cuota."),
+    Clave("whitelist", "list", EXCLUSIONES, "Dominios en whitelist", []),
+
+    # --- Cuota ---
+    Clave("antispam_por_hora", "int", CUOTA, "Máximos por usuario y hora", 30, 1, 500),
+    Clave("antispam_cooldown", "int", CUOTA, "Pausa tras el límite (min)", 10, 0, 1440),
+    Clave("max_adjuntos", "int", CUOTA, "Máximos adjuntos por mensaje", 5, 1, 25),
+    Clave("max_urls", "int", CUOTA, "Máximos enlaces por mensaje", 5, 1, 25),
+)
+
+POR_NOMBRE: Dict[str, Clave] = {c.nombre: c for c in ESQUEMA}
+
+# Claves que siguen viviendo dentro del blob de config y no son opciones del panel.
+FUERA_DEL_ESQUEMA = ("infracciones",)
+
+
+def secciones() -> List[str]:
+    """Secciones en el orden en que se muestran."""
+    orden: List[str] = []
+    for clave in ESQUEMA:
+        if clave.seccion not in orden:
+            orden.append(clave.seccion)
+    return orden
+
+
+def claves_de(seccion: str) -> List[Clave]:
+    return [c for c in ESQUEMA if c.seccion == seccion]
+
+
+def validar(config: dict) -> dict:
+    """Copia de `config` con las claves del esquema ya normalizadas.
+
+    Las claves desconocidas se conservan intactas: el esquema no es una lista cerrada y
+    borrarlas perdería cosas de otros módulos. Tampoco añade las que falten: rellenar es
+    trabajo de `_asegurar_guild`, que conoce los defaults por guild.
+    """
+    limpio = dict(config)
+    for clave in ESQUEMA:
+        if clave.nombre not in limpio:
+            continue
+        try:
+            limpio[clave.nombre] = clave.valida(limpio[clave.nombre])
+        except ValueError:
+            limpio[clave.nombre] = clave.default
+    return limpio
+
+
+def defaults() -> Dict[str, Any]:
+    return {c.nombre: c.default for c in ESQUEMA}
+
+
+def aplicar_config(umbrales: Optional[dict] = None) -> dict:
+    """Construye el diccionario de umbrales que espera `evaluar_contenido`.
+
+    Los nombres del esquema llevan prefijo `umbral_` y los de SightEngine no. Si el panel
+    no ha tocado nada devuelve los de `core.config`, para que haya una sola fuente.
+    """
+    from core.config import UMBRALES_CONTENIDO
+
+    resultado = dict(UMBRALES_CONTENIDO)
+    if not umbrales:
+        return resultado
+    equivalencia = {
+        "umbral_nudity": "nudity_raw",
+        "umbral_partial": "nudity_partial",
+        "umbral_gore": "gore",
+        "umbral_offensive": "offensive",
+        "umbral_alcohol": "alcohol",
+        "umbral_weapon": "weapon",
+    }
+    for clave_esquema, clave_se in equivalencia.items():
+        if clave_esquema in umbrales:
+            resultado[clave_se] = float(umbrales[clave_esquema])
+    return resultado
+
+
+def resumen_seccion(config: dict, seccion: str) -> List[tuple[str, str]]:
+    """[(etiqueta, valor legible)] de una sección, para mostrarla."""
+    return [(c.etiqueta, _legible(c, config.get(c.nombre, c.default)))
+            for c in claves_de(seccion)]
+
+
+def _legible(clave: Clave, valor: Any) -> str:
+    if clave.tipo == "bool":
+        return "Activado" if valor else "Desactivado"
+    if clave.tipo == "float":
+        return f"{float(valor):.0%}"
+    if clave.tipo == "list":
+        if not valor:
+            return "*Ninguno*"
+        texto = ", ".join(str(v) for v in valor[:3])
+        extra = f" *+{len(valor) - 3}*" if len(valor) > 3 else ""
+        return texto + extra
+    return "*No configurado*" if valor is None else str(valor)

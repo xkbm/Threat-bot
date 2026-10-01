@@ -23,18 +23,47 @@
 | **URLs** | Expande acortadores y escanea con VirusTotal |
 | **Archivos** | Detecta malware (hasta 32MB) |
 | **Imágenes** | Detección NSFW — nudity, weapons, alcohol, offensive |
-| **Hashes** | Verificación directa de SHA256/MD5 |
-| **IPs** | Análisis de reputación |
+| **Hashes** | Verificación directa de SHA256/MD5, por `/scan` o el menú contextual |
+| **IPs** | Análisis de reputación, por `/scan` |
+| **Nombres sospechosos** | Doble extensión (`.pdf.exe`) y extensión que no cuadra con el contenido |
+
+Cada adjunto se clasifica por sus **bytes iniciales**, no por su extensión: un
+`malware.png` que en realidad es un ejecutable va a VirusTotal, no a la revisión de
+contenido. La extensión solo sirve como pista para no descargar de más.
+
+### Veredictos
+
+| Veredicto | Qué significa | ¿Borra en modo estricto? |
+|-----------|---------------|---------------------------|
+| `seguro` | Nada detectado | no |
+| `sospechoso` | Señal débil, sin confirmar | no |
+| `restringido` | Alcohol, armas | **no**, avisa y queda registrado |
+| `nsfw` | Desnudez, gore, ofensivo | sí |
+| `malicioso` | Malware confirmado | sí |
+| `phishing` | Suplantación de marca (local, sin gastar cuota) | no |
+| `error` | **No se pudo comprobar**: sin cuota, fallo o tamaño | no |
+
+`restringido` existe porque antes el alcohol compartía veredicto y borrado con la
+pornografía, y una foto de una cerveza acababa borrada en modo estricto.
+
+**Un elemento que no se pudo comprobar es `error`, nunca `seguro`.** Si falta cuota o la
+API falla, el bot lo dice; no afirma estar limpio de algo que nunca miró.
 
 ### Protección activa
 
 | Feature | Descripción |
 |---------|-------------|
 | **Modo estricto** | Elimina mensajes peligrosos automáticamente |
-| **Modo silencioso** | Notifica solo en el canal de logs |
+| **Modo silencioso** | Con él activo solo se avisa si hay algo que mirar |
 | **Whitelist** | Dominios seguros que configurás por servidor |
 | **Anti-spam** | 30 análisis/hora por usuario, cooldown de 10s |
 | **Veredicto "sospechoso"** | Los enlaces que VirusTotal marca como *suspicious* pero sin confirmar se informan en ámbar: no se borran ni cuentan como infracción, porque no hay certeza |
+| **Anti-phishing** | Detecta `rnicrosoft.com`, `steamcomunnity.ru` o `discord.com.evil.io`. Comprobación local de texto: no gasta cuota y filtra antes de llamar a VirusTotal |
+| **Panel `/settings`** | Todos los ajustes en un panel con botones y desplegables, recorrido desde un esquema declarado |
+| **Menú contextual** | Clic derecho sobre cualquier mensaje para analizarlo sin copiar la URL |
+| **`/history`** | Últimos análisis de un canal. Ahora sí queda registro de qué se escaneó |
+| **Una sola reacción** | Cada mensaje lleva la de su peor resultado, no tres contradictorias |
+| **Aviso en tres interruptores** | `avisar_limpios`, `avisar_sospechosos` y `avisar_errores` controlan por separado qué llega al canal. `silent_mode` queda como master, y los defaults reproducen el comportamiento anterior: al actualizar el bot no cambia lo que recibe ningún servidor |
 
 `/usercheck` es el único comando restringido a moderadores: el expediente de seguridad de una
 persona no es público.
@@ -53,8 +82,19 @@ persona no es público.
 | `/whitelist` | Dominios que el bot ignora |
 | `/usercheck` | Reputación de un usuario |
 | `/stats` | Estadísticas globales |
-| `/settings` | Configuración del servidor |
+| `/settings` | **Panel de configuración** del servidor |
+| `/history` | Últimos análisis de un canal (mods) |
 | `/help` | Lista de comandos |
+
+Además, el menú contextual **"Analizar con Threat"** aparece al hacer clic derecho sobre
+cualquier mensaje.
+
+## Persistencia
+
+La configuración de cada servidor, las infracciones y el registro de `/history` viven en
+SQLite (`analisis.db`), no en un `data.json` reescrito entero. `data.json` se conserva
+como respaldo y se migró solo la primera vez; si la migración falla, el bot arranca igual
+con el JSON. Las infracciones se purgan a los 90 días y los eventos a los 30.
 | `/about` | Info del bot |
 
 ---
