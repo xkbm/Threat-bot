@@ -118,23 +118,39 @@ class TestAdquirirVt:
 
 
 class TestObtenerSiguienteSeKey:
+    """La selección ya no reserva; la reserva va por petición.
+
+    Antes se reservaban las operaciones al ELEGIR el par, una vez por análisis. Con el
+    reintento de modelos un mismo análisis puede emitir hasta cinco peticiones, cada una
+    con su propio número de operaciones, así que el contador local se quedaba corto y
+    `pudiéramos` pasarnos del tope diario sin enterarnos.
+    """
+
     @pytest.mark.asyncio
-    async def test_cuenta_una_op_por_modelo_pedido(self, fake_bot, monkeypatch):
-        """El coste sale de la lista real de modelos, no de un número fijo.
-
-        Añadir `gore-2.0` subió el coste por llamada de 4 a 5 operaciones. Con el plan
-        gratuito eso baja el techo de imágenes de 125 a 100 al día, así que el número
-        tiene que derivarse de `SE_OPS_PER_CALL` y no de un literal: si vuelve a
-        cambiar la lista de modelos, este test avisa en vez de romperse.
-        """
-        from core.config import SE_OPS_PER_CALL, SIGHTENGINE_MODELS
-
+    async def test_seleccionar_no_gasta_por_si_solo(self, fake_bot, monkeypatch):
         par = ("user", "secret")
         monkeypatch.setattr(vt, "SE_API_KEYS_PAIRS", [par])
         assert await vt.obtener_siguiente_se_key() == par
-        assert SE_OPS_PER_CALL == len(SIGHTENGINE_MODELS.split(","))
-        assert fake_bot.se_key_daily_usage["user"]["count"] == SE_OPS_PER_CALL
-        assert fake_bot.se_key_total_requests["user"] == SE_OPS_PER_CALL
+        assert fake_bot.se_key_daily_usage.get("user", {"count": 0})["count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_reservar_cuenta_las_ops_de_una_peticion(self, fake_bot, monkeypatch):
+        par = ("user", "secret")
+        monkeypatch.setattr(vt, "SE_API_KEYS_PAIRS", [par])
+        await vt.obtener_siguiente_se_key()
+        await vt.reservar_se_key(par, 5)
+        assert fake_bot.se_key_daily_usage["user"]["count"] == 5
+        assert fake_bot.se_key_total_requests["user"] == 5
+
+    @pytest.mark.asyncio
+    async def test_cinco_reintentos_cuentan_por_sepado(self, fake_bot, monkeypatch):
+        """El caso que motivó el cambio: un análisis con reintentos, cinco peticiones."""
+        par = ("user", "secret")
+        monkeypatch.setattr(vt, "SE_API_KEYS_PAIRS", [par])
+        await vt.obtener_siguiente_se_key()
+        for modelos in (5, 4, 3, 2, 1):
+            await vt.reservar_se_key(par, modelos)
+        assert fake_bot.se_key_daily_usage["user"]["count"] == 15
 
     @pytest.mark.asyncio
     async def test_el_numero_de_ops_equivale_a_los_modelos(self):
@@ -145,7 +161,6 @@ class TestObtenerSiguienteSeKey:
             "nudity-2.1", "weapon", "alcohol", "gore-2.0", "offensive",
         }
         assert SE_OPS_PER_CALL == 5
-
 
 class TestCuotaDelPlanGratuito:
     """Los números que importan, calculados desde la lista real de modelos.

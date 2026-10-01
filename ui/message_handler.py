@@ -762,7 +762,14 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
     whitelist = config.get("whitelist", [])
 
     urls = [_limpiar_url(u) for u in PATRON_URL.findall(message.content)]
-    log.debug(f"Mensaje de {message.author} en guild={guild_id}: {len(urls)} URLs, {len(message.attachments)} adjuntos")
+    # El `id` del mensaje va al log a propósito. Sin él no se puede distinguir "el
+    # usuario publicó tres mensajes con la misma imagen" de "el mismo mensaje se está
+    # analizando tres veces", que son fallos muy distintos y con el log anterior no había
+    # forma de decidirlo.
+    log.debug(
+        f"Mensaje {message.id} de {message.author} en guild={guild_id}: "
+        f"{len(urls)} URLs, {len(message.attachments)} adjuntos"
+    )
 
     # --- Colectores de resultados para el embed unificado ---
     url_results: list[UrlResult] = []             # ver UrlResult

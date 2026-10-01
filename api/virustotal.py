@@ -10,7 +10,8 @@ from core import state
 from core.config import (
     VT_API_KEYS, SE_API_KEYS_PAIRS, MAX_FILE_SIZE,
     VT_MAX_ANALYSES_PER_MINUTE, VT_MAX_ANALYSES_PER_DAY,
-    SE_MAX_REQUESTS_PER_MINUTE, SE_MAX_OPS_PER_DAY, SE_OPS_PER_CALL,
+    SE_MAX_REQUESTS_PER_MINUTE, SE_MAX_REQUESTS_PER_SECOND, SE_MAX_OPS_PER_DAY,
+    SE_OPS_PER_CALL,
 )
 from core.cache import set_cache_mem
 from core.database import guardar_analisis_db
@@ -97,11 +98,40 @@ async def adquirir_vt() -> Optional[str]:
     return None
 
 
-async def obtener_siguiente_se_key() -> Optional[tuple[str, str]]:
-    """Selecciona el siguiente par de SightEngine con cuota y lo RESERVA (4 ops por llamada).
+# El plan gratuito de SightEngine permite 1 petición por segundo. Sin esto, cada
+# respuesta de la API la devuelve con 429 y el fallo no distingue "límite de tasa" de
+# "API caída", así que una racha de 429 no se cachea y se repite.
+_se_ultima_peticion: float = 0.0
 
-    Una llamada a SightEngine es una única petición HTTP, así que reservar en la
-    selección es equivalente y exacto.
+
+async def esperar_turno_se() -> None:
+    """Espaciala las peticiones a SightEngine según `SE_MAX_REQUESTS_PER_SECOND`."""
+    global _se_ultima_peticion
+    limite = SE_MAX_REQUESTS_PER_SECOND
+    if limite <= 0:
+        return
+    separacion = 1.0 / limite
+    async with _se_lock:
+        ahora = time.time()
+        espera = _se_ultima_peticion + separacion - ahora
+        if espera > 0:
+            await asyncio.sleep(espera)
+        _se_ultima_peticion = time.time()
+
+
+async def obtener_siguiente_se_key() -> Optional[tuple[str, str]]:
+    """Selecciona el siguiente par de SightEngine con cuota y RESERVA sus operaciones.
+
+    Antes la reserva era de `SE_OPS_PER_CALL` operaciones por llamada de la API, y la
+    docstring daba por hecho "una llamada = una petición". Eso era cierto hasta que se
+    añadió el reintento con menos modelos: un mismo análisis puede emitir hasta
+    `len(MODELOS_CON_FALLBACK)` peticiones, cada una cobrando su propio número de
+    operaciones. Reservar una sola vez hacía que el contador local se quedara corto y
+    `pudiéramos` pasarnos del tope diario sin enterarnos.
+
+    Ahora hay dos funciones: `obtener_siguiente_se_key` elige par y comprueba cupos SIN
+    reservar, y `reservar_se_key` consume las operaciones de la petición que va a salir.
+    Así el contador cuadra con las peticiones realmente emitidas.
     """
     async with _se_lock:
         if not SE_API_KEYS_PAIRS:
@@ -125,16 +155,30 @@ async def obtener_siguiente_se_key() -> Optional[tuple[str, str]]:
                 log.debug(f"SE key daily limit: {api_key[:8]}... ({SE_MAX_OPS_PER_DAY} ops/day)")
                 continue
 
-            if diario is None or diario["date"] != hoy:
-                diario = {"count": 0, "date": hoy}
-            diario["count"] += SE_OPS_PER_CALL
-            state.bot.se_key_daily_usage[api_key] = diario
-            state.bot.se_key_total_requests[api_key] = state.bot.se_key_total_requests.get(api_key, 0) + SE_OPS_PER_CALL
             ventana.append(ahora)
             return pair
 
         log.warning("Todas las keys de SightEngine están rate-limited")
         return None
+
+
+async def reservar_se_key(pair: tuple[str, str], operaciones: Optional[int] = None) -> None:
+    """Consume las operaciones de UNA petición a SightEngine.
+
+    Se llama justo antes de cada POST, no una vez por análisis, para que el contador
+    local refleje lo que la API va a cobrar de verdad. Con el reintento de modelos, un
+    análisis pueden ser varias peticiones.
+    """
+    ops = SE_OPS_PER_CALL if operaciones is None else operaciones
+    api_key = pair[0]
+    async with _se_lock:
+        hoy = time.strftime("%Y-%m-%d", time.gmtime())
+        diario = state.bot.se_key_daily_usage.get(api_key)
+        if diario is None or diario["date"] != hoy:
+            diario = {"count": 0, "date": hoy}
+        diario["count"] += ops
+        state.bot.se_key_daily_usage[api_key] = diario
+        state.bot.se_key_total_requests[api_key] = state.bot.se_key_total_requests.get(api_key, 0) + ops
 
 async def enviar_log_guild(guild_id: int, tipo: str, valor: str, detalles: str, usuario: discord.User, url_vt: Optional[str] = None, elemento_id: Optional[str] = None, es_nsfw: bool = False) -> Optional[discord.Message]:
     config = await obtener_config_guild(guild_id)

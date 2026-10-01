@@ -66,6 +66,14 @@ EXPIRACION: dict[str, int] = {
     # un veredicto: el compromiso es una request por imagen y día, a cambio de poder
     # retrasar como mucho un día la detección de un archivo que suba otra persona.
     "imgmal_desconocido": 24 * 3600,
+    # Fallos de SightEngine. Antes NINGUNA ruta de fallo se cacheaba, y una de ellas es
+    # especialmente cara: `sin_modelos` es un 200 con la respuesta vacía, o sea que
+    # SightEngine ya nos cobró las 5 operaciones. Sin caché, cada reaparición de esa
+    # imagen volvía a pagar las 5. Con el plan de 2.000/mes son 400 imágenes quemadas.
+    "se_sin_modelos": 24 * 3600,
+    # Fallos de red o excepción: no suelen costar operaciones, pero sin una hora de
+    # memoria cada reaparición durante una caída provoca una avalancha contra la API.
+    "se_transitorio": 15 * 60,
 }
 
 SIGHTENGINE_API_URL: str = "https://api.sightengine.com/1.0/check.json"

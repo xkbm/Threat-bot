@@ -37,7 +37,7 @@ from core.config import (
 )
 from core.database import guardar_analisis_db, obtener_analisis_db, guardar_datos
 from core.veredictos import Veredicto
-from api.virustotal import obtener_siguiente_se_key
+from api.virustotal import esperar_turno_se, obtener_siguiente_se_key, reservar_se_key
 
 SE_TIMEOUT: aiohttp.ClientTimeout = aiohttp.ClientTimeout(total=30)
 
@@ -127,6 +127,45 @@ def _llego_alguna_clave(result: dict) -> bool:
         if nombre in ("nudity", "weapon", "alcohol", "gore", "offensive"):
             return True
     return False
+
+
+# Motivos de fallo que se cachean, y con qué caducidad. El resto se devuelven sin
+# cachear a propósito: son gratis (no llegaron a la API) o duran segundos.
+_TIPO_CACHEADO = {
+    ERROR_SIN_MODELOS: "se_sin_modelos",
+    ERROR_HTTP: "se_transitorio",
+    ERROR_EXCEPCION: "se_transitorio",
+}
+
+# Tipos de los fallos transitorios, para el log y los tests.
+TRANSITORIOS = (ERROR_HTTP, ERROR_EXCEPCION, ERROR_SIN_CUOTA)
+# Fallos que ya costaron operaciones y por eso hay que recordar.
+COSTOSOS = (ERROR_SIN_MODELOS,)
+
+
+async def _cachear_fallo(cache_key: str, motivo: str, detalle: str) -> None:
+    """Guarda un fallo para no repetir la llamada.
+
+    Existe por dos motivos distintos que se confundían:
+
+    - `sin_modelos` es un **200**: la API respondió y cobró sus operaciones. Volver a
+      preguntarlo al siguiente repost es gastar 5 operaciones por la misma respuesta
+      inválida, y con 2.000 al mes eso son 400 imágenes.
+    - Los fallos de red no cuestan operaciones, pero durante una caída cada reaparición
+      añadiría otra petición a una API que ya está cayendo, y la-avalancha empeora la
+      caída.
+    """
+    tipo = _TIPO_CACHEADO.get(motivo)
+    if not tipo:
+        return
+    try:
+        await guardar_analisis_db(
+            cache_key, tipo, motivo, datos={"tipo": motivo, "error": motivo, "detalle": detalle},
+        )
+    except Exception as e:
+        # Cachear un fallo es una optimización: si no se puede, el análisis sigue siendo
+        # correcto, solo que se repetirá.
+        log.debug(f"No se pudo cachear el fallo de SightEngine: {type(e).__name__}")
 
 
 def _fallo(motivo: str, detalle: str = "") -> Tuple[bool, float, Dict[str, Any], bool]:
@@ -311,6 +350,14 @@ async def analizar_imagen_multimodelo(
     cuerpo: Optional[dict] = None
     for intento, modelos in enumerate(MODELOS_CON_FALLBACK):
         try:
+            # Cada iteración es una petición real, así que cada una reserva sus
+            # operaciones y respeta el límite por segundo. Antes se reservaba una vez
+            # para todo el análisis y el espaciado no se aplicaba: con hasta cinco
+            # peticiones de reintento, el contador local se quedaba corto y no se
+            # respetaba el 1 req/s del plan gratuito.
+            await esperar_turno_se()
+            await reservar_se_key(pair, len(modelos.split(",")))
+
             data = aiohttp.FormData()
             data.add_field("media", image_bytes, filename="image.jpg")
             data.add_field("models", modelos)
@@ -328,11 +375,14 @@ async def analizar_imagen_multimodelo(
                     pass
 
                 if resp.status != 400:
-                    log.warning(f"SE API ERROR → status={resp.status} models={modelos}")
-                    return _fallo(ERROR_HTTP, f"HTTP {resp.status}")
+                    detalle = f"HTTP {resp.status}"
+                    log.warning(f"SE API ERROR → {detalle} models={modelos}")
+                    await _cachear_fallo(clave, ERROR_HTTP, detalle)
+                    return _fallo(ERROR_HTTP, detalle)
 
                 motivo, detalle = _clasificar_400(cuerpo)
                 if motivo != ERROR_MODELO_NO_DISPONIBLE:
+                    await _cachear_fallo(clave, motivo, detalle)
                     return _fallo(motivo, detalle)
 
                 # El 400 es por un modelo. Se avisa claro y se prueba con menos.
@@ -342,9 +392,12 @@ async def analizar_imagen_multimodelo(
                 )
         except Exception as e:
             log.error(f"Excepción en análisis multimodelo: {e}")
+            await _cachear_fallo(clave, ERROR_EXCEPCION, str(e))
             return _fallo(ERROR_EXCEPCION, str(e))
     else:
-        return _fallo(ERROR_MODELO_NO_DISPONIBLE, "ninguna combinación de modelos fue aceptada")
+        detalle = "ninguna combinación de modelos fue aceptada"
+        await _cachear_fallo(clave, ERROR_MODELO_NO_DISPONIBLE, detalle)
+        return _fallo(ERROR_MODELO_NO_DISPONIBLE, detalle)
 
     models = parsear_modelos(result)
     if not _llego_alguna_clave(result):
@@ -357,7 +410,11 @@ async def analizar_imagen_multimodelo(
         # fallos no se cacheaban, se volvía a subir a SightEngine cada vez que alguien
         # la republicaba: 5 operaciones del plan gratis, indefinidamente.
         log.warning(f"SE API 200 sin modelos utilizables → claves={sorted(result)}")
-        return _fallo(ERROR_SIN_MODELOS, "la respuesta no incluye los modelos pedidos")
+        detalle = "la respuesta no incluye los modelos pedidos"
+        # Un 200 significa que SightEngine YA ha cobrado las operaciones. Sin caché, cada
+        # reaparición de esta imagen vuelve a pagar las 5.
+        await _cachear_fallo(clave, ERROR_SIN_MODELOS, detalle)
+        return _fallo(ERROR_SIN_MODELOS, detalle)
 
     # Los umbrales del guild si vienen; si no, los de `core.config`. Antes el panel
     # ofrecía seis umbrales que nadie leía, así que cambiarlos no hacía nada.
