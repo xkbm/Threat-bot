@@ -149,7 +149,16 @@ class DatabasePool:
                 f"{runtime} bloques de estado. data.json se conserva como respaldo."
             )
         except Exception as e:
-            # Un JSON corrupto o un SQLite lleno no pueden impedir que el bot arranque.
+            # Un `rollback` no es opcional aquí. Sin él, una migración que falla a
+            # medias deja una transacción de escritura abierta en esta conexión: el
+            # bloqueo de escritura de SQLite se queda retenido y las escrituras
+            # posteriores desde la misma conexión se encolan sin llegar a commitearse.
+            # # es exactamente lo que hace que la caché "deje de funcionar" sin que
+            # salte ninguna excepción.
+            try:
+                await conn.rollback()
+            except Exception:
+                pass
             self.config_migrada = False
             log.error(f"La migración de data.json falló ({e}). "
                       f"El bot seguirá funcionando con data.json.")

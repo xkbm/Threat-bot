@@ -242,6 +242,12 @@ async def _guardar(interaction: discord.Interaction, nombre: str, valor) -> None
         return
 
     await actualizar_config(interaction.guild.id, **{nombre: validado})
+    if nombre == "silent_mode":
+        # El master y "avisar limpios" van juntos: con el master activo no se manda nada
+        # limpio, y al desactivarlo vuelve a mandarse. `/silentmode` ya lo hacía así, así
+        # que sin esto los dos caminos divergían: el panel dejaba la guild en "general
+        # apagado pero no avises de lo limpio", que el usuario no ve que es contradictorio.
+        await actualizar_config(interaction.guild.id, avisar_limpios=not validado)
     log.debug(f"PANEL {nombre}={validado!r} → guild={interaction.guild.id}")
 
     panel = await PanelConfig.crear(_seccion_de(nombre), interaction.guild)

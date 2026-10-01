@@ -181,6 +181,19 @@ def _imita_marca(etiqueta_cruda: str, marcas_norm: dict[str, str]) -> Optional[T
 
     candidatos = [norm] + [_normalizar(t) for t in re.split(r"[-_.]+", etiqueta_cruda) if t]
 
+    # Tope de longitud antes de comparar por similitud.
+    #
+    # Levenshtein es O(len(etiqueta) x len(marca)) y aquí se repite por cada marca, así
+    # que una etiqueta larga se paga 33 veces. Medido: con 200 caracteres se va de 2 ms a
+    # 33 ms por URL, y `discord.com.` seguido de 300 caracteres llegaba a 59 ms. Como el
+    # bucle de URLs es serial y va ANTES de llamar a ninguna API, eso bloquea el event loop
+    # y con ello todo el bot: el resto de mensajes, las reacciones y los comandos.
+    #
+    # Ninguna marca real pasa de ~12 caracteres, y el phishing pega la marca al principio
+    # del dominio. Recortar a 32 es holgado y convierte el caso patológico en O(1).
+    if len(norm) > 32:
+        candidatos = [c for c in candidatos if len(c) <= 32] or [norm[:32]]
+
     for marca_norm, marca in marcas_norm.items():
         for candidato in candidatos:
             if candidato == marca_norm:

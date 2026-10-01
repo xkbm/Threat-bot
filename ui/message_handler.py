@@ -322,7 +322,7 @@ def _resumen_breve(senales: Senales) -> str:
 
 
 async def _reputacion_de_imagen(
-    bot: commands.Bot, content_hash: str, guild_id: int, user_id: int
+    bot: commands.Bot, content_hash: str, guild_id: int, user_id: int, config: dict
 ) -> tuple[str, int, Optional[str], Optional[str]]:
     """Consulta la reputación de malware de una imagen por hash, con caché y antispam.
 
@@ -330,8 +330,18 @@ async def _reputacion_de_imagen(
     usuario agotó su cuota, o si el hash ya está en caché de disco. Un fallo aquí NO
     convierte la imagen en error: el análisis de contenido ya se hizo y es válido; lo que
     no se pudo es la comprobación extra de malware, y eso se anota aparte.
+
+    Se hace **después** de `evaluar_contenido` a propósito, y se salta si la imagen
+    ya sale como sospechosa o maliciosa, para que el lookup nunca tape el veredicto de
+    contenido ni malgaste cuota en una que ya está condemnada.
     """
     if not VT_API_KEYS:
+        return "no_consultado", 0, None, None
+
+    # Este es el interruptor que hay que tocar si el bot va lento: una request de VT por
+    # imagen, con el plan gratis (4 req/min), compite directamente con los análisis de
+    # enlaces por el mismo cupo.
+    if not config.get("vt_para_imagenes", True):
         return "no_consultado", 0, None, None
 
     clave = clave_analisis("imgmal", content_hash)
@@ -396,7 +406,8 @@ async def _procesar_imagen(
             # dimensiones distintas y el bot solo miraba una. Cuesta una request de VT, y
             # solo si el hash no está ya en caché de disco.
             vt_veredicto, vt_mal, vt_link, vt_top = await _reputacion_de_imagen(
-                bot, content_hash, guild_id, message.author.id
+                bot, content_hash, guild_id, message.author.id,
+                await obtener_config_guild(guild_id),
             )
 
             models = dict(models or {})

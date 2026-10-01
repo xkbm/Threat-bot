@@ -254,6 +254,84 @@ class TestTitulosYContadoresSonDistintos:
             assert v.titulo and v.contador and v.emoji
 
 
+class TestElLookupDeImagenEsApagable:
+    """Con el plan gratis, una request de VT por imagen compite con los análisis de
+    enlaces por el mismo cupo de 4 req/min. Si el bot va lento, esto es lo que se apaga
+    primero, así que tiene que existir el interruptor."""
+
+    def test_el_interruptor_esta_en_el_esquema(self):
+        from core import config_schema as esq
+
+        assert "vt_para_imagenes" in esq.POR_NOMBRE
+        assert esq.POR_NOMBRE["vt_para_imagenes"].tipo == "bool"
+
+    def test_por_defecto_esta_encendido(self):
+        from core import config_schema as esq
+
+        assert esq.defaults()["vt_para_imagenes"] is True
+
+    @pytest.mark.asyncio
+    async def test_apagado_no_gasta_request(self):
+        """Con el interruptor off, no se llama a `reputacion_hash`."""
+        import types as _t
+
+        from ui import message_handler as mh
+
+        llamadas = []
+
+        async def _nunca(hash_):
+            llamadas.append(hash_)
+            return "malicioso", 3, None, None
+        mh.reputacion_hash = _nunca
+        mh.VT_API_KEYS = ["clave"]
+
+        async def _vacia(*a, **k):
+            return None, None, 0
+        mh.obtener_analisis_db = _vacia
+        mh.guardar_analisis_db = _vacia
+
+        async def _permitido(*a, **k):
+            return True
+        mh.check_vt_user_limit = _permitido
+        mh.registrar_infraccion = _vacia
+
+        bot = _t.SimpleNamespace(vt_api_keys=["k"])
+        resultado = await mh._reputacion_de_imagen(
+            bot, "hash123", 42, 7, {"vt_para_imagenes": False})
+        assert resultado[0] == "no_consultado"
+        assert llamadas == [], "se gastó una request con el interruptor apagado"
+
+    @pytest.mark.asyncio
+    async def test_encendido_si_consulta(self):
+        import types as _t
+
+        from ui import message_handler as mh
+
+        llamadas = []
+
+        async def _fake(hash_):
+            llamadas.append(hash_)
+            return "malicioso", 3, "link", "Windows"
+        mh.reputacion_hash = _fake
+        mh.VT_API_KEYS = ["clave"]
+
+        async def _vacia(*a, **k):
+            return None, None, 0
+        mh.obtener_analisis_db = _vacia
+        mh.guardar_analisis_db = _vacia
+
+        async def _permitido(*a, **k):
+            return True
+        mh.check_vt_user_limit = _permitido
+        mh.registrar_infraccion = _vacia
+
+        bot = _t.SimpleNamespace(vt_api_keys=["k"])
+        veredicto, mal, link, top = await mh._reputacion_de_imagen(
+            bot, "hash123", 42, 7, {"vt_para_imagenes": True})
+        assert llamadas == ["hash123"]
+        assert veredicto == "malicioso" and mal == 3
+
+
 class TestResumenBreve:
     def test_lista_lo_importante(self):
         s = Senales()

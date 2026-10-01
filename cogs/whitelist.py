@@ -63,8 +63,27 @@ class WhitelistCog(commands.Cog):
                     await _responder(interaction, f"{self.bot.EMOJI_INCORRECTO} `{dominio}` no es un dominio válido.")
                     return
                 if dominio in whitelist:
-                    log.debug(f"WHITELIST ADD → guild={guild_id} ya existe: {dominio}")
-                    await _responder(interaction, f"{self.bot.EMOJI_INCORRECTO} `{dominio}` ya está en la whitelist.")
+                    # Distinguir los dos casos cambia mucho la percepción. Con un icono
+                    # de error sobre un dominio que el bot traía protegido de serie, el
+                    # usuario piensa que su comando falló y que la whitelist no funciona,
+                    # cuando el comportamiento es el correcto y ya estaba cubierto.
+                    protegido = dominio in DOMINIOS_PROTEGIDOS
+                    log.debug(
+                        f"WHITELIST ADD → guild={guild_id} ya existe: {dominio} "
+                        f"protegido={protegido}")
+                    if protegido:
+                        await _responder(
+                            interaction,
+                            f"{self.bot.EMOJI_CORRECTO} `{dominio}` ya venía en la lista de "
+                            "dominios protegidos, así que sus enlaces no se analizan. "
+                            "No hacía falta añadirlo.",
+                        )
+                    else:
+                        await _responder(
+                            interaction,
+                            f"{self.bot.EMOJI_CORRECTO} `{dominio}` ya está en la whitelist "
+                            "de este servidor.",
+                        )
                     return
                 await agregar_dominio(guild_id, dominio)
                 log.debug(f"WHITELIST ADD OK → guild={guild_id} dominio={dominio} admin={interaction.user.id}")

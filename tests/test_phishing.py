@@ -140,6 +140,60 @@ class TestRobustez:
             assert es_phishing(url) is detectar(url).es_phishing
 
 
+class TestNoBloqueaElBot:
+    """El detector corre en serie, dentro del bucle de URLs y antes de la API.
+
+    Medido antes del tope: una URL con una etiqueta de 200 caracteres pasaba de 2 ms a
+    33 ms, y `discord.com.` seguido de 300 caracteres llegaba a 59 ms. Con cinco enlaces en
+    un mensaje son ~300 ms de CPU en el event loop, lo que atasca el resto del bot: otros
+    mensajes, reacciones y comandos. Es un fallo de rendimiento silencioso: nada falla, todo
+    va lento.
+    """
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "https://ejemplo.com",
+            "https://" + "a" * 200 + ".ejemplo.com",
+            "https://discord.com." + "x" * 300 + ".io",
+            "https://" + ".".join(["sub"] * 15) + ".ejemplo.com",
+            "https://" + "y" * 500,
+            "https://" + "-".join(["z"] * 60) + ".com",
+        ],
+    )
+    def test_siempre_rapido(self, url):
+        import time
+
+        t = time.perf_counter()
+        detectar(url)
+        ms = (time.perf_counter() - t) * 1000
+        # El presupuesto es holgado a propósito: en un portátil esto son microsegundos
+        # siendo generoso. Antes este mismo test tardaba 59 ms.
+        assert ms < 25, f"{url[:40]}... tardó {ms:.1f} ms"
+
+    def test_el_tope_no_pierde_detecciones_reales(self):
+        """Recortar la etiqueta para comparar no puede perder un phishing de verdad."""
+        assert detectar("https://rnicrosoft.com/gift").es_phishing
+        assert detectar("https://netfliix-to-free.club").es_phishing
+        assert detectar("https://paypa1-secure.tk/login").es_phishing
+        # Y una marca preceded de relleno largo sigue detectándose por el prefijo.
+        assert detectar("https://discord.com." + "x" * 300 + ".io").es_phishing
+
+    def test_una_etiqueta_larga_no_puede_reventar_el_coste(self):
+        """El coste de Levenshtein es O(n x m) y se repite por cada marca."""
+        import time
+
+        from core.phishing import _distancia
+
+        # El tope de 32 chars es la garantia: mas alla, no se compara por similitud.
+        assert 32 > len("microsoft")
+        t = time.perf_counter()
+        for _ in range(33):
+            _distancia("a" * 32, "discord")
+        ms = (time.perf_counter() - t) * 1000
+        assert ms < 50, f"33 comparaciones tardaron {ms:.1f} ms"
+
+
 class TestNoGastaCuota:
     """El detector es local a propósito: con plan gratis cada request cuenta."""
 

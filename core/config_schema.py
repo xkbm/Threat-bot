@@ -152,6 +152,9 @@ ESQUEMA: tuple[Clave, ...] = (
        "Se ignoran juguetes y gestos: no son armas."),
     _b("detectar_phishing", CONTENIDO, "Detectar suplantación", True,
        "Comprobación local de texto, no gasta cuota de ninguna API."),
+    _b("vt_para_imagenes", CONTENIDO, "Malware en imágenes", True,
+       "Un request de VirusTotal por imagen. Con el plan gratis ese request compite con "
+       "los análisis de enlaces: si notas lentitud, esto es lo primero que apagaría."),
 
     # --- Moderación ---
     _b("strict_mode", MODERACION, "Modo estricto", True,
