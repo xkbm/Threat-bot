@@ -112,8 +112,11 @@ class TestResolverReaccion:
         """
         s = Senales()
         s.anadir(Elemento(nombre="informe.pdf.exe", tipo="file", doble_extension=True))
-        assert resolver_reaccion(s) == config.EMOJI_REPLY
+        assert resolver_reaccion(s) == config.EMOJI_NOMBRE_SOSPECHOSO
         assert resolver_reaccion(s) != config.EMOJI_WARNING
+        # Y que ese icono signifique algo: la flecha de "responder" no significa nada
+        # aquí. SeJYó porque quedaba libre en la lista, y hay 5 casos igual.
+        assert resolver_reaccion(s) != config.EMOJI_REPLY
 
     def test_el_sospechoso_gana_a_la_senal_de_nombre(self):
         s = Senales()

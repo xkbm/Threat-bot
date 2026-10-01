@@ -131,42 +131,32 @@ def verificar_nombre(filename: str, content_type: Optional[str], deteccion=None)
 
     Devuelve `(doble_extension, aviso_mime)`.
 
-    Estas dos comprobaciones vivían dentro de `_procesar_archivo`, así que solo se
-    aplicaban a los adjuntos que NO eran imagen: un `foto.exe.png` se saltaba las dos.
-    Ahora es una función pura y compartida, y la imagen pasa por ella igual.
+    El orden de las comparaciones importa, y antes estaba mal. Se comparaba el nombre
+    contra lo que **declara Discord**, y por eso una imagen perfectamente normal servida
+    como `application/octet-stream` salía marcada como sospechosa: un PNG de Discord no
+    tiene nada sospechoso, simplemente Discord no detalla ese tipo. Eso señalaba a
+    usuarios normales y llenaba el embed de avisos falsos.
 
-    Son dos chequeos distintos y ambos hacen falta:
+    Ahora la verdad son los **bytes**:
 
-    1. **Nombre contra lo declarado**: `.png` pero Discord sirve `text/html`. El nombre
-       y la cabecera HTTP no cuadran. Es el scam clásico de la página falsa.
-    2. **Bytes contra lo declarado**: `.png` y `image/png`, pero el contenido es un
-       ejecutable. Aquí nombre y cabecera coinciden en mentir, y solo mirar los
-       bytes lo delata.
-
-    El primero necesita solo el nombre y el `Content-Type`; el segundo, los bytes. Si
-    no hay `deteccion` solo se puede hacer el primero.
+    - Si se pudieron leer, se compara el nombre contra lo que hay dentro. Eso sí es una
+      mentira de quien lo sube: `malware.png` con un ejecutable dentro.
+    - Solo si no se pudo leer nada, se recurre a lo que declara Discord, y
+      `application/octet-stream` se trata como "no lo sé", nunca como una contradicción.
     """
     doble_ext = tiene_doble_extension(filename)
-
-    declarado = (content_type or "").split(";")[0].strip()
-    if not declarado:
-        return doble_ext, ""
+    por_extension = mime_de_extension(filename)
+    ext = (filename.rsplit(".", 1)[-1] if "." in (filename or "") else "").lower()
 
     aviso = ""
-    # 1. El nombre promete una cosa y la cabecera otra.
-    esperado_por_nombre = mime_de_extension(filename)
-    if esperado_por_nombre and esperado_por_nombre.lower() != declarado.lower():
-        ext = (filename.rsplit(".", 1)[-1] if "." in filename else "").lower()
-        aviso = f"Extensión .{ext} pero tipo declarado {declarado}"
-
-    # 2. Los bytes dicen algo distinto de lo declarado. Solo si hay formato real
-    #    conocido y el aviso anterior no explica ya el problema.
-    if not aviso and deteccion is not None and deteccion.mime_esperado:
-        if deteccion.mime_esperado.lower() != declarado.lower():
-            aviso = (
-                f"Declarado {declarado} pero el contenido real es "
-                f"{deteccion.mime_esperado} (`{deteccion.formato}`)"
-            )
+    if deteccion is not None and deteccion.mime_esperado:
+        if por_extension and por_extension != deteccion.mime_esperado:
+            aviso = (f"El nombre dice {por_extension} pero el contenido es "
+                     f"{deteccion.mime_esperado} (`{deteccion.formato}`)")
+    elif por_extension and content_type:
+        declarado = content_type.split(";")[0].strip().lower()
+        if declarado and declarado != por_extension and declarado != "application/octet-stream":
+            aviso = f"Extensión .{ext} pero tipo declarado {declarado}"
 
     return doble_ext, aviso
 

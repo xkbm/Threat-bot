@@ -111,6 +111,14 @@ EMOJI_NSFW: str = "<:NSFW:1513756541931753544>"
 # Discord usa para el contenido restringido por edad (alcohol, armas).
 EMOJI_RESTRINGIDO: str = "<:Flag:1555092175547801670>"
 EMOJI_PHISHING: str = "<:Phishing:1555091633865760808>"
+# "El nombre del archivo no cuadra con su contenido": doble extensión, o extensión que
+# no corresponde a los bytes. NO es el de malware (`EMOJI_WARNING`): aquí no hay ninguna
+# detección, solo un nombre que no dice lo que es.
+#
+# Antes usaba `EMOJI_REPLY`, que es una flecha de "responder" y no significa nada en
+# este contexto. La huella encaja mejor: el archivo declara una identidad y es otra.
+# Cámbiala por un emoji propio cuando quieras, igual que Flag y Phishing.
+EMOJI_NOMBRE_SOSPECHOSO: str = EMOJI_FINGERPRINT
 
 ANTIVIRUS_CONOCIDOS: list[str] = [
     "Kaspersky", "McAfee", "Avast", "Norton", "BitDefender", "ESET", "Symantec",

@@ -173,6 +173,11 @@ class TestVerificarNombreCompartida:
         d, wm = verificar_nombre("foto.png", "image/png")
         assert (d, wm) == (False, "")
 
+    def test_octet_stream_no_es_una_contradiccion(self):
+        """Regresión: Discord devuelve esto para subidas normales y las marcaba."""
+        assert verificar_nombre("foto.jpg", "application/octet-stream") == (False, "")
+        assert verificar_nombre("captura.png", "application/octet-stream") == (False, "")
+
     def test_bytes_que_contradicen_nombre_y_tipo(self):
         """Nombre y cabecera coinciden en mentir; solo los bytes lo delatan."""
         det = F.detectar(b"MZ\x90\x00" + b"\x00" * 60)
@@ -213,7 +218,8 @@ class TestVerificarNombreCompartida:
             # "jpg" en el mapa de MIMEs, `foto.jpg` se saltaba la comprobación entera.
             ("foto.jpg", "text/html"),
             ("foto.jpeg", "text/html"),
-            ("foto.jpg", "application/octet-stream"),
+            # `application/octet-stream` ya no está aquí a propósito: es "no lo sé",
+            # no una contradicción, y Discord lo devuelve para subidas legítimas.
             # Y las demás que tampoco deben colarse.
             ("foto.bmp", "image/png"),
             ("foto.webp", "image/png"),
@@ -246,3 +252,59 @@ class TestVerificarNombreCompartida:
     )
     def test_coherentes_no_dan_aviso(self, nombre, content_type):
         assert verificar_nombre(nombre, content_type) == (False, "")
+
+class TestElAvisoDeNombreNoSeDisparaEnFalsosPositivos:
+    """Regresión: una imagen normal marcada como nombre sospechoso.
+
+    La comparación era nombre contra `Content-Type`, que es lo que *declara* Discord, no
+    lo que el archivo contiene. Discord sirve `application/octet-stream` para montones de
+    subidas legítimas, así que cualquier imagen normal acababa con el aviso puesto y con
+    un icono de sospecha en vez del check verde.
+
+    Ahora, si se pudieron leer los bytes, esos son la verdad y se comparan contra el
+    nombre. `octet-stream` solo se acepta como "no lo sé", nunca como contradicción.
+    """
+
+    PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 40
+    JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * 40
+    PE = b"MZ\x90\x00" + b"\x00" * 100
+
+    @pytest.mark.parametrize(
+        "nombre,content_type,bytes",
+        [
+            ("captura.png", "application/octet-stream", PNG),
+            ("captura.png", "image/png", PNG),
+            ("captura.png", "image/jpg", PNG),
+            ("foto.jpg", "image/jpeg", JPEG),
+            ("imagen.webp", "image/webp", b"RIFF\x00\x00\x00\x00WEBP" + b"\x00" * 30),
+            ("captura.png", "application/octet-stream", None),
+        ],
+    )
+    def test_una_imagen_normal_no_avisa(self, nombre, content_type, bytes):
+        det = F.detectar(bytes) if bytes else None
+        _d, aviso = verificar_nombre(nombre, content_type, det)
+        assert aviso == "", f"{nombre} como {content_type} avisa sin motivo: {aviso}"
+
+    @pytest.mark.parametrize(
+        "nombre,content_type,bytes",
+        [
+            ("captura.png", "image/png", PE),
+            ("informe.pdf", "application/pdf", PE),
+        ],
+    )
+    def test_la_mentira_real_sigue_avisando(self, nombre, content_type, bytes):
+        """Con bytes leídos, el nombre es el que miente y hay que decirlo."""
+        det = F.detectar(bytes)
+        _d, aviso = verificar_nombre(nombre, content_type, det)
+        assert aviso, f"{nombre} con bytes de {det.formato} deberia avisar"
+
+    def test_el_aviso_usa_los_bytes_no_lo_declarado(self):
+        det = F.detectar(self.PE)
+        _d, aviso = verificar_nombre("captura.png", "image/png", det)
+        assert "nombre dice" in aviso
+        assert "pe" in aviso.lower()
+
+    def test_sin_poder_leer_se_recurre_a_lo_declarado(self):
+        """Sin sniff, se usa el `Content-Type`, que es lo único que hay."""
+        _d, aviso = verificar_nombre("foto.jpg", "text/html")
+        assert "text/html" in aviso

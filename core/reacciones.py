@@ -66,7 +66,7 @@ def resolver_reaccion(senales: Senales) -> str:
         return config.EMOJI_GUARDIAN
     if senales.hay_senal_de_nombre:
         # Emoji propio, no el de malware: esto es un aviso, no una detección.
-        return config.EMOJI_REPLY
+        return config.EMOJI_NOMBRE_SOSPECHOSO
     # La whitelist es lo último: solo decide cuando no hay nada más que contar. Con
     # elementos de por medio, manda su veredicto y la whitelist va al embed.
     if senales.whitelist_omitidos:

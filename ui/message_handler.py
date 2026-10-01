@@ -13,6 +13,7 @@ from discord.ext import commands
 from core.config import (
     MAX_IMAGE_SIZE, MAX_FILE_SIZE, VT_API_KEYS, EMOJI_WHITELIST, EMOJI_LOADING,
     EMOJI_LINK, EMOJI_FILE, EMOJI_COOLDOWN, EMOJI_REPLY, EMOJI_NSFW,
+    EMOJI_NOMBRE_SOSPECHOSO,
 )
 from core.utils import safe_remove_loading, safe_add_reaction, safe_send, dominio_en_whitelist, url_es_imagen, es_imagen, verificar_nombre, expandir_url, tiene_doble_extension, descargar_url_segura, clave_analisis, vuelo, SIN_RESPUESTA, comprobar_antispam, check_vt_user_limit, PATRON_URL_D, limpiar_url
 from core import filetypes as F
@@ -305,9 +306,10 @@ def _avisos_de_nombre(elemento: Elemento) -> str:
     """
     texto = ""
     if elemento.doble_extension:
-        texto += f"\n   {EMOJI_REPLY} Doble extensión: el nombre del archivo esconde la real"
+        texto += (f"\n   {EMOJI_NOMBRE_SOSPECHOSO} Doble extensión: el nombre del "
+                  f"archivo esconde la real")
     if elemento.aviso_mime:
-        texto += f"\n   {EMOJI_REPLY} {elemento.aviso_mime}"
+        texto += f"\n   {EMOJI_NOMBRE_SOSPECHOSO} {elemento.aviso_mime}"
     return texto
 
 
