@@ -82,7 +82,7 @@ persona no es público.
 | `/whitelist` | Dominios que el bot ignora |
 | `/usercheck` | Reputación de un usuario |
 | `/stats` | Estadísticas globales |
-| `/settings` | **Panel de configuración** del servidor |
+| `/settings` | **Panel de configuración**: todo se ajusta ahí, sin comandos aparte |
 | `/history` | Últimos análisis de un canal (mods) |
 | `/help` | Lista de comandos |
 

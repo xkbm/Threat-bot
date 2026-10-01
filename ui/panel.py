@@ -190,6 +190,49 @@ class BotonAnadirWhitelist(discord.ui.Button):
         await interaction.response.send_modal(AnadirWhitelist())
 
 
+class SelectorQuitarWhitelist(discord.ui.Select):
+    """Quita un dominio de la whitelist.
+
+    El complements de `BotonAnadirWhitelist`. Sin esto, quitar un dominio obligaba a
+    recordar `/whitelist remove`: se podía añadir desde el panel pero no deshacer, lo
+    que es la peor forma de dejar medio migrado un ajuste.
+
+    Solo aparece si hay dominios: un `Select` sin opciones no se puede construir, y un
+    desplegable vacío se lee como un fallo del bot.
+    """
+
+    def __init__(self, dominios: list[str], protegidos: frozenset):
+        self.dominios = list(dominios)
+        # Discord admite 25 opciones. Los protegidos no se ofrecen: no se pueden quitar
+        # por comando, así que incluirlos sería ofrecer algo que va a fallar.
+        quitables = [d for d in self.dominios if d not in protegidos]
+        if not quitables:
+            quitables = self.dominios
+        opciones = []
+        for d in quitables[:25]:
+            opciones.append(discord.SelectOption(
+                label=d[:100],
+                value=d,
+                description=("Protegido: se puede quitar, pero volverá al reiniciar"
+                             if d in protegidos else "Quitar de la whitelist"),
+            ))
+        if not opciones:
+            return
+        super().__init__(placeholder="Quitar un dominio…", min_values=1, max_values=1,
+                         custom_id=f"{UMBRAL}wl_quitar", options=opciones)
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        from core.guild_config import quitar_dominio
+
+        dominio = self.values[0]
+        await quitar_dominio(interaction.guild.id, dominio)
+        await interaction.response.send_message(
+            f"{emb.EMOJI_CORRECTO} `{dominio}` ya no está en la whitelist. Sus enlaces se "
+            f"analizarán con normalidad.",
+            ephemeral=True,
+        )
+
+
 class SelectorMotivos(discord.ui.Select):
     """Qué motivos de fallo avisan al canal. Un solo control, no ocho interruptores.
 
@@ -330,6 +373,13 @@ class PanelConfig(discord.ui.View):
 
         if self.seccion == esq.EXCLUSIONES:
             self.add_item(BotonAnadirWhitelist())
+            # Solo si hay algo que quitar. Los protegidos se ofrecen igual, con aviso
+            # aparte: están en la whitelist porque vino de serie, no porque el admin
+            # los eligió, y no debe poder distinguirlos a simple vista.
+            dominios = list(config.get("whitelist") or [])
+            if dominios:
+                self.add_item(SelectorQuitarWhitelist(
+                    dominios, frozenset(esq.DOMINIOS_PROTEGIDOS)))
 
         if self.seccion == esq.CONTENIDO:
             for clave in esq.claves_de(esq.CONTENIDO):

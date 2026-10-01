@@ -20,6 +20,7 @@ lo que recibe nadie. Ver `core.aviso.config_aviso_por_defecto`.
 
 from __future__ import annotations
 
+from core.config import DOMINIOS_PROTEGIDOS as _DOMINIOS_PROTEGIDOS_BASE
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -96,6 +97,10 @@ AYUDA_MOTIVOS = {
     "whitelist": "Había enlaces ignorados a propósito",
     "omitidos": "Mensaje con demasiados elementos",
 }
+
+# Los que trae el bot de serie: se pueden quitar, pero se vuelven a poner al reiniciar.
+# El panel lo avisa en vez de dejarlo caer en silencio.
+DOMINIOS_PROTEGIDOS = frozenset(_DOMINIOS_PROTEGIDOS_BASE)
 
 PRESET_TODO = "todo"
 PRESET_CRITICOS = "criticos"

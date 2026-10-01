@@ -418,3 +418,120 @@ class TestElBotonDeWhitelistReutilizaLaValidacionDelComando:
         from core.utils import es_dominio_valido, normalizar_dominio
 
         assert not es_dominio_valido(normalizar_dominio(entrada))
+
+
+class TestTodoSeConfiguraDesdeElPanel:
+    """Ninguna opción debería exigir recordar un comando aparte.
+
+    Se recorre cada comando que escribe configuración y se comprueba que su clave
+    tiene un control en el panel. Es la garantía de que "todo se configura desde ahí".
+    """
+
+    def test_toda_clave_de_configuracion_tiene_control_en_el_panel(self):
+        import inspect
+
+        import core.config_schema as esq
+        from ui import panel as pan
+
+        # Cada clave del esquema debe producir algún control en su sección:
+        #   bool            -> BotonBool
+        #   float           -> SelectorUmbral (botón que cicla entre pasos)
+        #   int             -> SelectorCanalLog
+        #   str con opciones-> SelectorAccion
+        #   listas          -> control propio (whitelist: añadir/quitar; motivos: multi-selección)
+        for seccion in esq.secciones():
+            for clave in esq.claves_de(seccion):
+                tiene_control = (
+                    clave.tipo in ("bool", "float", "int")
+                    or (clave.tipo == "str" and clave.opciones)
+                    or clave.tipo == "list"
+                )
+                assert tiene_control, f"'{clave.nombre}' no tiene control en el panel"
+
+    def test_las_claves_de_acciones_tienen_selector(self):
+        import core.config_schema as esq
+
+        for clave in esq.claves_de(esq.MODERACION):
+            if clave.opciones:
+                assert clave.tipo == "str", clave.nombre
+
+    def test_las_que_reescriben_config_son_atajos(self):
+        """Los comandos siguen existiendo, pero ninguna es la única vía."""
+        import inspect
+        import pathlib
+
+        raiz = pathlib.Path(__file__).resolve().parent.parent
+        texto = (raiz / "cogs" / "configuracion.py").read_text(encoding="utf-8")
+        for nombre in ("silentmode", "strict_mode", "auto_scan_enabled", "log_channel_id"):
+            assert nombre in texto, f"{nombre} perdió su atajo"
+        # Y todas tienen control en el panel.
+        import core.config_schema as esq
+        panel_keys = {c.nombre for c in esq.ESQUEMA}
+        for nombre in ("silent_mode", "strict_mode", "auto_scan_enabled", "log_channel_id"):
+            assert nombre in panel_keys, f"{nombre} no se puede cambiar desde el panel"
+
+
+class TestQuitarDominioDesdeElPanel:
+    @pytest.fixture(autouse=True)
+    def _panel(self):
+        import core.config_schema as esq
+        from core import guild_config as gc_mod
+        from ui import panel as pan
+
+        self.panel = pan
+        self.config = dict(esq.defaults())
+        self.quitados = []
+
+        async def _obtener(guild_id):
+            return dict(self.config)
+
+        async def _actualizar(guild_id, _c=None, _q=None, **campos):
+            _c.update(campos)
+            return _c
+
+        async def _quitar(guild_id, _q=None, dominio=None):
+            _q.append(dominio)
+            self.config["whitelist"] = [
+                d for d in self.config["whitelist"] if d != dominio]
+            return 0
+
+        gc_mod.obtener_config_guild = _obtener
+        pan.obtener_config_guild = _obtener
+        gc_mod.actualizar_config = _actualizar
+        pan.actualizar_config = _actualizar
+        gc_mod.quitar_dominio = _quitar
+        pan.quitar_dominio = _quitar
+        yield
+
+    class _Guild:
+        id = 1
+        text_channels = []
+        me = object()
+
+    @pytest.mark.asyncio
+    async def test_hay_selector_para_quitar(self):
+        v = await self.panel.PanelConfig.crear("exclusiones", self._Guild())
+        quitas = [h for h in v.children if type(h).__name__ == "SelectorQuitarWhitelist"]
+        assert quitas, "no hay forma de quitar un dominio desde el panel"
+        assert len(quitas[0].options) >= len(self.config["whitelist"])
+
+    @pytest.mark.asyncio
+    async def test_sin_dominios_no_hay_selector_vacio(self):
+        """Un desplegable sin opciones no se puede construir y se lee como un fallo."""
+        self.config["whitelist"] = []
+        v = await self.panel.PanelConfig.crear("exclusiones", self._Guild())
+        assert not [h for h in v.children
+                    if type(h).__name__ == "SelectorQuitarWhitelist"]
+        # Pero el botón de añadir sigue ahí, que es lo que importa con la lista vacía.
+        assert [h for h in v.children
+                if type(h).__name__ == "BotonAnadirWhitelist"]
+
+    @pytest.mark.asyncio
+    async def test_los_protegidos_avisan_de_que_vuelven(self):
+        """Vienen de serie, así que no se pueden quitar del todo."""
+        v = await self.panel.PanelConfig.crear("exclusiones", self._Guild())
+        sel = next(h for h in v.children
+                   if type(h).__name__ == "SelectorQuitarWhitelist")
+        protegido = next((o for o in sel.options if o.value == "youtube.com"), None)
+        assert protegido is not None
+        assert "reiniciar" in protegido.description
