@@ -104,9 +104,22 @@ class TestResolverReaccion:
         assert resolver_reaccion(senales_de(Veredicto.SOSPECHOSO)) == config.EMOJI_GUARDIAN
 
     def test_doble_extension_avisa(self):
+        """Usa el emoji de aviso, no el de malware.
+
+        Antes devolvía `EMOJI_WARNING`, que es el emoji de `MALICIOSO`: una doble
+        extensión, que es la evidencia más débil que hay, se pintaba como malware
+        confirmado.
+        """
         s = Senales()
         s.anadir(Elemento(nombre="informe.pdf.exe", tipo="file", doble_extension=True))
-        assert resolver_reaccion(s) == config.EMOJI_WARNING
+        assert resolver_reaccion(s) == config.EMOJI_REPLY
+        assert resolver_reaccion(s) != config.EMOJI_WARNING
+
+    def test_el_sospechoso_gana_a_la_senal_de_nombre(self):
+        s = Senales()
+        s.anadir(Elemento(nombre="informe.pdf.exe", tipo="file", doble_extension=True))
+        s.anadir(Elemento(nombre="u", tipo="url", veredicto=Veredicto.SOSPECHOSO))
+        assert resolver_reaccion(s) == config.EMOJI_GUARDIAN
 
     def test_la_whitelist_solo_decide_si_no_hay_nada_mas(self):
         """Antes la whitelist no tenía reacción propia, ni siquiera siendo lo único.

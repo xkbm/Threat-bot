@@ -44,6 +44,10 @@ log = logging.getLogger("handler")
 # necesita también, y duplicarlos haría que cada vía mirara cosas distintas.
 PATRON_URL = PATRON_URL_D
 
+# Valores por defecto. Los límites reales salen de la config del guild
+# (`max_adjuntos` / `max_urls` del panel); estas constantes solo son el fallback cuando
+# la clave no está. Antes eran las dos cosas a la vez: el admin veía "Máximos adjuntos
+# por mensaje" en el panel, lo cambiaba a 25, y el bot seguía usando 5 sin decir nada.
 MAX_ADJUNTOS_POR_MENSAJE = 5
 MAX_URLS_POR_MENSAJE = 5
 
@@ -165,7 +169,7 @@ async def _construir_embed_unificado(
             desc += f"{v.emoji} {v.contador}: **{n}**\n"
     if senales.omitidos:
         desc += (f"{EMOJI_COOLDOWN} **{senales.omitidos}** archivo(s) omitido(s) "
-                 f"(límite {MAX_ADJUNTOS_POR_MENSAJE} por mensaje)\n")
+                 f"(límite {senales.max_adjuntos} por mensaje)\n")
     if senales.cooldown:
         desc += f"{EMOJI_COOLDOWN} Límite de análisis alcanzado: no se revisaron los enlaces\n"
     # La whitelist es un dato, no un veredicto. Antes tenía su propia reacción, que se
@@ -376,6 +380,8 @@ async def _procesar_imagen(
     guild_id: int,
 ) -> tuple[str, str, dict, str]:
     log.debug(f"Imagen: {img.filename} ({img.size} bytes)")
+    # Los umbrales de contenido son por guild; sin esto el panel no serviría de nada.
+    config = await obtener_config_guild(guild_id)
     # Señales de nombre, igual que en `_procesar_archivo`. Antes las imágenes no pasaban
     # por esta comprobación porque vivía dentro del handler de archivos: un
     # `foto.exe.png` o un `.png` cuyo contenido es otra cosa se colaba sin avisar.
@@ -401,7 +407,8 @@ async def _procesar_imagen(
                 doble_ext, aviso_mime = verificar_nombre(img.filename, getattr(img, "content_type", None), det)
             content_hash = hashlib.sha256(img_data).hexdigest()
             async with ANALYSIS_SEMAPHORE:
-                is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(content_hash, img_data)
+                is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(
+                    content_hash, img_data, config.get("_umbrales"))
             # El veredicto de contenido lo decide `evaluar_contenido`, que distingue
             # tres cosas que antes iban todas a "seguro": no había nada, no se pudo
             # comprobar, y era contenido restringido.
@@ -412,8 +419,7 @@ async def _procesar_imagen(
             # dimensiones distintas y el bot solo miraba una. Cuesta una request de VT, y
             # solo si el hash no está ya en caché de disco.
             vt_veredicto, vt_mal, vt_link, vt_top = await _reputacion_de_imagen(
-                bot, content_hash, guild_id, message.author.id,
-                await obtener_config_guild(guild_id),
+                bot, content_hash, guild_id, message.author.id, config,
             )
 
             models = dict(models or {})
@@ -433,15 +439,23 @@ async def _procesar_imagen(
                 # lea "limpio" como "comprobado por los dos lados".
                 models["vt_omitido"] = True
 
-            if not from_cache and veredicto is Veredicto.SEGURO:
-                await update_stats(guild_id, "seguro")
+            # Antes solo contaba `nsfw`/`seguro`, y solo en la rama de URL de imagen:
+            # un adjunto con nudity, restringido o phishing no movía ningún contador, así
+            # que `/stats` mostraba un `total_analisis` que no cuadrava con lo que
+            # decían los embeds, y las categorías nuevas no existían.
+            if not from_cache:
+                await update_stats(guild_id, veredicto.value)
             if veredicto in (Veredicto.NSFW, Veredicto.RESTRINGIDO) and guild_id:
                 await registrar_infraccion(guild_id, message.author.id, f"nsfw:{content_hash}")
             if doble_ext or aviso_mime:
                 models["doble_extension"] = doble_ext
                 models["aviso_mime"] = aviso_mime
             return (img.filename, veredicto.value, models, content_hash)
-    except Exception:
+    except Exception as e:
+        # Antes no había ni un log. Cualquier regresión (un bug en `verificar_nombre`, un
+        # `KeyError`, la sesión caída) salía como un "error" genérico sin rastro, que es
+        # justo lo que hace invisibles los fallos de verdad.
+        log.exception(f"Fallo analyzing imagen {img.filename}: {e}")
         return (img.filename, "error", {"doble_extension": doble_ext, "aviso_mime": aviso_mime}, "")
 
 async def _procesar_archivo(
@@ -487,7 +501,8 @@ async def _procesar_archivo(
                 det = F.detectar(file_data)
                 _cachear_deteccion(archivo, det)
             doble_ext, wm = verificar_nombre(archivo.filename, content_type, det)
-    except Exception:
+    except Exception as e:
+        log.exception(f"Fallo analizando archivo {archivo.filename}: {e}")
         return (archivo.filename, "error", 0, "", wm, doble_ext)
     clave = clave_analisis("file", file_hash)
 
@@ -571,6 +586,7 @@ async def _analizar_adjuntos(
     bot: commands.Bot,
     message: discord.Message,
     guild_id: int,
+    config: Optional[dict] = None,
 ) -> tuple[list, list, int]:
     """Analiza adjuntos y retorna (img_results, arch_results, omitidos) sin enviar nada.
 
@@ -580,8 +596,10 @@ async def _analizar_adjuntos(
     SightEngine y el malware no se escaneaba nunca. Y al revés, `foto.exe.png` entraba
     como imagen y se saltaba la verificación MIME y la detección de doble extensión.
     """
-    adjuntos = message.attachments[:MAX_ADJUNTOS_POR_MENSAJE]
-    omitidos = max(0, len(message.attachments) - MAX_ADJUNTOS_POR_MENSAJE)
+    config = config or {}
+    max_adj = config.get("max_adjuntos") or MAX_ADJUNTOS_POR_MENSAJE
+    adjuntos = message.attachments[:max_adj]
+    omitidos = max(0, len(message.attachments) - max_adj)
 
     # Detecta por bytes. Va en paralelo porque son peticiones de red y cada una puede
     # tardar; si una falla, `None` hace que ese adjunto use la pista por extensión.
@@ -631,9 +649,10 @@ async def _analizar_adjuntos_si_hay(
     bot: commands.Bot,
     message: discord.Message,
     guild_id: int,
+    config: Optional[dict] = None,
 ) -> tuple[list, list, int]:
     if message.attachments:
-        return await _analizar_adjuntos(bot, message, guild_id)
+        return await _analizar_adjuntos(bot, message, guild_id, config)
     return [], [], 0
 
 _limpiar_url = limpiar_url
@@ -768,7 +787,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
             # Y el reply era menos útil que el embed, que además dice cuántos enlaces
             # hubo. Ahora manda el embed y `debe_enviar_embed` decide si se manda, que
             # incluye el caso de la whitelist aunque el modo silencioso esté activo.
-            img_results, arch_results, omitidos = await _analizar_adjuntos_si_hay(bot, message, guild_id)
+            img_results, arch_results, omitidos = await _analizar_adjuntos_si_hay(bot, message, guild_id, config)
             url_results = urls_sospechosas
         else:
             url_results = urls_sospechosas
@@ -796,7 +815,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
 
             if not permitido:
                 _cooldown_activado = True
-                img_results, arch_results, omitidos = await _analizar_adjuntos_si_hay(bot, message, guild_id)
+                img_results, arch_results, omitidos = await _analizar_adjuntos_si_hay(bot, message, guild_id, config)
             else:
                 # --- URL única ---
                 if len(todas_urls) == 1:
@@ -819,7 +838,8 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                             cached_hash = await obtener_hash_desde_metadatos(clave_meta_url)
 
                         if cached_hash:
-                            is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(cached_hash, b"")
+                            is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(
+                                cached_hash, b"", config.get("_umbrales"))
                             if from_cache:
                                 # El veredicto y el detalle los compone `evaluar_contenido`, como en
                                 # `_procesar_imagen`. Esta rama leia `models['nudity']`, clave que ya no
@@ -855,7 +875,8 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                                         img_url_results.append(ImgUrlResult(url, "error", error))
                                 else:
                                     content_hash = hashlib.sha256(img_data).hexdigest()
-                                    is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(content_hash, img_data)
+                                    is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(
+                                        content_hash, img_data, config.get("_umbrales"))
                                     # Solo en cache-miss, igual que en `_procesar_imagen`
                                     # y que en las URLs.
                                     if not from_cache and not models.get("error"):
@@ -880,7 +901,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                                                 guild_id, message.author.id, f"nsfw:{content_hash}")
                             finally:
                                 await safe_remove_loading(bot, message)
-                            img_results, arch_results, omitidos = await _analizar_adjuntos_si_hay(bot, message, guild_id)
+                            img_results, arch_results, omitidos = await _analizar_adjuntos_si_hay(bot, message, guild_id, config)
 
                     else:
                         # --- URL normal → VirusTotal ---
@@ -968,13 +989,14 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                                     url_expandida_str if url_fue_expandida else None,
                                 ))
 
-                        img_results, arch_results, omitidos = await _analizar_adjuntos_si_hay(bot, message, guild_id)
+                        img_results, arch_results, omitidos = await _analizar_adjuntos_si_hay(bot, message, guild_id, config)
 
                 else:
                     # --- Múltiples URLs ---
                     await safe_add_reaction(message, EMOJI_LOADING)
                     try:
-                        todas_urls = list(dict.fromkeys(todas_urls))[:MAX_URLS_POR_MENSAJE]
+                        todas_urls = list(dict.fromkeys(todas_urls))[
+                            :config.get("max_urls") or MAX_URLS_POR_MENSAJE]
 
                         async def _expandir_y_cache(url: str) -> Optional[tuple[str, str, str, discord.Embed, int, bool]]:
                             url_original = url
@@ -1058,11 +1080,11 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                     finally:
                         await safe_remove_loading(bot, message)
 
-                    img_results, arch_results, omitidos = await _analizar_adjuntos_si_hay(bot, message, guild_id)
+                    img_results, arch_results, omitidos = await _analizar_adjuntos_si_hay(bot, message, guild_id, config)
 
     else:
         # Solo adjuntos (sin URLs)
-        img_results, arch_results, omitidos = await _analizar_adjuntos_si_hay(bot, message, guild_id)
+        img_results, arch_results, omitidos = await _analizar_adjuntos_si_hay(bot, message, guild_id, config)
 
     # --- Construir y enviar embed unificado ---
     total_elementos = len(url_results) + len(img_url_results) + len(img_results) + len(arch_results)
@@ -1079,6 +1101,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
     senales.cooldown = _cooldown_activado
     senales.omitidos = omitidos
     senales.whitelist_omitidos = _whitelist_omitidos
+    senales.max_adjuntos = config.get("max_adjuntos") or MAX_ADJUNTOS_POR_MENSAJE
 
     has_threat = senales.hay_amenaza
     has_doble_ext = senales.doble_ext

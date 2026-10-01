@@ -153,7 +153,7 @@ _TITULO_RESULTADO = {
 
 
 def _veredicto_de(datos: dict, mal: int) -> str:
-    """Veredicto del análisis: "malicioso" | "sospechoso" | "seguro".
+    """Veredicto del análisis, tal y como se guarda en caché.
 
     Se lee de `datos` y no se deduce solo de `mal` porque un elemento con 0 detecciones
     maliciosas y varias sospechosa sigue sin estar limpio, y ese matiz se pierde si solo
@@ -163,10 +163,26 @@ def _veredicto_de(datos: dict, mal: int) -> str:
 
     El `mal > 0` es el respaldo para las filas antiguas de SQLite, que se guardaron sin
     `veredicto`, y para las entradas que nunca se han reanalizado.
+
+    Lo que NO se hace es inventar. Antes, un veredicto que esta función no conocía
+    (los nuevos: `restringido`, `phishing`, `ignorado`) caía en
+    `"malicioso" if mal > 0 else "seguro"`. Eso producía dos自主品牌 bugs:
+    una imagen con alcohol marcada como malware, y un `error` (que es "no se pudo
+    comprobar") pintado de verde como "Sin detecciones". Es exactamente el fallo que
+    `core.veredictos` declara el peor posible.
     """
-    veredicto = datos.get("veredicto")
-    if veredicto in ("malicioso", "sospechoso", "seguro"):
-        return veredicto
+    # Se valida contra el enum: un valor corrupto en la fila no puede colarse hasta el
+    # título del embed ni romper el render.
+    from core.veredictos import Veredicto
+
+    guardado = datos.get("veredicto")
+    if guardado:
+        try:
+            return Veredicto(str(guardado)).value
+        except ValueError:
+            pass          # valor desconocido: al respaldo de abajo
+    if "error" in datos:
+        return "error"
     return "malicioso" if mal > 0 else "seguro"
 
 

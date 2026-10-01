@@ -295,13 +295,29 @@ async def es_url_segura(url: str) -> tuple[bool, str]:
 def normalizar_url(url: str) -> str:
     parsed = urllib.parse.urlparse(url)
     scheme = parsed.scheme.lower()
-    hostname = (parsed.netloc or "").lower()
-    if ":80" in hostname and scheme == "http":
-        hostname = hostname[:-3]
-    elif ":443" in hostname and scheme == "https":
-        hostname = hostname[:-4]
+
+    # El puerto por defecto se quita, y SOLO ese.
+    #
+    # Antes era `if ":80" in hostname` con un recorte de 3 caracteres fijos, así que
+    # `http://example.com:8080` se convertía en `http://example.com:8`. Como esto es la
+    # fuente de la clave de caché y de la clave de `vuelo`, una URL con puerto generaba
+    # una clave distinta de sí misma y de su forma canónica: el repost del mismo enlace
+    # nunca acertaba en caché y volvía a gastar las 4-5 unidades de cuota cada vez.
+    # `parsed.port` da None si no hay puerto, y `parsed.hostname` ya viene en minúsculas
+    # y sin puerto ni credenciales.
+    host = (parsed.hostname or "").lower()
+    puerto = parsed.port
+    if puerto is not None and (scheme, puerto) not in (("http", 80), ("https", 443)):
+        host = f"{host}:{puerto}"
+
+    # Las credenciales se conservan: el destino es el mismo, pero VT sí las distingue,
+    # y cambiarlas sería alterar la clave de caché respecto a lo ya cacheado.
+    netloc = parsed.netloc or ""
+    userinfo = netloc.rsplit("@", 1)[0] + "@" if "@" in netloc else ""
+    netloc = f"{userinfo}{host}"
+
     path = parsed.path.rstrip("/") or "/"
-    return urllib.parse.urlunparse((scheme, hostname, path, parsed.params, parsed.query, ""))
+    return urllib.parse.urlunparse((scheme, netloc, path, parsed.params, parsed.query, ""))
 
 
 def clave_analisis(tipo: str, valor: str) -> str:
@@ -381,6 +397,13 @@ async def vuelo(clave: str, calcular):
             # y el resto de los esperadores sigue recibiendo el resultado.
             ok, valor = await asyncio.shield(pendiente)
             if not ok:
+                # Cancelación no es un error de análisis: es un cierre. Si se propaga
+                # como excepción, `CancelledError` salta por todos los `except Exception`
+                # del llamante y los esperadores nochesAnalizan, no reaccionan, no
+                # registran evento y no limpian. Se distingue para que cada uno decida.
+                if isinstance(valor, asyncio.CancelledError):
+                    log.debug(f"VUELO cerrado por cancelación → {clave}")
+                    return None
                 raise valor
             if valor is SIN_RESPUESTA and intento == 0:
                 log.debug(f"VUELO reintenta → {clave}")

@@ -371,3 +371,78 @@ class TestCargaDeDatos:
         finally:
             db.DATA_FILE = anterior
             db.state.bot = anterior_bot
+
+
+class TestSQLiteEsLaFuenteDeVerdad:
+    """La migración no vale de nada si al arrancar se sigue leyendo el JSON.
+
+    Antes `cargar_datos` leía siempre de `data.json`. Con la base caída o corrupta
+    capturaba la excepción, `guilds_data` quedaba vacío y **cada servidor volvía a los
+    defaults en silencio**, teniendo la configuración intacta a un fichero de distancia.
+    Convertir un fallo de infraestructura en "todo vacío" es el peor error posible en un
+    sistema de moderación: parece que funciona.
+    """
+
+    @pytest.mark.asyncio
+    async def test_al_arrancar_se_lee_de_sqlite(self, entorno):
+        data_file, pool = entorno
+        await pool.start()
+        try:
+            await db.guardar_config_db(77, {"silent_mode": False, "whitelist": ["x.com"]})
+            import core.state as state
+            anterior = state.bot
+            state.bot = types.SimpleNamespace(
+                guilds_data={}, vt_key_total_requests={}, vt_key_daily_usage={},
+                se_key_total_requests={}, se_key_daily_usage={},
+                user_scan_history={}, antispam_scan={}, vt_key_usage={}, se_key_usage={},
+            )
+            try:
+                # El JSON existe pero NO contiene el guild 77: si apareciera al
+                # arrancar, solo puede venir de SQLite.
+                data_file.write_text(json.dumps({"999": {"silent_mode": True}}),
+                                     encoding="utf-8")
+                await db.cargar_datos()
+                assert 77 in state.bot.guilds_data, "no se cargó desde SQLite"
+                assert state.bot.guilds_data[77]["silent_mode"] is False
+            finally:
+                state.bot = anterior
+        finally:
+            await pool.stop()
+
+    @pytest.mark.asyncio
+    async def test_sin_sqlite_cae_al_json(self, entorno):
+        data_file, pool = entorno
+        data_file.write_text(json.dumps({"88": {"silent_mode": False}}), encoding="utf-8")
+        await pool.start()
+        try:
+            import core.state as state
+            anterior = state.bot
+            state.bot = types.SimpleNamespace(
+                guilds_data={}, vt_key_total_requests={}, vt_key_daily_usage={},
+                se_key_total_requests={}, se_key_daily_usage={},
+                user_scan_history={}, antispam_scan={}, vt_key_usage={}, se_key_usage={},
+            )
+            try:
+                await db.cargar_datos()
+                assert 88 in state.bot.guilds_data
+            finally:
+                state.bot = anterior
+        finally:
+            await pool.stop()
+
+    def test_update_stats_no_guardar(self):
+        """No puede reescribir `data.json`: lo hacía en cada análisis."""
+        import ast
+        import inspect as _i
+
+        from core import guild_config as gc
+
+        arbol = ast.parse(_i.getsource(gc.update_stats))
+        llamadas = [
+            n for n in ast.walk(arbol)
+            if isinstance(n, ast.Call) and getattr(n.func, "id", "") == "guardar_datos"
+        ]
+        assert not llamadas, (
+            f"update_stats sigue guardando en la linea {[c.lineno for c in llamadas]}: "
+            f"eso reescribía el fichero entero por cada mensaje analizado"
+        )

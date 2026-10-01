@@ -1,7 +1,12 @@
+import logging
 from typing import Optional
+
 import discord
+
 from core.config import EMOJI_BAN, EMOJI_KICK, EMOJI_CLEAN, EMOJI_FINGERPRINT, EMOJI_SHIELD, EMOJI_LINK, EMOJI_COOLDOWN
 from ui import embed as emb
+
+log = logging.getLogger("views")
 
 class RazonModal(discord.ui.Modal, title="Razón de la acción"):
     razon = discord.ui.TextInput(
@@ -53,9 +58,18 @@ class RazonModal(discord.ui.Modal, title="Razón de la acción"):
                 await interaction.response.send_message(
                     "No se pudo identificar la infracción.", ephemeral=True)
                 return
-            await ignorar_infraccion(
-                self.parent_view.guild_id, self.parent_view.user_id, elemento
-            )
+            try:
+                await ignorar_infraccion(
+                    self.parent_view.guild_id, self.parent_view.user_id, elemento
+                )
+            except Exception as e:
+                # Antes respondía "Infracción eliminada" aunque no se hubiera borrado
+                # nada. Un moderador creyendo que aplicó una regla que no se aplicó es
+                # peor que un error visible.
+                log.error(f"Ignorar no pudo borrar la infracción: {e}")
+                await interaction.response.send_message(
+                    "No se pudo eliminar la infracción. Inténtalo de nuevo.", ephemeral=True)
+                return
             await interaction.response.send_message(
                 f"Infracción eliminada.\n**Razón:** {self.razon_texto}", ephemeral=True)
             await self.parent_view._finalizar_accion(interaction, "Ignorar", self.razon_texto)
@@ -139,9 +153,10 @@ class LogActionView(discord.ui.View):
         if not self.elemento_id:
             await interaction.response.send_message("No se pudo identificar la infracción.", ephemeral=True)
             return
-        # Las infracciones viven en su tabla, no en el JSON: se comprueba contra ella.
-        from core.guild_config import contar_infracciones
-        if await contar_infracciones(self.guild_id, self.user_id) == 0:
+        # Se comprueba ESTE elemento, no el total del usuario. Con otras infracciones
+        # registradas, la comprobación anterior daba por buena una que no existía.
+        from core.guild_config import tiene_infraccion
+        if not await tiene_infraccion(self.guild_id, self.user_id, self.elemento_id):
             await interaction.response.send_message("Esa infracción ya no existe.", ephemeral=True)
             return
         modal = RazonModal("ignore", self, interaction)

@@ -57,10 +57,16 @@ def resolver_reaccion(senales: Senales) -> str:
         return config.EMOJI_COOLDOWN
     if senales.error:
         return config.EMOJI_ERROR
-    if senales.hay_senal_de_nombre:
-        return config.EMOJI_WARNING
     if senales.suspicious:
+        # Una señal de nombre (el nombre no cuadra con el contenido) es la evidencia MÁS
+        # DÉBIL: el archivo puede estar limpio y solo llamarse raro. Va DESPUÉS del
+        # sospechoso, no antes: con el orden anterior ganaba al veredicto de VT, y además
+        # usaba `EMOJI_WARNING`, que es el emoji de `MALICIOSO`. Una doble extensión
+        # se pintaba como malware confirmado.
         return config.EMOJI_GUARDIAN
+    if senales.hay_senal_de_nombre:
+        # Emoji propio, no el de malware: esto es un aviso, no una detección.
+        return config.EMOJI_REPLY
     # La whitelist es lo último: solo decide cuando no hay nada más que contar. Con
     # elementos de por medio, manda su veredicto y la whitelist va al embed.
     if senales.whitelist_omitidos:

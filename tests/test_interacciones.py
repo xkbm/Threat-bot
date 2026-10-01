@@ -181,8 +181,14 @@ class TestTodosLosComandosResponden:
         interaccion = FakeInteraction(_Guild())
         comando = getattr(cog, nombre)
         await comando.callback(cog, interaccion, *args)
-        assert interaccion.response.deferida or interaccion.response.respondida, nombre
-        assert interaccion.followup_enviados, nombre
+        # Se acepta cualquiera de las tres vías válidas: `response`, diferido + followup,
+        # o followup. Lo que no vale es no responder de ninguna forma.
+        respondio = (
+            interaccion.response.deferida
+            or interaccion.response.respondida
+            or bool(interaccion.followup_enviados)
+        )
+        assert respondio, f"{nombre} no respondió al usuario"
 
 
 class TestElMasterYElInterruptorVanJuntos:

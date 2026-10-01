@@ -72,6 +72,19 @@ def _asegurar_guild(guild_id: int) -> dict[str, Any]:
     return config
 
 
+def _con_umbrales(config: dict[str, Any]) -> dict[str, Any]:
+    """Añade `_umbrales`: los del guild traducidos al formato que espera SightEngine.
+
+    Sin esto el panel ofrecía seis umbrales que nadie leía, y `evaluar_contenido` usaba
+    siempre los de `core.config`. Traducir aquí evita que cada call site tenga que
+    acordarse del mapeo, que es donde se colarían divergencias.
+    """
+    from core.config_schema import aplicar_config
+
+    config["_umbrales"] = aplicar_config(config)
+    return config
+
+
 async def obtener_config_guild(guild_id: int) -> dict[str, Any]:
     """Devuelve la config del guild. **El dict es la referencia viva**, no una copia.
 
@@ -80,7 +93,7 @@ async def obtener_config_guild(guild_id: int) -> dict[str, Any]:
     lock es una carrera, y por eso `actualizar_config` es la vía correcta para escribir.
     """
     async with await _get_guild_lock(guild_id):
-        return _asegurar_guild(guild_id)
+        return _con_umbrales(_asegurar_guild(guild_id))
 
 
 async def actualizar_config(
@@ -112,20 +125,25 @@ async def actualizar_config(
 
 
 async def _persistir_config(guild_id: int, config: dict[str, Any], inmediato: bool) -> None:
-    """Guarda la config en SQLite, y en `data.json` como respaldo.
+    """Guarda la configuración de un guild en SQLite.
 
-    SQLite es la fuente de verdad. El volcado a `data.json` se mantiene porque es lo que
-    permite volver atrás leyendo el fichero si algo va mal con la base, y porque
-    `cargar_datos` sigue siendo la vía de arranque. No es un segundo sitio donde
-    configurar: nada lee de ahí en caliente.
+    SQLite es la fuente de verdad: `cargar_datos` lee de ahí al arrancar. `data.json` ya
+    no lleva configuraciones, así que no hay dos sitios donde alguien pueda cambiar algo.
+
+    Si SQLite falla, se hace una copia de emergencia con las configs incluidas y se avisa
+    por log. El motivo de esa copia es que un cambio de configuración hecho por un
+    administrador no se puede perder porque la base esté momentarily caída, y es
+    JUSTAMENTE en ese escenario cuando `cargar_datos` cairía de vuelta al JSON. Sin la
+    copia, ese cambio se perdía en silencio.
     """
     try:
         await guardar_config_db(guild_id, config)
     except Exception as e:
-        # La base puede no existir todavía (tests, arranque temprano). No es motivo para
-        # tumbar un cambio de configuración: el volcado al JSON lo conserva.
-        log.debug(f"No se pudo guardar la config en SQLite (guild={guild_id}): {type(e).__name__}")
-    await guardar_datos(inmediato=inmediato)
+        log.warning(
+            f"No se pudo guardar la config de {guild_id} en SQLite ({type(e).__name__}). "
+            f"Se hace copia de emergencia en data.json para no perderla."
+        )
+        await guardar_datos(inmediato=True, incluir_guilds=True)
 
 
 async def agregar_dominio(guild_id: int, dominio: str) -> bool:
@@ -152,7 +170,10 @@ async def quitar_dominio(guild_id: int, dominio: str) -> bool:
     return True
 
 def _stats_vacias() -> dict[str, int]:
-    return {"total_analisis": 0, "seguros": 0, "sospechosos": 0, "maliciosos": 0, "nsfw": 0, "errores": 0}
+    return {
+        "total_analisis": 0, "seguros": 0, "sospechosos": 0, "maliciosos": 0,
+        "nsfw": 0, "restringidos": 0, "phishing": 0, "ignorados": 0, "errores": 0,
+    }
 
 
 def obtener_stats_globales() -> dict[str, int]:
@@ -180,9 +201,26 @@ async def update_stats(guild_id: Optional[int], tipo: str) -> None:
             global_stats["maliciosos"] += 1
         elif tipo == "nsfw":
             global_stats["nsfw"] += 1
-        else:
+        elif tipo == "restringido":
+            global_stats["restringidos"] += 1
+        elif tipo == "phishing":
+            global_stats["phishing"] += 1
+        elif tipo == "ignorado":
+            global_stats["ignorados"] += 1
+        elif tipo == "error":
             global_stats["errores"] += 1
-    await guardar_datos()
+        else:
+            # Veredicto desconocido: se cuenta como error en vez de inventar una
+            # categoría. Antes el `else` genérico hacía que cualquier valor raro
+            # inflase "errores".
+            log.warning(f"Tipo de análisis desconocido en update_stats: {tipo!r}")
+            global_stats["errores"] += 1
+    # Aquí NO se guarda. Antes este `await guardar_datos()` reescribía el `data.json`
+    # entero (con `indent=4` y `fsync`) en CADA análisis, y las estadísticas son lo
+    # único que cambia en cada mensaje: un servidor activoDirectories un fichero
+    # stat_json entero por mensaje sin que la configuración haya cambiado nada.
+    # Las estadísticas son estado de ejecución: las persiste el cron horario y el
+    # apagado, que es donde de verdad importa no perderlas.
     log.debug(f"STATS UPDATE → guild={guild_id} tipo={tipo} total={global_stats['total_analisis']}")
 
 async def registrar_infraccion(guild_id: int, user_id: int, elemento_id: str) -> int:
@@ -226,23 +264,35 @@ async def contar_infracciones(guild_id: int, user_id: int) -> int:
         return len(_infracciones_memoria.get(guild_id, {}).get(str(user_id), []))
 
 
+async def tiene_infraccion(guild_id: int, user_id: int, elemento_id: str) -> bool:
+    """¿Está ESTE elemento registrado para este usuario?
+
+    El botón "Ignorar" comprobaba el total de infracciones del usuario en vez de este
+    elemento: con un usuario que tenía otras infracciones,Responder "Infracción
+    eliminada" sin haber borrado nada, porque el `DELETE` es idempotente y no delata el
+    fallo.
+    """
+    try:
+        return elemento_id in await infracciones_de_db(guild_id, user_id)
+    except Exception:
+        elementos = _infracciones_memoria.get(guild_id, {}).get(str(user_id), [])
+        return elemento_id in elementos
+
+
 async def ignorar_infraccion(guild_id: int, user_id: int, elemento_id: str) -> int:
     """Descuenta una infracción. Es lo que hace el botón "Ignorar" del log.
 
     Antes restaba un número de una lista, lo que dejaba el contador y la lista
     permanentemente desincronizados. Aquí es un `DELETE` real sobre la fila.
+
+    Devuelve el total resultante. Lanza si no se pudo borrar, para que quien llama no
+    le diga al moderador que se aplicó la regla cuando no se aplicó.
     """
     from core.database import borrar_infraccion_db
 
     async with await _get_guild_lock(guild_id):
-        try:
-            await borrar_infraccion_db(guild_id, user_id, elemento_id)
-            return await contar_infracciones_db(guild_id, user_id)
-        except Exception:
-            elementos = _infracciones_memoria.get(guild_id, {}).get(str(user_id), [])
-            if elemento_id in elementos:
-                elementos.remove(elemento_id)
-            return len(elementos)
+        await borrar_infraccion_db(guild_id, user_id, elemento_id)
+        return await contar_infracciones(guild_id, user_id)
 
 
 async def olvidar_guild(guild_id: int) -> None:

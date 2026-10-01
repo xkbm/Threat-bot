@@ -58,6 +58,9 @@ class Senales:
     cooldown: bool = False        # antispam: no se pudo analizar nada
     omitidos: int = 0             # adjuntos que no cabían en el límite
     whitelist_omitidos: int = 0   # enlaces ignorados por estar en whitelist
+    # Límite aplicado a los adjuntos, para que el embed diga el número real y no el
+    # del fallback.
+    max_adjuntos: int = 5
 
     # Scores crudos de SightEngine. Se guardan para poder explicar el por qué de un
     # veredicto sin volver a llamar a la API.

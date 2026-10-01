@@ -34,17 +34,45 @@ class ConfiguracionCog(commands.Cog):
             )
             raise
 
-    @app_commands.command(name="silentmode", description="Activa/desactiva el modo silencioso (solo admins)")
+    @app_commands.command(
+        name="silentmode",
+        description="Interruptor general de avisos (solo admins)",
+    )
     @app_commands.default_permissions(administrator=True)
-    @app_commands.describe(estado="True = silencioso, False = normal")
+    @app_commands.describe(
+        estado="True = solo avisa si hay algo que mirar, False = avisa siempre",
+    )
     async def silentmode(self, interaction: discord.Interaction, estado: bool) -> None:
-        await interaction.response.defer(ephemeral=True)
+        """Atajo de un paso del panel, en la sección Aviso.
+
+        Ajusta también `avisar_limpios`, igual que el panel. Si no, una guild que
+        dejaron el panel en "modo apagado pero avisar limpios" podía quedarse así: el
+        admin ejecutaba `/silentmode True` veía "modo silencioso activado" y recibía el
+        embed de cada mensaje limpio, porque `debe_enviar_embed` con el master apagado
+        devuelve True siempre y el valor contradictorio ya no importaba pero tampoco se
+        corregía.
+        """
         if not interaction.guild:
-            await self._safe_followup(interaction, f"{self.bot.EMOJI_INCORRECTO} Este comando solo funciona en servidores.", ephemeral=True)
+            await interaction.response.send_message(
+                f"{self.bot.EMOJI_INCORRECTO} Este comando solo funciona en servidores.",
+                ephemeral=True)
             return
-        await actualizar_config(interaction.guild.id, inmediato=True, silent_mode=estado)
+        await actualizar_config(
+            interaction.guild.id, inmediato=True,
+            silent_mode=estado, avisar_limpios=not estado,
+        )
         log.debug(f"SILENTMODE → guild={interaction.guild.id} estado={estado} admin={interaction.user.id}")
-        await self._safe_followup(interaction, f"{self.bot.EMOJI_CORRECTO} Modo silencioso {'activado' if estado else 'desactivado'}.", ephemeral=True)
+        extras = " · ".join((
+            f"avisar limpios: {'sí' if not estado else 'no'}",
+            f"sospechosos: {'sí' if estado else 'no'}",
+            "errores: sí",
+        ))
+        await interaction.response.send_message(
+            f"{self.bot.EMOJI_CORRECTO} Modo silencioso "
+            f"{'activado' if estado else 'desactivado'}.\n"
+            f"Avisos: {extras}. `/settings` para afinarlos.",
+            ephemeral=True,
+        )
 
     @app_commands.command(name="strictmode", description="Activa/desactiva el modo estricto (solo admins)")
     @app_commands.default_permissions(administrator=True)

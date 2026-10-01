@@ -105,9 +105,25 @@ class TestElVolcadoEsCompleto:
         assert guardado["__antispam__"]["antispam_scan"]["1"] == 3
 
     @pytest.mark.asyncio
-    async def test_config_de_guild_tambien(self, bot_de_prueba):
+    async def test_el_json_ya_no_lleva_la_config_de_guild(self, bot_de_prueba):
+        """SQLite es la fuente de verdad; el JSON solo lleva estado de ejecución.
+
+        Incluir los servidores convertía CUALQUIER guardado en una reescritura completa
+        de la configuración de todos ellos. Y como las estadísticas se guardan en cada
+        análisis, eso significaba un volcado entero por mensaje.
+        """
         bot, data_file = bot_de_prueba
         await db.guardar_datos(inmediato=True)
+        guardado = json.loads(data_file.read_text(encoding="utf-8"))
+        assert "1" not in guardado
+        assert "__api_usage__" in guardado
+        assert "__antispam__" in guardado
+
+    @pytest.mark.asyncio
+    async def test_incluir_guilds_es_optimo(self, bot_de_prueba):
+        """El volcado de emergencia existe para cuando la base no está."""
+        bot, data_file = bot_de_prueba
+        await db.guardar_datos(inmediato=True, incluir_guilds=True)
         guardado = json.loads(data_file.read_text(encoding="utf-8"))
         assert guardado["1"]["silent_mode"] is True
 

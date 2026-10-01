@@ -108,6 +108,10 @@ class Clave:
             raise ValueError(
                 f"{self.nombre}: '{texto}' no es válido. Vale: {', '.join(self.opciones)}"
             )
+        # `minimo`/`maximo` también valen para texto. Antes se declaraban y no se
+        # usaban, así que un prefijo de 200 caracteres se guardaba entero.
+        if self.maximo is not None and len(texto) > self.maximo:
+            texto = texto[: self.maximo]
         return texto
 
 
@@ -128,8 +132,6 @@ ESQUEMA: tuple[Clave, ...] = (
     _b("auto_scan_enabled", GENERAL, "Auto-scan", True,
        "Analiza los enlaces y adjuntos de cada mensaje."),
     Clave("log_channel_id", "int", GENERAL, "Canal de logs", None, ayuda="Donde van las amenazas."),
-    Clave("prefijo_log", "str", GENERAL, "Prefijo del log", "[Threat]", maximo=32),
-
     # --- Aviso ---
     _b("silent_mode", AVISO, "Modo silencioso", True,
        "General: con él activo solo se avisa si hay algo que mirar."),
@@ -162,18 +164,16 @@ ESQUEMA: tuple[Clave, ...] = (
     _e("accion_restringido", MODERACION, "Acción ante restringido", "ignorar", ACCIONES),
     _e("accion_phishing", MODERACION, "Acción ante suplantación", "ignorar", ACCIONES),
     _e("accion_malicious", MODERACION, "Acción ante malware", "borrar", ACCIONES),
-    _b("avisar_ignorados", MODERACION, "Avisar de ignorados", False),
 
     # --- Exclusiones ---
-    Clave("canales_exentos", "list", EXCLUSIONES, "Canales sin escaneo", [],
-          ayuda="El bot no analiza nada en estos canales."),
-    Clave("roles_exentos", "list", EXCLUSIONES, "Roles exentos", [],
-          ayuda="Los miembros con estos roles no consumen cuota."),
+    # Solo `whitelist` de esta sección: canales y roles exentos quedarían como
+    # controles muertos. Se pueden añadir cuando se implementen de verdad.
     Clave("whitelist", "list", EXCLUSIONES, "Dominios en whitelist", []),
 
     # --- Cuota ---
-    Clave("antispam_por_hora", "int", CUOTA, "Máximos por usuario y hora", 30, 1, 500),
-    Clave("antispam_cooldown", "int", CUOTA, "Pausa tras el límite (min)", 10, 0, 1440),
+    # `antispam_por_hora` y `antispam_cooldown` NO están: los lee `core.utils` de
+    # `core.config`, como constantes de módulo, y no por guild. Declararlos aquí
+    # wouldn't hacer nada y sería un control muerto más.
     Clave("max_adjuntos", "int", CUOTA, "Máximos adjuntos por mensaje", 5, 1, 25),
     Clave("max_urls", "int", CUOTA, "Máximos enlaces por mensaje", 5, 1, 25),
 )
@@ -181,7 +181,12 @@ ESQUEMA: tuple[Clave, ...] = (
 POR_NOMBRE: Dict[str, Clave] = {c.nombre: c for c in ESQUEMA}
 
 # Claves que siguen viviendo dentro del blob de config y no son opciones del panel.
-FUERA_DEL_ESQUEMA = ("infracciones",)
+# Claves que viven en la configuración pero no son opciones del panel.
+FUERA_DEL_ESQUEMA = (
+    "infracciones",
+    "infracciones_registradas",
+    "log_channel_id",
+)
 
 
 def secciones() -> List[str]:
@@ -216,7 +221,19 @@ def validar(config: dict) -> dict:
 
 
 def defaults() -> Dict[str, Any]:
-    return {c.nombre: c.default for c in ESQUEMA}
+    """Defaults del esquema, con la whitelist real.
+
+    `claves_de("exclusiones")` devolvía una whitelist vacía mientras el default de
+    verdad son los 15 dominios protegidos: dos defaults distintos en el módulo que
+    existe precisamente para que no los haya. Cualquier código nuevo que usara la
+    fuente "declarativa" se habría和规范izado de proteger `youtube.com`, `github.com` y
+    `discord.com` sin decirlo.
+    """
+    from core.config import DOMINIOS_PROTEGIDOS
+
+    valores = {c.nombre: c.default for c in ESQUEMA}
+    valores["whitelist"] = list(DOMINIOS_PROTEGIDOS)
+    return valores
 
 
 def aplicar_config(umbrales: Optional[dict] = None) -> dict:

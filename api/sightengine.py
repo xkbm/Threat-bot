@@ -117,6 +117,18 @@ def _clasificar_400(cuerpo: Optional[dict]) -> tuple[str, str]:
     return ERROR_HTTP, f"SightEngine rechazó el análisis: {texto.strip()}"
 
 
+def _llego_alguna_clave(result: dict) -> bool:
+    """¿La respuesta trae alguno de los modelos que pedimos?
+
+    Se mira el nombre de la clave, no su valor: una imagen limpia vale 0.0 en todo, y
+    `any(valores)` daría False con una respuesta perfectamente buena.
+    """
+    for nombre in list(result) + [n.split("-")[0] for n in list(result)]:
+        if nombre in ("nudity", "weapon", "alcohol", "gore", "offensive"):
+            return True
+    return False
+
+
 def _fallo(motivo: str, detalle: str = "") -> Tuple[bool, float, Dict[str, Any], bool]:
     """Construye una salida de fallo.
 
@@ -201,6 +213,11 @@ def evaluar_contenido(
     Devuelve `(veredicto, confianza, detalle)`. Si `models` lleva `error`, el veredicto
     es `ERROR` y no hay confianza: no se puede afirmar nada sobre algo no medido.
     """
+    if models is None:
+        # `es_error(None)` es False a propósito (None no es un error, es ausencia), pero
+        # tres líneas más abajo `models.get` reventaba. La firma acepta Dict y este
+        # guardián sugería que aceptaba None.
+        return Veredicto.ERROR, 0.0, "sin datos de análisis"
     if es_error(models):
         return Veredicto.ERROR, 0.0, str(models.get("detalle") or models.get("error"))
 
@@ -244,7 +261,9 @@ def evaluar_contenido(
 
 
 async def analizar_imagen_multimodelo(
-    image_content_hash: str, image_bytes: bytes
+    image_content_hash: str,
+    image_bytes: bytes,
+    umbrales: Optional[Dict[str, float]] = None,
 ) -> Tuple[bool, float, Dict[str, Any], bool]:
     """Analiza una imagen. Ver el contrato en el docstring del módulo."""
     # La clave cambia de versión porque el contenido guardado tiene otra forma: las
@@ -328,13 +347,21 @@ async def analizar_imagen_multimodelo(
         return _fallo(ERROR_MODELO_NO_DISPONIBLE, "ninguna combinación de modelos fue aceptada")
 
     models = parsear_modelos(result)
-    if not any(models.get(c) for c in CLAVES_CONTENIDO):
-        # La API respondió 200 pero no devolvió ninguno de los modelos pedidos.
-        # Antes esto acababa como "seguro"; es un fallo, no una certeza.
+    if not _llego_alguna_clave(result):
+        # La API respondió 200 pero sin ninguno de los modelos pedidos. Eso SÍ es un
+        # fallo, y antes acababa como "seguro".
+        #
+        # Ojo con la condición: `not any(models.get(c))` era FALSO para una imagen
+        # perfectamente limpia en la que todos los valores son 0.0, que es el caso
+        # normal. Eso hacía que cada imagen limpia se reportara como error, y como los
+        # fallos no se cacheaban, se volvía a subir a SightEngine cada vez que alguien
+        # la republicaba: 5 operaciones del plan gratis, indefinidamente.
         log.warning(f"SE API 200 sin modelos utilizables → claves={sorted(result)}")
         return _fallo(ERROR_SIN_MODELOS, "la respuesta no incluye los modelos pedidos")
 
-    veredicto, confianza, detalle = evaluar_contenido(models)
+    # Los umbrales del guild si vienen; si no, los de `core.config`. Antes el panel
+    # ofrecía seis umbrales que nadie leía, así que cambiarlos no hacía nada.
+    veredicto, confianza, detalle = evaluar_contenido(models, umbrales)
     is_nsfw = veredicto is Veredicto.NSFW
     max_confidence = max((_a_float(models.get(c)) for c in CLAVES_CONTENIDO), default=0.0)
 

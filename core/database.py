@@ -187,7 +187,19 @@ class DatabasePool:
         self._conns.clear()
 
     def _read_conn(self) -> aiosqlite.Connection:
-        conn = self._conns[self._rr % self._size]
+        """Una conexión para leer, round-robin.
+
+        El módulo de arriba usaba `self._size` (la constante) para el índice sobre
+        `self._conns`, que solo crece dentro de `start()`. Si `start()` fallaba en la
+        segunda conexión, `_conns` tenía menos elementos que `_size` y toda lectura era
+        `IndexError`. Y los llamadores que lo tragan devolvían `[]`, es decir, "este
+        usuario no tiene infracciones" cuando la verdad era "no se pudo consultar".
+
+        Ahora se usa el tamaño real de la lista.
+        """
+        if not self._conns:
+            raise RuntimeError("el pool de base de datos no está inicializado")
+        conn = self._conns[self._rr % len(self._conns)]
         self._rr += 1
         return conn
 
@@ -197,6 +209,8 @@ class DatabasePool:
             return await cursor.fetchone()
 
     async def execute(self, sql: str, params: tuple = ()) -> None:
+        if not self._conns:
+            raise RuntimeError("el pool de base de datos no está inicializado")
         async with self._write_lock:
             await self._conns[0].execute(sql, params)
             await self._conns[0].commit()
@@ -362,23 +376,29 @@ def _restaurar_claves_antispam(datos: dict) -> dict:
     return resultado
 
 
-async def _flush_datos() -> None:
-    """Vuelca TODO el estado a `data.json`.
+async def _flush_datos(incluir_guilds: bool = False) -> None:
+    """Vuelca a `data.json`.
 
-    Antes tenía un parámetro `include_runtime` que, por defecto, era False: la mayoría
-    de llamantes (`update_stats`, `registrar_infraccion`, `agregar_dominio`, los comandos
-    de configuración, el propio `sightengine`) guardaban sin esa bandera, así que
-    escribían el archivo **sin** `__api_usage__` ni `__antispam__` y los borraban. Bastaba
-    un análisis entre el guardado horario y el siguiente reinicio para perder los
-    contadores de cuota y el historial de antispam que ese guardado acababa de escribir.
+    **Ya no es la fuente de verdad.** La configuración de cada servidor vive en la tabla
+    `guild_config` de SQLite y se escribe con `guardar_config_db`; este volcado deja de
+    incluir los servidores salvo que se pida explícitamente.
 
-    Por eso el parámetro ya no existe: el volcado es siempre completo. Si alguna vez
-    hacen falta escrituras parciales, que se escriba en otro sitio en vez de abrir una
-    bandera para perder datos.
+    Qué queda aquí y por qué: los contadores de cuota, el historial de antispam y las
+    estadísticas globales. Son estado de ejecución, se pierden sin más y son baratos de
+    reescribir. Un respaldo, no un almacén.
+
+    El parámetro `incluir_guilds` existe para poder generar un volcado de emergencia
+    (`/settings` no lo usa). Por defecto es False porque incluirlo convertía cada
+    guardado en una reescritura completa de la configuración de todos los servidores.
+
+    El `include_runtime` que hubo antes ya no existe: los llamantes no lo pasaban y
+    acababan borrando los contadores que el guardado horario acababa de escribir.
     """
     async with DATA_LOCK:
-        data_to_save = {str(gid): val for gid, val in state.bot.guilds_data.items()
-                        if gid not in ("__api_usage__", "__antispam__")}
+        data_to_save: dict = {}
+        if incluir_guilds:
+            data_to_save = {str(gid): val for gid, val in state.bot.guilds_data.items()
+                            if gid not in ("__api_usage__", "__antispam__")}
         data_to_save["__api_usage__"] = {
             "total_requests": state.bot.vt_key_total_requests,
             "daily_usage": state.bot.vt_key_daily_usage,
@@ -415,7 +435,7 @@ async def _flush_datos() -> None:
                 pass
             log.error(f"Error al guardar datos: {e}")
 
-async def guardar_datos(inmediato: bool = False) -> None:
+async def guardar_datos(inmediato: bool = False, incluir_guilds: bool = False) -> None:
     global _guardar_datos_pendiente, _guardar_datos_task
     if inmediato:
         if _guardar_datos_task and not _guardar_datos_task.done():
@@ -425,7 +445,7 @@ async def guardar_datos(inmediato: bool = False) -> None:
             except asyncio.CancelledError:
                 pass
         _guardar_datos_pendiente = False
-        await _flush_datos()
+        await _flush_datos(incluir_guilds=incluir_guilds)
         return
     if not _guardar_datos_pendiente:
         _guardar_datos_pendiente = True
@@ -434,7 +454,7 @@ async def guardar_datos(inmediato: bool = False) -> None:
             await asyncio.sleep(_GUARDAR_DEBOUNCE)
             if _guardar_datos_pendiente:
                 _guardar_datos_pendiente = False
-                await _flush_datos()
+                await _flush_datos(incluir_guilds=incluir_guilds)
         _guardar_datos_task = asyncio.create_task(_debounced())
 
 async def sincronizar_config_sqlite() -> int:
@@ -474,6 +494,18 @@ async def cargar_datos() -> None:
         api_usage = data.get("__api_usage__", {})
         state.bot.guilds_data = {}
         antispam_data = data.get("__antispam__", {})
+
+        # La configuración se lee de SQLite, que es la fuente de verdad. `data.json`
+        # solo se usa si la tabla está vacía, es decir, la primera vez tras migrar.
+        #
+        # Antes esto leía siempre del JSON. Con la base caída o corrupta, `cargar_datos`
+        # capturaba la excepción, `guilds_data` quedaba vacío y **cada servidor volvía
+        # a los defaults en silencio**, teniendo la configuración intacta a un fichero
+        # de distancia.
+        desde_sqlite = await _cargar_guilds_desde_sqlite()
+        origen = "SQLite" if desde_sqlite else "data.json"
+        if not desde_sqlite:
+            log.info("Sin configuración en SQLite; se usa data.json como origen.")
         for gid, val in data.items():
             if gid == "__global__":
                 state.bot.guilds_data["__global__"] = val
@@ -513,7 +545,11 @@ async def cargar_datos() -> None:
         if "__global__" not in state.bot.guilds_data:
             state.bot.guilds_data["__global__"] = {"total_analisis": 0, "seguros": 0, "sospechosos": 0, "maliciosos": 0, "nsfw": 0, "errores": 0}
             await guardar_datos(inmediato=True)
-        await sincronizar_config_sqlite()
+        # Si la configuración vino del JSON, se vuelca a SQLite para que la siguiente
+        # arranque ya lea de la tabla. Si vino de SQLite no hay nada que hacer.
+        if not desde_sqlite:
+            await sincronizar_config_sqlite()
+        log.info(f"Configuración de {len(state.bot.guilds_data) - 1} servidor(es) desde {origen}.")
     except Exception as e:
         log.error(f"Error al cargar datos: {e}")
 
@@ -583,8 +619,12 @@ async def registrar_infraccion_db(
             await POOL._conns[0].commit()
             return bool(cur.rowcount)
     except Exception as e:
+        # Se relanza en forma de resultado, no se traga: quien llama lo usa para caer al
+        # respaldo en memoria. Tragarse el error aquí hacía que un INSERT fallido con un
+        # COUNT funcionando devolviera el recuento sin cambios, y nadie viera nada en el
+        # log más allá de una línea: la infracción se perdía en silencio.
         log.error(f"No se pudo registrar la infracción: {e}")
-        return False
+        raise
 
 
 async def contar_infracciones_db(guild_id: int, user_id: int) -> int:
@@ -740,3 +780,35 @@ async def borrar_guild_db(guild_id: int) -> None:
             await POOL._conns[0].commit()
     except Exception as e:
         log.debug(f"No se pudo limpiar SQLite del guild {guild_id}: {type(e).__name__}")
+
+
+async def _cargar_guilds_desde_sqlite() -> int:
+    """Rellena `state.bot.guilds_data` con la tabla `guild_config`. Devuelve cuántos.
+
+    Si la tabla no existe, está vacía o la base falla, devuelve 0 y quien llama usa
+    `data.json`. Que la base no esté disponible se traduzca en "uso el respaldo", no en
+    "este usuario no tiene infracciones": convertir un fallo de infraestructura en un
+    dato vacío es el peor error posible en un sistema de moderación, porque parece que
+    todo funciona.
+    """
+    try:
+        async with POOL._read_conn().execute('SELECT guild_id, data FROM guild_config') as cur:
+            filas = await cur.fetchall()
+    except Exception as e:
+        log.warning(
+            f"No se pudo leer la configuración de SQLite ({type(e).__name__}: {e}). "
+            f"Se usará data.json como respaldo."
+        )
+        return 0
+
+    cargados = 0
+    for guild_id, bruto in filas:
+        try:
+            val = json.loads(bruto)
+        except (TypeError, ValueError):
+            log.error(f"Config ilegible en SQLite para el guild {guild_id}; se omite.")
+            continue
+        if isinstance(val, dict):
+            state.bot.guilds_data[guild_id] = val
+            cargados += 1
+    return cargados

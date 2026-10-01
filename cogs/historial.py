@@ -145,19 +145,23 @@ async def _analizar_mensaje(interaction: discord.Interaction, message: discord.M
     bot = interaction.client
     await interaction.response.defer(ephemeral=True)
 
-    permitido, espera = await comprobar_antispam(bot, interaction.guild_id, interaction.user.id)
-    if not permitido:
-        mins = max(1, espera // 60) if espera >= 60 else 0
-        texto = f"espera {mins} min" if mins else f"espera {espera} s"
-        await _responder(interaction, f"{bot.EMOJI_COOLDOWN} Racha de escaneos muy rápida: {texto}.")
-        return
-
+    # Primero se mira QUÉ hay, y luego se cobra. Al revés, un moderador que hace clic
+    # derecho sobre un mensaje sin enlaces se gastaba una de las 30 unidades por hora y
+    # recibía "no hay nada que analizar": 30 clics-equivoco bastaban para bloquearse a
+    # sí mismo. La comprobación es síncrona y no cuesta nada.
     objetivo = _extraer_objetivo(message)
     if objetivo is None:
         await _responder(
             interaction,
             f"{bot.EMOJI_INCORRECTO} Este mensaje no tiene ningún enlace que analizar.",
         )
+        return
+
+    permitido, espera = await comprobar_antispam(bot, interaction.guild_id, interaction.user.id)
+    if not permitido:
+        mins = max(1, espera // 60) if espera >= 60 else 0
+        texto = f"espera {mins} min" if mins else f"espera {espera} s"
+        await _responder(interaction, f"{bot.EMOJI_COOLDOWN} Racha de escaneos muy rápida: {texto}.")
         return
 
     tipo, valor = objetivo

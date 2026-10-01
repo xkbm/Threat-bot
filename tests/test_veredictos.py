@@ -102,7 +102,20 @@ class TestRenderOnRead:
         e = emb.resultado("url", DATOS_URL, 0)
         assert emb.TITULOS["url_segura"] in e.title
 
-    def test_veredicto_inventado_cae_al_respaldo(self):
+    def test_un_veredicto_desconocido_no_se_inventa(self):
+        """Antes caía en "seguro" o "malicioso" según `mal`.
+
+        Eso producía dos bugs: una imagen con alcohol marcada como malware, y un
+        `error` —que significa "no se pudo comprobar"— pintado de verde como "Sin
+        detecciones". Es justo lo que el módulo de veredictos declara el peor posible.
+        """
+        from ui.embed import _veredicto_de
+
+        assert _veredicto_de({"error": "sin_cuota"}, 0) == "error"
+        assert _veredicto_de({"veredicto": "restringido"}, 0) == "restringido"
+        assert _veredicto_de({"veredicto": "phishing"}, 0) == "phishing"
+
+    def test_sin_veredicto_usa_el_respaldo_por_mal(self):
         """Un `veredicto` corrupto en la fila no puede romper el render."""
         e = emb.resultado("url", {**DATOS_URL, "veredicto": "inventado"}, 0)
         assert emb.TITULOS["url_segura"] in e.title

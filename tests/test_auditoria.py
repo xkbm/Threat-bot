@@ -324,3 +324,189 @@ class TestNoSeDejanTemporalesNiFilas:
         bloque = bloque[:bloque.index("async def shutdown")]
         assert "borrar_guild_db" in bloque
         assert "olvidar_guild" in bloque
+
+
+class TestElPanelNoTieneControlesMuertos:
+    """Un control que no hace nada hace creer al admin que ha configurado algo.
+
+    Once claves se declaraban en el esquema, se dibujaban en el panel y no las leía
+    nadie: el admin ponía "Máximos adjuntos: 25" y el bot seguía con 5 sin decir nada.
+    """
+
+    @pytest.mark.parametrize(
+        "clave",
+        [
+            "max_adjuntos", "max_urls", "umbral_nudity", "umbral_partial", "umbral_gore",
+            "umbral_offensive", "umbral_alcohol", "umbral_weapon",
+            "vt_para_imagenes", "detectar_phishing",
+        ],
+    )
+    def test_toda_clave_util_se_lee_en_alguna_pista(self, clave):
+        """Toda clave del panel tiene que tener un consumidor real.
+
+        Los umbrales se consumen en `aplicar_config`, que vive en el propio esquema y
+        traduce `umbral_partial` a la clave que espera SightEngine. Por eso aquí se mira
+        también ese fichero, pero **fuera** del bloque `ESQUEMA`: declarar la clave ahí
+        no es leerla, y si se contara sería un falso verde.
+        """
+        import pathlib
+        import re
+
+        raiz = pathlib.Path(__file__).resolve().parent.parent
+        esquema = (raiz / "core" / "config_schema.py").read_text(encoding="utf-8")
+        i = esquema.index("ESQUEMA: tuple[Clave, ...] = (")
+        j = esquema.index("\n)\n", i)
+        fuera_del_esquema = esquema[:i] + esquema[j:]
+
+        leida = f'"{clave}"' in fuera_del_esquema
+        if not leida:
+            for sub in ("core", "ui", "cogs", "api"):
+                for f in (raiz / sub).glob("*.py"):
+                    if f.name == "config_schema.py":
+                        continue
+                    if f'"{clave}"' in f.read_text(encoding="utf-8"):
+                        leida = True
+                        break
+                if leida:
+                    break
+        assert leida, f"la clave '{clave}' se ofrece en el panel pero nadie la lee"
+
+    def test_no_vuelven_las_claves_muerto(self):
+        import core.config_schema as esq
+
+        for muerta in ("prefijo_log", "canales_exentos", "roles_exentos",
+                       "antispam_por_hora", "antispam_cooldown", "avisar_ignorados"):
+            assert muerta not in esq.POR_NOMBRE, (
+                f"'{muerta}' se quitó: no la leía nadie y era un control muerto"
+            )
+
+    def test_el_default_de_la_whitelist_es_el_real(self):
+        """Dos defaults distintos en el módulo que existe para que no los haya.
+
+        `claves_de("exclusiones")` devolvía una whitelist vacía mientras el default de
+        verdad eran los 15 dominios protegidos. Código nuevo que usara la fuente
+        "declarativa" habría dejado de proteger youtube, github y discord sin decirlo.
+        """
+        from core.config import DOMINIOS_PROTEGIDOS
+        from core.config_schema import defaults
+
+        assert defaults()["whitelist"] == list(DOMINIOS_PROTEGIDOS)
+
+    def test_el_rango_de_texto_se_respeta(self):
+        """`minimo`/`maximo` se declaraban y no se usaban en las claves de texto."""
+        from core.config_schema import POR_NOMBRE
+
+        for clave in POR_NOMBRE.values():
+            if clave.tipo == "str" and clave.maximo is not None:
+                corto = clave.valida("x" * (clave.maximo + 50))
+                assert len(corto) == clave.maximo, clave.nombre
+
+
+class TestLaCacheNoSeRompeConPuertos:
+    """`normalizar_url` es la fuente de la clave de caché y de la clave de `vuelo`."""
+
+    @pytest.mark.parametrize(
+        "url,esperado",
+        [
+            # El bug: recorte de 3 caracteres fijos sobre una subcadena.
+            ("http://example.com:8080/x", "http://example.com:8080/x"),
+            ("https://example.com:8080/x", "https://example.com:8080/x"),
+            ("https://a.com:8443/b", "https://a.com:8443/b"),
+            # El puerto por defecto sí se quita.
+            ("https://discord.com:443/a", "https://discord.com/a"),
+            ("http://a.com:80/b", "http://a.com/b"),
+            # Y no debe romper lo de siempre.
+            ("https://a.com/", "https://a.com/"),
+            ("https://a.com", "https://a.com/"),
+            ("http://u:p8080@h.com/", "http://u:p8080@h.com/"),
+        ],
+    )
+    def test_puertos(self, url, esperado):
+        from core.utils import normalizar_url
+
+        assert normalizar_url(url) == esperado
+
+    def test_la_forma_con_puerto_no_colisiona_con_la_sin_puerto(self):
+        """Si colisionaran, dos enlaces distintos entrarían en la misma clave."""
+        from core.utils import clave_analisis, normalizar_url
+
+        assert normalizar_url("http://a.com:8080/x") != normalizar_url("http://a.com/x")
+        assert clave_analisis("url", "http://a.com:8080/x") != clave_analisis("url", "http://a.com/x")
+
+
+class TestUnaImagenLimpiaNoSeReportaComoError:
+    """`not any(models.get(c))` era FALSO para una imagen limpia.
+
+    Todos los valores a 0.0 es el caso NORMAL de una imagen sin nada, así que cada
+    imagen limpia se reportaba como error y, como los fallos no se cacheaban, se
+    volvía a subir a SightEngine en cada reaparición: 5 operaciones del plan gratis,
+    indefinidamente.
+    """
+
+    def test_respuesta_limpia_se_reconoce(self):
+        from api.sightengine import _llego_alguna_clave
+
+        limpia = {
+            "nudity": {"raw": 0.0, "partial": 0.0}, "weapon": {"classes": {}},
+            "alcohol": {"prob": 0.0}, "gore": {"prob": 0.0}, "offensive": {"prob": 0.0},
+        }
+        assert _llego_alguna_clave(limpia) is True
+
+    def test_respuesta_sin_claves_sigue_siendo_fallo(self):
+        from api.sightengine import _llego_alguna_clave
+
+        assert _llego_alguna_clave({"status": "success", "id": "x"}) is False
+
+    def test_evaluar_contenido_tolera_none(self):
+        """La firma acepta Dict pero el guardián `es_error` sugiere que acepta None."""
+        from api.sightengine import evaluar_contenido
+        from core.veredictos import Veredicto
+
+        assert evaluar_contenido(None)[0] is Veredicto.ERROR
+
+
+class TestVueloNoPropagaCancelacion:
+    """Cancelación ≠ error de análisis.
+
+    `except BaseException` capturaba el `CancelledError` del líder y lo difundía como
+    resultado. `CancelledError` es `BaseException`, así que se saltaba todos los
+    `except Exception` del llamante: los esperadores no analizaban, no reaccionaban, no
+    registraban evento y no limpiaban.
+    """
+
+    @pytest.mark.asyncio
+    async def test_el_esperador_no_recibe_cancellederror(self):
+        import asyncio
+
+        import core.state as state
+        import core.utils as u
+
+        anterior = state.bot
+        state.bot = types.SimpleNamespace()
+        try:
+            async def lento():
+                await asyncio.sleep(5)
+                return ("x", None, 0)
+
+            async def otro():
+                return None
+
+            t1 = asyncio.create_task(u.vuelo("clave-test", lento))
+            await asyncio.sleep(0.02)
+            t2 = asyncio.create_task(u.vuelo("clave-test", otro))
+            await asyncio.sleep(0.02)
+            t1.cancel()
+            resultado = await t2
+            assert resultado is None       # cerrado limpio, no excepción
+        finally:
+            state.bot = anterior
+
+
+class TestLasEstadisticasCuentanTodasLasCategorias:
+    def test_existen_todas_las_categorias(self):
+        from core.guild_config import _stats_vacias
+
+        stats = _stats_vacias()
+        for clave in ("total_analisis", "seguros", "sospechosos", "maliciosos",
+                      "nsfw", "restringidos", "phishing", "ignorados", "errores"):
+            assert clave in stats, clave
