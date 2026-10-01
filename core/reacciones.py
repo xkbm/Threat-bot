@@ -28,18 +28,9 @@ from core.veredictos import Veredicto
 
 log = logging.getLogger("reacciones")
 
-EMOJI_VEREDICTOS = frozenset({
-    config.EMOJI_CORRECTO,
-    config.EMOJI_INCORRECTO,
-    config.EMOJI_ERROR,
-    config.EMOJI_WARNING,
-    config.EMOJI_NSFW,
-    config.EMOJI_GUARDIAN,
-    config.EMOJI_WHITELIST,
-    config.EMOJI_COOLDOWN,
-    config.EMOJI_RESTRINGIDO,
-    config.EMOJI_PHISHING,
-})
+# `EMOJI_VEREDICTOS` se quitó: la lista de emojis por veredicto vive ahora en
+# `core.veredictos`, como property de cada veredicto. Tenerla en los dos sitios era una
+# forma garantizada de que se desincronizasen.
 
 
 def resolver_reaccion(senales: Senales) -> str:

@@ -35,11 +35,22 @@ class Veredicto(Enum):
     RESTRINGIDO = "restringido"
     PHISHING = "phishing"
     ERROR = "error"
+    IGNORADO = "ignorado"   # hubo enlaces exentos y nada más
 
     @property
     def es_amenaza(self) -> bool:
         """Amenaza confirmada:borra y avisa pase lo que pase el resto de ajustes."""
         return self in (Veredicto.MALICIOSO, Veredicto.NSFW)
+
+    @property
+    def es_ignorado(self) -> bool:
+        """El bot decidió no mirar nada en este mensaje.
+
+        No es un error: el usuario pidió esa whitelist. Pero tampoco es `seguro`, que
+        afirma "analizado y limpio". Era justo lo que aparecía antes: un embed verde de
+        "Todos los elementos son seguros" junto a "0 elemento(s) analizado(s)".
+        """
+        return self is Veredicto.IGNORADO
 
     @property
     def es_hallazgo(self) -> bool:
@@ -111,6 +122,8 @@ _COLORES: Dict[Veredicto, int] = {
     Veredicto.RESTRINGIDO: config.COLOR_SOSPECHOSO,
     Veredicto.PHISHING: config.COLOR_SOSPECHOSO,
     Veredicto.ERROR: config.COLOR_ERROR,
+    # Ámbar, no verde: no se comprobó nada, y verde significaría "todo limpio".
+    Veredicto.IGNORADO: config.COLOR_SOSPECHOSO,
 }
 
 _EMOJIS: Dict[Veredicto, str] = {
@@ -121,6 +134,7 @@ _EMOJIS: Dict[Veredicto, str] = {
     Veredicto.RESTRINGIDO: config.EMOJI_RESTRINGIDO,
     Veredicto.PHISHING: config.EMOJI_PHISHING,
     Veredicto.ERROR: config.EMOJI_ERROR,
+    Veredicto.IGNORADO: config.EMOJI_WHITELIST,
 }
 
 _TITULOS: Dict[Veredicto, str] = {
@@ -131,6 +145,7 @@ _TITULOS: Dict[Veredicto, str] = {
     Veredicto.RESTRINGIDO: "Contenido restringido detectado",
     Veredicto.PHISHING: "Posible suplantación de marca",
     Veredicto.ERROR: "Análisis completado con errores",
+    Veredicto.IGNORADO: "Enlaces exentos por whitelist",
 }
 
 _CONTADORES: Dict[Veredicto, str] = {
@@ -141,6 +156,7 @@ _CONTADORES: Dict[Veredicto, str] = {
     Veredicto.RESTRINGIDO: "Restringidos",
     Veredicto.PHISHING: "Suplantaciones",
     Veredicto.ERROR: "Errores",
+    Veredicto.IGNORADO: "En whitelist",
 }
 
 # Orden en que se muestran los contadores en el embed. Distinto de PRECEDENCIA: aquí va
@@ -158,6 +174,7 @@ ORDEN_CONTADORES = (
     Veredicto.NSFW,
     Veredicto.MALICIOSO,
     Veredicto.ERROR,
+    Veredicto.IGNORADO,
 )
 
 # De peor a mejor. Cuando hay varios elementos en un mensaje manda el primero de la
@@ -177,6 +194,7 @@ PRECEDENCIA = (
     Veredicto.PHISHING,
     Veredicto.SOSPECHOSO,
     Veredicto.ERROR,
+    Veredicto.IGNORADO,
     Veredicto.SEGURO,
 )
 

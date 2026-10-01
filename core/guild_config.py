@@ -243,3 +243,13 @@ async def ignorar_infraccion(guild_id: int, user_id: int, elemento_id: str) -> i
             if elemento_id in elementos:
                 elementos.remove(elemento_id)
             return len(elementos)
+
+
+async def olvidar_guild(guild_id: int) -> None:
+    """Limpia lo que queda en RAM de un servidor del que el bot salió.
+
+    `state.bot.guilds_data` lo quita `bot.on_guild_remove`, pero `_infracciones_memoria` es
+    un mapa a parte y sin cota: con la base caída, cada guild del que sale dejaba su
+    diccionario de infracciones en memoria para el resto de la vida del proceso.
+    """
+    _infracciones_memoria.pop(guild_id, None)

@@ -404,6 +404,15 @@ async def _flush_datos() -> None:
                     os.remove(DATA_FILE)
                 os.rename(tmp, DATA_FILE)
         except Exception as e:
+            # El temporal se queda en disco si el volcado falla a medias. Cada
+            # `guardar_datos` que falle deja un fichero de 0 bytes en `core/`, y como
+            # `json.dump` serializa `guilds_data` mientras otros tasks lo mutan, el
+            # "dictionary changed size during iteration" no es hipotético.
+            try:
+                if os.path.exists(tmp):
+                    os.remove(tmp)
+            except OSError:
+                pass
             log.error(f"Error al guardar datos: {e}")
 
 async def guardar_datos(inmediato: bool = False) -> None:
@@ -714,3 +723,20 @@ async def purgar_eventos(dias: int = 30) -> int:
     except Exception as e:
         log.debug(f"No se pudieron purgar los eventos: {type(e).__name__}")
         return 0
+
+
+async def borrar_guild_db(guild_id: int) -> None:
+    """Borra todo lo que SQLite guardaba de un servidor del que el bot salió.
+
+    Sin esto, config, whitelist e infracciones (hasta 90 días) y eventos (hasta 30)
+    siguen en la base. Si alguien re-invita al bot, `/usercheck` muestra infracciones del
+    periodo en que estuvo fuera y la whitelist borrada revive. Mejor impedirlo aquí que
+    confiar en que la purga por fecha lo cubra: 90 días es mucho.
+    """
+    try:
+        async with POOL._write_lock:
+            for tabla in ("guild_config", "infracciones", "eventos"):
+                await POOL._conns[0].execute(f"DELETE FROM {tabla} WHERE guild_id = ?", (guild_id,))
+            await POOL._conns[0].commit()
+    except Exception as e:
+        log.debug(f"No se pudo limpiar SQLite del guild {guild_id}: {type(e).__name__}")

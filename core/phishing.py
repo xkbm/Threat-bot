@@ -58,6 +58,37 @@ PALABRAS_SOSPECHOSAS = (
     "steamcommunity", "steamcommunnity", "discordgifts", "discordnitro",
 )
 
+# Infraestructura legítima cuya marca aparece en el nombre pero no es phishing.
+#
+# Se comparan por SUFIJO contra el dominio registrable, no de forma exacta: el CDN de
+# Discord es `media.discordapp.net`, y si solo estuviera `discordapp.com` la regla de
+# "discord" incrustada en la etiqueta lo marcaría.
+#
+# El coste de equivocarse aquí es el peor posible: una URL marcada como phishing se
+# SACSA de la lista de análisis en `ui/message_handler.py`, así que deja de pasar por
+# VirusTotal. Es decir, un falso positivo no solo molesta: desactiva el escaneo de
+# malware. Cualquier servicio real cuya infraestructura contenga una marca tiene que
+# estar aquí, y es normal que la lista necesite crecer.
+SUFIJOS_INFRAESTRUCTURA = (
+    "discordapp.net", "discordapp.com", "discord.co", "discord.com", "discord.gg",
+    "discordcdn.com", "discord.dev", "discordstatus.com",
+    "amazonaws.com", "awsstatic.com", "cloudfront.net", "akamaized.net",
+    "akamaihd.net", "cloudflare.com", "cloudflare.net", "cdn.cloudflare.net",
+    "microsoftonline.com", "msauth.net", "msftauth.net", "azureedge.net",
+    "windows.net", "live.com", "office.com", "office.net",
+    "dropboxapi.com", "dropbox.com", "dropboxusercontent.com",
+    "googleapis.com", "gstatic.com", "googleusercontent.com", "googlevideo.com",
+    "ytimg.com", "ggpht.com", "google.com",
+    "apple.com", "cdn-apple.com", "mzstatic.com", "icloud.com", "itunes.com",
+    "fbcdn.net", "fbsbx.com", "facebook.com", "fb.com",
+    "twimg.com", "x.com", "twitch.tv", "ttvnw.net",
+    "steamstatic.com", "steamcommunity.com", "steampowered.com", "steam.tv",
+    "roblox.com", "rbxcdn.com", "epicgames.com", "fortnite.com",
+    "github.com", "githubusercontent.com", "gitlab.com", "githubassets.com",
+    "mozilla.net", "wikipedia.org", "wikimedia.org", "wikimedia.org",
+    "cloudflareinsights.com", "doubleclick.net", "gstatic.com", "cdninstagram.com",
+)
+
 # Dominios legítimos de marcas que contienen la marca en su nombre. Sin esta lista,
 # `cdn.discordapp.com` y `store.steampowered.com` salían como phishing porque su
 # dominio contiene "discord" y "steam".
@@ -156,6 +187,15 @@ def _es_ip_privada(host: str) -> bool:
         return False
 
 
+def _es_infraestructura_real(registrable: str) -> bool:
+    """¿El dominio pertenece a un servicio legítimo cuya marca aparece en el nombre?
+
+    Se compara por sufijo, no exacto: `media.discordapp.net` acaba en `discordapp.net`.
+    """
+    dominio = registrable.lower()
+    return any(dominio == s or dominio.endswith("." + s) for s in SUFIJOS_INFRAESTRUCTURA)
+
+
 def _imita_marca(etiqueta_cruda: str, marcas_norm: dict[str, str]) -> Optional[Tuple[str, str]]:
     """Devuelve (marca, motivo) si `etiqueta_cruda` imita alguna marca.
 
@@ -221,6 +261,14 @@ def detectar(url: str) -> ResultadoPhishing:
     # 0. Si el dominio es de una marca, no hay nada que juzgar.
     if registrable in DOMINIOS_LEGITIMOS or host in DOMINIOS_LEGITIMOS:
         return ResultadoPhishing(False, None, f"`{registrable}` es un dominio oficial")
+
+    # 0b. Infraestructura real (CDN, API, login) que lleva la marca en el nombre. Va
+    # ANTES de cualquier comparación de marca porque el coste de marcarla como phishing
+    # no es una alerta de más: en `ui/message_handler.py` la URL marcada se saca de la
+    # lista y deja de pasar por VirusTotal, así que un falso positivo aquí deja el
+    # malware sin escanear.
+    if _es_infraestructura_real(registrable):
+        return ResultadoPhishing(False, None, f"`{registrable}` es infraestructura legítima")
 
     marcas_norm = {_normalizar(m): m for m in MARCAS}
 

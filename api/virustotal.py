@@ -163,6 +163,18 @@ async def _sin_cuota() -> tuple[str, discord.Embed, int]:
     return "error", emb.error_cuota(), 0
 
 
+def _error_red() -> discord.Embed:
+    """Fallo de red o respuesta ilegible. Distinto de "sin cuota" y de "demasiado grande".
+
+    Los tres son `error` como veredicto, pero el motivo distinto es lo que permite al
+    usuario entender si esperar, pagar o mandar otro archivo.
+    """
+    return emb.error_analisis(
+        "No se pudo completar el análisis.",
+        detalle="Fallo de red o respuesta ilegible de VirusTotal.",
+    )
+
+
 def _error_tamanio(filename: str) -> discord.Embed:
     return emb.error_analisis(
         f"`{filename}` supera el tamaño máximo que se puede analizar.",
@@ -225,24 +237,38 @@ async def analizar_url(url: str, guild_id: Optional[int] = None, mensaje_origina
         log.debug(f"VT URL ERROR → no hay keys disponibles t={time.time()-_t0:.1f}s")
         return await _sin_cuota()
     _t = time.time()
-    async with state.bot.session.get(
-        f"https://www.virustotal.com/api/v3/urls/{url_id}",
-        headers={"x-apikey": key}, timeout=VT_TIMEOUT
-    ) as resp:
-        log.debug(f"VT URL GET → status={resp.status} t={time.time()-_t:.1f}s")
-        if resp.status == 200:
-            data = await resp.json()
-            attrs = data["data"]["attributes"]
-            if attrs.get("last_analysis_stats"):
-                normalized = {
-                    "data": {
-                        "attributes": {
-                            "stats": attrs["last_analysis_stats"],
-                            "results": attrs.get("last_analysis_results", {}),
+    # Este GET va dentro del `try` a propósito. Estaba fuera: cualquier timeout, error de
+    # red o JSON malformado en la *primera* consulta escapaba de `analizar_url`, se saltaba
+    # `_finalizar_error` y la excepción subía por `vuelo()` hasta el `done_callback` del
+    # bot. Ese mensaje se quedaba sin embed, sin reacción, sin registro en /history y sin
+    # evento, sin ninguna señal visible más que una línea de log.
+    try:
+        async with state.bot.session.get(
+            f"https://www.virustotal.com/api/v3/urls/{url_id}",
+            headers={"x-apikey": key}, timeout=VT_TIMEOUT
+        ) as resp:
+            log.debug(f"VT URL GET → status={resp.status} t={time.time()-_t:.1f}s")
+            if resp.status == 200:
+                data = await resp.json()
+                attrs = data["data"]["attributes"]
+                if attrs.get("last_analysis_stats"):
+                    normalized = {
+                        "data": {
+                            "attributes": {
+                                "stats": attrs["last_analysis_stats"],
+                                "results": attrs.get("last_analysis_results", {}),
+                            }
                         }
                     }
-                }
-                return await _procesar_resultado_vt(normalized, "url", url, guild_id, mensaje_original, guardar_cache, registrar_para)
+                    return await _procesar_resultado_vt(normalized, "url", url, guild_id, mensaje_original, guardar_cache, registrar_para)
+    except asyncio.TimeoutError:
+        log.warning(f"VT URL TIMEOUT en el GET inicial → {url}")
+        await _finalizar_error(guild_id, "url", url)
+        return "error", _error_red(), 0
+    except Exception as e:
+        log.error(f"Excepción en el GET inicial de VT para {url}: {e}")
+        await _finalizar_error(guild_id, "url", url)
+        return "error", _error_red(), 0
 
     try:
         _t = time.time()

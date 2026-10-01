@@ -144,7 +144,13 @@ async def _construir_embed_unificado(
 
     # Título y color: manda el peor veredicto, con la misma precedencia que usa la
     # reacción. Así el embed y el emoji no pueden discrepar.
-    peor = veredictos.peor(senales.veredictos)
+    # Si lo único que pasó fue la whitelist, el veredicto es `ignorado`, no `seguro`:
+    # `peor([])` da SEGURO y el embed decía "Todos los elementos son seguros" en verde
+    # junto a "0 elemento(s) analizado(s)", que se contradice a sí mismo.
+    veredictos_efectivos = senales.veredictos
+    if not veredictos_efectivos and senales.whitelist_omitidos:
+        veredictos_efectivos = [Veredicto.IGNORADO]
+    peor = veredictos.peor(veredictos_efectivos)
     color, titulo_texto = peor.color, peor.titulo
 
     conteo = Counter(e.veredicto for e in elementos)
@@ -638,9 +644,7 @@ def _controlador_para(bot: commands.Bot, message: discord.Message) -> ReactionCo
 
     Vive en el bot y no como variable local a propósito: `on_message` y
     `on_message_edit` pueden procesar el mismo mensaje a la vez, y dos instancias
-    compitiendo se quitarían y pondrían emojis sin coordinarse. Una vez puesto el
-    veredicto, el controlador se descarta: el siguiente análisis del mismo mensaje
-    necesita empezar limpio.
+    compitiendo se quitarían y pondrían emojis sin coordinarse.
     """
     cache = getattr(bot, "_reaction_controllers", None)
     if cache is None:
@@ -651,6 +655,18 @@ def _controlador_para(bot: commands.Bot, message: discord.Message) -> ReactionCo
         ctrl = ReactionController(message)
         cache[message.id] = ctrl
     return ctrl
+
+
+def _liberar_controlador(bot: commands.Bot, message: discord.Message) -> None:
+    """Saca el controlador del cache cuando el análisis ya terminó.
+
+    Sin esto el dict crece con un controlador por cada mensaje analizado, para siempre.
+    Es una fuga silenciosa: no da error, solo memoria, y su ritmo depende del tráfico del
+    servidor. Se limpia después de poner el veredicto, que es cuando deja de hacer falta.
+    """
+    cache = getattr(bot, "_reaction_controllers", None)
+    if cache is not None:
+        cache.pop(message.id, None)
 
 
 def debe_borrar(has_threat: bool, has_doble_ext: bool, has_mime_mismatch: bool, strict_mode: bool) -> bool:
@@ -684,7 +700,8 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
     if len(message.content) > 5000:
         message.content = message.content[:5000]
 
-    silent_mode = config["silent_mode"]
+    # `silent_mode` ya no se lee aquí: la decisión de avisar la toma `debe_enviar_embed`,
+    # que conoce los tres interruptores. Tenerla en dos sitios hacía que secould divergieran.
     strict_mode = config["strict_mode"]
     log_channel_id = config["log_channel_id"]
     whitelist = config.get("whitelist", [])
@@ -745,11 +762,12 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
 
         if not todas_urls:
             # Todas en whitelist o ya marcadas como phishing.
-            if not silent_mode and not urls_sospechosas:
-                try:
-                    await message.reply(f"{EMOJI_WHITELIST} **Dominio(s) en whitelist.** No se requiere análisis.", mention_author=False)
-                except (discord.errors.Forbidden, discord.errors.NotFound):
-                    pass
+            #
+            # Aquí ya no se manda ningún mensaje propio. Antes se respondía "Dominio(s)
+            # en whitelist" y luego, además, el embed: dos avisos para un solo evento.
+            # Y el reply era menos útil que el embed, que además dice cuántos enlaces
+            # hubo. Ahora manda el embed y `debe_enviar_embed` decide si se manda, que
+            # incluye el caso de la whitelist aunque el modo silencioso esté activo.
             img_results, arch_results, omitidos = await _analizar_adjuntos_si_hay(bot, message, guild_id)
             url_results = urls_sospechosas
         else:
@@ -803,21 +821,20 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                         if cached_hash:
                             is_nsfw, confidence, models, from_cache = await analizar_imagen_multimodelo(cached_hash, b"")
                             if from_cache:
-                                # Cache hit → todo listo
-                                if is_nsfw:
-                                    if guild_id:
-                                        await registrar_infraccion(guild_id, message.author.id, f"nsfw:{cached_hash}")
-                                    detectados: list[str] = []
-                                    if models.get('nudity', 0.0) >= 0.5: detectados.append(f"Desnudez {models['nudity']*100:.0f}%")
-                                    if models.get('weapon', 0.0) >= 0.5: detectados.append(f"Armas {models['weapon']*100:.0f}%")
-                                    if models.get('offensive', 0.0) >= 0.7: detectados.append(f"Ofensivo {models['offensive']*100:.0f}%")
-                                    if models.get('alcohol', 0.0) >= 0.7: detectados.append(f"Alcohol {models['alcohol']*100:.0f}%")
-                                    detalles_str = ", ".join(detectados) if detectados else "Contenido inapropiado"
-                                    img_url_results.append(ImgUrlResult(url, "nsfw", detalles_str, f"nsfw:{cached_hash}"))
-                                else:
-                                    img_url_results.append(ImgUrlResult(url, "seguro", ""))
+                                # El veredicto y el detalle los compone `evaluar_contenido`, como en
+                                # `_procesar_imagen`. Esta rama leia `models['nudity']`, clave que ya no
+                                # existe, con umbrales escritos a mano: el detalle salia siempre como
+                                # "Contenido inapropiado" sin decir que se detecto, y alcohol o armas
+                                # quedaban etiquetados como `nsfw`.
+                                _v, _conf, detalles_str = evaluar_contenido(models)
+                                img_url_results.append(ImgUrlResult(
+                                    url, _v.value, detalles_str, f"nsfw:{cached_hash}"))
+                                if _v in (Veredicto.NSFW, Veredicto.RESTRINGIDO) and guild_id:
+                                    await registrar_infraccion(
+                                        guild_id, message.author.id, f"nsfw:{cached_hash}")
                                 # Procesar adjuntos y mostrar embed unificado
-                                img_results, arch_results, omitidos = await _analizar_adjuntos_si_hay(bot, message, guild_id)
+                                img_results, arch_results, omitidos = await _analizar_adjuntos_si_hay(
+                                    bot, message, guild_id)
                             else:
                                 # Cache hash pero no en SE → continuar a descarga
                                 pass
@@ -848,18 +865,19 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
 
                                     if models.get("error") == "too_large":
                                         img_url_results.append(ImgUrlResult(url, "error", "Supera el límite de Sightengine"))
-                                    elif is_nsfw:
-                                        if guild_id:
-                                            await registrar_infraccion(guild_id, message.author.id, f"nsfw:{content_hash}")
-                                        detectados = []
-                                        if models.get('nudity', 0.0) >= 0.5: detectados.append(f"Desnudez {models['nudity']*100:.0f}%")
-                                        if models.get('weapon', 0.0) >= 0.5: detectados.append(f"Armas {models['weapon']*100:.0f}%")
-                                        if models.get('offensive', 0.0) >= 0.7: detectados.append(f"Ofensivo {models['offensive']*100:.0f}%")
-                                        if models.get('alcohol', 0.0) >= 0.7: detectados.append(f"Alcohol {models['alcohol']*100:.0f}%")
-                                        detalles_str = ", ".join(detectados) if detectados else "Contenido inapropiado"
-                                        img_url_results.append(ImgUrlResult(url, "nsfw", detalles_str, f"nsfw:{content_hash}"))
                                     else:
-                                        img_url_results.append(ImgUrlResult(url, "seguro", ""))
+                                        # Veredicto y detalle los compone `evaluar_contenido`,
+                                        # igual que en el acierto de caché y en los adjuntos.
+                                        # Esta rama leía `models['nudity']`, clave que ya no
+                                        # existe, con umbrales a mano: el detalle salía siempre
+                                        # como "Contenido inapropiado" y alcohol o armas
+                                        # quedaban etiquetados como `nsfw`.
+                                        _v, _conf, detalles_str = evaluar_contenido(models)
+                                        img_url_results.append(ImgUrlResult(
+                                            url, _v.value, detalles_str, f"nsfw:{content_hash}"))
+                                        if _v in (Veredicto.NSFW, Veredicto.RESTRINGIDO) and guild_id:
+                                            await registrar_infraccion(
+                                                guild_id, message.author.id, f"nsfw:{content_hash}")
                             finally:
                                 await safe_remove_loading(bot, message)
                             img_results, arch_results, omitidos = await _analizar_adjuntos_si_hay(bot, message, guild_id)
@@ -912,7 +930,14 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                                     return t, e, m, False
                                 log.debug("Cache MISS para URL → llamando VT")
                                 if not await check_vt_user_limit(bot, guild_id, message.author.id):
-                                    return None
+                                    # `SIN_RESPUESTA`, no `None`. `vuelo()` trata `None`
+                                    # como resultado legitimo y lo reparte a todos los
+                                    # esperadores: un usuario que agota su cupo hacia que
+                                    # todos los demas analysing el mismo enlace recibieran
+                                    # un error falso y se quedaran sin escanear. Con
+                                    # `SIN_RESPUESTA` cada esperador lo reintenta por su
+                                    # cuenta, que es justo lo que documenta `vuelo`.
+                                    return SIN_RESPUESTA
                                 await safe_add_reaction(message, EMOJI_LOADING)
                                 try:
                                     t, e, m = await analizar_url(url, guild_id=guild_id, mensaje_original=message, guardar_cache=True)
@@ -961,7 +986,10 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                                 if dominio_exp.startswith("www."):
                                     dominio_exp = dominio_exp[4:]
                                 if dominio_en_whitelist(dominio_exp, whitelist):
-                                    return None
+                                    # `SIN_RESPUESTA` y no `None`, por el mismo motivo que
+                                    # las otras dos ramas: `vuelo()` reparte `None` como si
+                                    # fuera un resultado y el llamador lo desempaqueta.
+                                    return SIN_RESPUESTA
                             clave = clave_analisis("url", url_exp)
 
                             async def _leer_cache():
@@ -1001,7 +1029,9 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
 
                                 async def _llamar_vt() -> Optional[tuple[str, discord.Embed, int, bool]]:
                                     if not await check_vt_user_limit(bot, guild_id, message.author.id):
-                                        return None
+                                        # Ver la nota de la otra rama: `None` envenena a los
+                                        # esperadores de `vuelo()`.
+                                        return SIN_RESPUESTA
                                     # Sin ANALYSIS_SEMAPHORE: `analizar_url` duerme 55s
                                     # entre sondeos y sostener un hueco del pool durante el
                                     # sueño bloqueaba el análisis del resto. El límite real
@@ -1037,6 +1067,9 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
     # --- Construir y enviar embed unificado ---
     total_elementos = len(url_results) + len(img_url_results) + len(img_results) + len(arch_results)
     if total_elementos == 0 and not _whitelist_omitidos:
+        # El controlador se creo al poner el emoji de progreso, asi que tambien hay que
+        # soltarlo aqui: sin esto esta salida era la que mas fugaba.
+        _liberar_controlador(bot, message)
         return
 
     # --- Señales: una foto de todo lo que se ha detectado ---
@@ -1065,6 +1098,8 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
         await _controlador_para(bot, message).set(resolver_reaccion(senales))
     else:
         await safe_remove_loading(bot, message)
+    # El analisis termino: el controlador ya no hace falta y el cache debe quedar limpio.
+    _liberar_controlador(bot, message)
 
     # Registro para /history. Nunca lanza: es un extra informativo, y perder un
     # registro no puede tumbar un análisis que ya se ha hecho y publicado.

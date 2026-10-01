@@ -135,8 +135,13 @@ class TestResolverReaccion:
         assert unico != config.EMOJI_CORRECTO
 
     def test_todo_veredicto_tiene_eco_en_el_mapa(self):
+        """El mapa tiene que cubrir todo el enum.
+
+        `ignorado` comparte emoji con la whitelist, así que el mapa no lo distingue: se
+        comprueba por el emoji, que es como se usa.
+        """
         for v in Veredicto:
-            if v in (Veredicto.ERROR, Veredicto.SEGURO):
+            if v in (Veredicto.ERROR, Veredicto.SEGURO, Veredicto.IGNORADO):
                 continue
             assert v.emoji in MAPA_EMOJI_VEREDICTO
 

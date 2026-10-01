@@ -292,13 +292,24 @@ async def on_guild_join(guild):
 
 @bot.event
 async def on_guild_remove(guild):
+    """El bot salió del servidor: se borra su rastro entero.
+
+    Antes solo se quitaba de RAM y de `data.json`. Las filas de SQLite (config,
+    whitelist, infracciones, eventos) se quedaban, así que si el bot volvía a ser
+    invitado `/usercheck` seguía mostrando infracciones del periodo en que no estaba, y
+    una whitelist que un admin había borrado reaparecía. Confiar en la purga por fecha no
+    vale: 90 días de infracciones y 30 de eventos son mucho.
+    """
     guild_id = guild.id
     if guild_id in bot.guilds_data:
         bot.guilds_data.pop(guild_id, None)
         await guardar_datos(inmediato=True)
-        log.info(f"Guild {guild_id} ({guild.name}) eliminada — datos limpiados")
-    from core.guild_config import remove_guild_lock
+    from core.database import borrar_guild_db
+    from core.guild_config import remove_guild_lock, olvidar_guild
     await remove_guild_lock(guild_id)
+    await borrar_guild_db(guild_id)
+    await olvidar_guild(guild_id)
+    log.info(f"Guild {guild_id} ({guild.name}) eliminada — RAM, data.json y SQLite limpiados")
     await _enviar_guild_log(guild, "Eliminado de un servidor", COLOR_ERROR)
 
 async def shutdown():
