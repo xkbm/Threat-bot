@@ -615,3 +615,40 @@ def limpiar_url(url: str) -> str:
     while url and url[-1] in ')]}>.,;:':
         url = url[:-1]
     return url
+
+
+# --- Validación de dominios -------------------------------------------------
+#
+# Vive aquí y no en `cogs/whitelist.py` porque lo usan dos sitios: el comando y el
+# botón del panel. Dos copias del mismo chequeo siempre divergen, y una divergencia en
+# la validación de dominio significa que el panel acepta cosas que el comando rechaza,
+# o al revés.
+
+PATRON_DOMINIO: re.Pattern = re.compile(
+    r'^([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
+)
+
+
+def normalizar_dominio(dominio: str) -> str:
+    """Minúsculas, sin espacios, sin esquema, sin `www.` ni ruta ni credenciales.
+
+    Acepta que se pegue una URL entera porque es lo natural: se copia de la barra de
+    direcciones. Se recorta hasta quedarse con el host.
+    """
+    d = (dominio or "").strip().lower()
+    if "://" in d:
+        d = d.split("://", 1)[1]
+    if "@" in d:
+        d = d.rsplit("@", 1)[1]
+    for corte in ("/", "?", "#"):
+        if corte in d:
+            d = d.split(corte, 1)[0]
+    if d.startswith("[") and "]" in d:        # IPv6
+        return d
+    if ":" in d:
+        d = d.split(":", 1)[0]
+    return d[4:] if d.startswith("www.") else d
+
+
+def es_dominio_valido(dominio: str) -> bool:
+    return bool(PATRON_DOMINIO.match(dominio or ""))

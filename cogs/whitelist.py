@@ -6,17 +6,13 @@ from discord.ext import commands
 from discord import app_commands
 from core.config import DOMINIOS_PROTEGIDOS
 from core.guild_config import agregar_dominio, quitar_dominio
+from core.utils import PATRON_DOMINIO, normalizar_dominio
 from ui.views import WhitelistPaginatorView
 from ui import embed as emb
 
 log = logging.getLogger("whitelist")
-PATRON_DOMINIO: re.Pattern = re.compile(r'^([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$')
-
-
-def _normalizar_dominio(dominio: str) -> str:
-    """Minúsculas y sin prefijo www., como espera la comparación de dominio."""
-    dominio = dominio.lower().strip()
-    return dominio[4:] if dominio.startswith("www.") else dominio
+# El patrón y la normalización viven en `core.utils` porque el panel de `/settings`
+# también valida dominios, y dos copias divergen.
 
 
 async def _responder(interaction: discord.Interaction, contenido: str) -> None:
@@ -55,7 +51,7 @@ class WhitelistCog(commands.Cog):
                 await _responder(interaction, f"{self.bot.EMOJI_INCORRECTO} Especifica un dominio para {'añadir' if accion.value == 'add' else 'eliminar'}.")
                 return
 
-            dominio = _normalizar_dominio(dominio)
+            dominio = normalizar_dominio(dominio)
 
             if accion.value == "add":
                 if not PATRON_DOMINIO.match(dominio):

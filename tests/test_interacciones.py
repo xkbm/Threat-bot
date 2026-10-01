@@ -191,64 +191,230 @@ class TestTodosLosComandosResponden:
         assert respondio, f"{nombre} no respondió al usuario"
 
 
-class TestElMasterYElInterruptorVanJuntos:
-    """El panel y `/silentmode` no pueden divergir.
+class TestLosInterruptoresSonIndependientes:
+    """Encender un interruptor no debe apagar otro.
 
-    Con el master apagado, `debe_enviar_embed` devuelve True siempre, así que el
-    comportamiento no depende de `avisar_limpios`. Pero el valor **que se muestra** en el
-    panel sí, y si divergen el usuario ve "general apagado" junto a "no avisar limpios" sin
-    ninguna pista de que se contradicen.
+    Antes, tanto el panel como `/silentmode` ajustaban `avisar_limpios` en cascada al
+    cambiar `silent_mode`. Se veía como un fallo del panel, y no lo era: el acoplamiento
+    no evitaba ningún estado contradictorio, porque con el master apagado
+    `debe_enviar_embed` devuelve True siempre y `avisar_limpios` es irrelevante. Solo
+   老的 confuses a quien lo usa.
     """
 
     @pytest.mark.asyncio
-    async def test_el_panel_ajusta_los_dos(self):
-        import cogs.configuracion as cfg_mod
-        from core import config_schema as esq
-        from core.guild_config import obtener_config_guild
+    async def test_cambiar_el_master_no_toca_avisar_limpios(self):
+        import core.config_schema as esq
+        from core import guild_config as gc
         from ui import panel as pan
+
+        config = dict(esq.defaults())
+        config["avisar_limpios"] = True
+        guardados = {}
+
+        async def _obtener(guild_id):
+            return dict(config)
+
+        async def _actualizar(guild_id, **campos):
+            guardados.update(campos)
+            config.update(campos)
+            return config
+
+        gc.obtener_config_guild = _obtener
+        pan.obtener_config_guild = _obtener
+        gc.actualizar_config = _actualizar
+        pan.actualizar_config = _actualizar
 
         guild = _Guild()
         vista = await pan.PanelConfig.crear(esq.AVISO, guild)
         boton = next(h for h in vista.children
                      if getattr(h, "custom_id", "").endswith("silent_mode"))
-
         await boton.callback(FakeInteraction(guild))
 
-        config = await obtener_config_guild(guild.id)
-        assert config["silent_mode"] is False
-        assert config["avisar_limpios"] is True, (
-            "el panel dejó el master apagado sin tocar 'avisar limpios': "
-            "/silentmode sí lo haría y las dos vías divergen"
+        assert guardados == {"silent_mode": False}, (
+            f"cambiar el master no debe tocar nada mas: {guardados}"
         )
+        assert config["avisar_limpios"] is True, "avisar_limpios se apagó solo"
 
     @pytest.mark.asyncio
-    async def test_el_comando_y_el_panel_dejan_el_mismo_estado(self):
-        """Cada vía, desde cero, y el resultado se compara.
-
-        Antes esta prueba mutaba el mismo guild dos veces y comparaba, lo que la hacía
-        depender del orden de ejecución: si otro test dejaba el guild a medias, fallaba
-        sin que hubiera ningún cambio real.
-        """
-        import cogs.configuracion as cfg_mod
-        from core import config_schema as esq
-        from core.guild_config import obtener_config_guild
+    async def test_cada_interruptor_solo_se_toca_a_si_mismo(self):
+        """Recorre todos los booleanos del panel y comprueba que no arrastran a otro."""
+        import core.config_schema as esq
+        from core import guild_config as gc
         from ui import panel as pan
 
-        async def _por_el_panel():
-            guild = _Guild()
-            vista = await pan.PanelConfig.crear(esq.AVISO, guild)
-            boton = next(h for h in vista.children
-                         if getattr(h, "custom_id", "").endswith("silent_mode"))
-            await boton.callback(FakeInteraction(guild))
-            return {k: v for k, v in (await obtener_config_guild(guild.id)).items()
-                    if k in ("silent_mode", "avisar_limpios")}
+        for seccion in esq.secciones():
+            for clave in esq.claves_de(seccion):
+                if clave.tipo != "bool":
+                    continue
+                config = dict(esq.defaults())
+                guardados = {}
 
-        async def _por_el_comando():
-            guild = _Guild()
-            cog = cfg_mod.ConfiguracionCog(_fake_bot())
-            interaccion = FakeInteraction(guild)
-            await cog.silentmode.callback(cog, interaccion, False)
-            return {k: v for k, v in (await obtener_config_guild(guild.id)).items()
-                    if k in ("silent_mode", "avisar_limpios")}
+                async def _obtener(guild_id, _c=config):
+                    return dict(_c)
 
-        assert await _por_el_panel() == await _por_el_comando()
+                async def _actualizar(guild_id, _c=None, _g=None, **campos):
+                    _g.update(campos)
+                    _c.update(campos)
+                    return _c
+
+                gc.obtener_config_guild = _obtener
+                pan.obtener_config_guild = _obtener
+                gc.actualizar_config = lambda gid, _c=None, _g=None, **kw: _actualizar(
+                    gid, _c=config, _g=guardados, **kw)
+                pan.actualizar_config = gc.actualizar_config
+
+                guild = _Guild()
+                vista = await pan.PanelConfig.crear(seccion, guild)
+                boton = next((h for h in vista.children
+                              if getattr(h, "custom_id", "").endswith(clave.nombre)), None)
+                if boton is None:
+                    continue
+                # El valor esperado se calcula ANTES de pulsar: `_actualizar` muta
+                # `config`, así que leerlo después daría el valor nuevo y `not` de
+                # ese, que no es lo que se espera.
+                esperado = not bool(config[clave.nombre])
+                await boton.callback(FakeInteraction(guild))
+                assert guardados == {clave.nombre: esperado}, (
+                    f"el interruptor '{clave.nombre}' arrastró a otros: {list(guardados)}"
+                )
+
+
+class TestLosControlesNuevosDelPanel:
+    """Canal de logs y whitelist se cambian desde el panel, no solo con comandos."""
+
+    @pytest.fixture(autouse=True)
+    def _panel(self):
+        import core.config_schema as esq
+        from core import guild_config as gc_mod
+        from ui import panel as pan
+
+        self.panel = pan          # antes del yield: si no, el test no lo ve
+        self.config = dict(esq.defaults())
+        self.guardados = {}
+
+        async def _obtener(guild_id):
+            return dict(self.config)
+
+        async def _actualizar(guild_id, _c=None, _g=None, **campos):
+            _g.update(campos)
+            _c.update(campos)
+            return _c
+
+        gc_mod.obtener_config_guild = _obtener
+        pan.obtener_config_guild = _obtener
+        gc_mod.actualizar_config = lambda gid, _c=None, _g=None, **kw: _actualizar(
+            gid, _c=self.config, _g=self.guardados, **kw)
+        pan.actualizar_config = gc_mod.actualizar_config
+        yield
+
+    async def _vista(self, seccion, guild=None):
+        class _Perm:
+            send_messages = True
+
+        class _Canal:
+            def __init__(self, i, n):
+                self.id, self.name, self.topic = i, n, ""
+
+            def permissions_for(self, m):
+                return _Perm()
+
+        class _Guild:
+            id = 1
+            text_channels = [_Canal(1, "general"), _Canal(2, "registros")]
+            me = object()
+
+            def get_channel(self, c):
+                return None
+
+        return await self.panel.PanelConfig.crear(seccion, guild or _Guild())
+
+    @pytest.mark.asyncio
+    async def test_general_tiene_selector_de_canal(self):
+        v = await self._vista("general")
+        selectores = [h for h in v.children if type(h).__name__ == "SelectorCanalLog"]
+        assert selectores, "el canal de logs solo se mostraba, no se podía cambiar"
+        valores = {o.value for o in selectores[0].options}
+        assert {"0", "1", "2"} <= valores, "faltan canales del servidor"
+
+    @pytest.mark.asyncio
+    async def test_el_selector_marca_el_canal_actual(self):
+        self.config["log_channel_id"] = 2
+        v = await self._vista("general")
+        sel = next(h for h in v.children if type(h).__name__ == "SelectorCanalLog")
+        marcados = [o.value for o in sel.options if o.default]
+        assert marcados == ["2"]
+
+    @pytest.mark.asyncio
+    async def test_sin_canal_esta_marcado_el_primero(self):
+        v = await self._vista("general")
+        sel = next(h for h in v.children if type(h).__name__ == "SelectorCanalLog")
+        assert [o.value for o in sel.options if o.default] == ["0"]
+
+    @pytest.mark.asyncio
+    async def test_exclusiones_tiene_el_boton_de_anadir(self):
+        v = await self._vista("exclusiones")
+        assert any(type(h).__name__ == "BotonAnadirWhitelist" for h in v.children)
+
+    @pytest.mark.asyncio
+    async def test_un_guild_sin_canales_no_rompe(self):
+        """Sin canales de texto no hay selector, pero el panel se construye igual."""
+        class _GuildVacio:
+            id = 1
+            text_channels = []
+            me = object()
+
+            def get_channel(self, c):
+                return None
+
+        v = await self._vista("general", _GuildVacio())
+        assert len(v.children) > 0
+
+    @pytest.mark.asyncio
+    async def test_permisos_que_fallan_no_rompen(self):
+        class _GuildLento:
+            id = 1
+            text_channels = [object()]
+
+            @property
+            def me(self):
+                raise RuntimeError("sin permisos")
+
+            def get_channel(self, c):
+                return None
+
+        v = await self._vista("general", _GuildLento())
+        assert len(v.children) > 0
+
+
+class TestElBotonDeWhitelistReutilizaLaValidacionDelComando:
+    """Dos copias del chequeo de dominio divergen; por eso se reutiliza la del comando."""
+
+    def test_el_panel_usa_el_validador_de_core(self):
+        import pathlib
+
+        raiz = pathlib.Path(__file__).resolve().parent.parent
+        panel = (raiz / "ui" / "panel.py").read_text(encoding="utf-8")
+        # No debe reimplementar el patrón: lo toma de donde está.
+        assert "PATRON_DOMINIO: re.Pattern" not in panel
+        assert "from core.utils import es_dominio_valido" in panel
+
+    @pytest.mark.parametrize(
+        "entrada,esperado",
+        [
+            ("ejemplo.com", "ejemplo.com"),
+            ("EJEMPLO.COM", "ejemplo.com"),
+            ("www.ejemplo.com", "ejemplo.com"),
+            ("https://www.ejemplo.com/path?a=1", "ejemplo.com"),
+            ("http://user:pw@ejemplo.com:8080/x", "ejemplo.com"),
+        ],
+    )
+    def test_acepta_urls_completas(self, entrada, esperado):
+        from core.utils import normalizar_dominio
+
+        assert normalizar_dominio(entrada) == esperado
+
+    @pytest.mark.parametrize("entrada", ["", "no-es-un-dominio", "ejemplo.com.", " "])
+    def test_rechaza_lo_que_no_es_dominio(self, entrada):
+        from core.utils import es_dominio_valido, normalizar_dominio
+
+        assert not es_dominio_valido(normalizar_dominio(entrada))

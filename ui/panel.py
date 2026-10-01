@@ -28,6 +28,7 @@ import discord
 
 from core import config_schema as esq
 from core.guild_config import actualizar_config, obtener_config_guild
+from core.utils import es_dominio_valido, normalizar_dominio
 from ui import embed as emb
 
 log = logging.getLogger("panel")
@@ -99,6 +100,94 @@ class SelectorUmbral(discord.ui.Button):
             return
         config = await obtener_config_guild(interaction.guild.id)
         await _guardar(interaction, self.nombre, self.siguiente(float(config.get(self.nombre, 0.5))))
+
+
+class SelectorCanalLog(discord.ui.Select):
+    """Elige el canal de logs entre los del servidor.
+
+    Antes el panel lo mostraba pero no lo cambiaba: había que resorting a
+    `/setlogchannel`. Es una opción por guild más, de las que un admin tiene que poder
+    tocar sin recordar un comando aparte.
+    """
+
+    def __init__(self, actual: Optional[int], canales: list[discord.TextChannel]):
+        opciones = [
+            discord.SelectOption(
+                label="Sin canal de logs",
+                value="0",
+                description="No se avisará a ningún canal de amenazas.",
+                default=(not actual),
+            )
+        ]
+        # Discord admite 25 opciones: primero los del servidor, y si hay más se avisa por
+        # log, porque truncarlos en silencio sería dejar fuera canales a propósito.
+        texto = [c for c in canales if c is not None][:24]
+        if len([c for c in canales if c is not None]) > 24:
+            log.warning(
+                "Más de 24 canales de texto: el desplegable muestra los primeros. "
+                "Usa /setlogchannel para elegir uno que no aparezca."
+            )
+        for c in texto:
+            opciones.append(discord.SelectOption(
+                label=c.name[:100],
+                value=str(c.id),
+                description=(c.topic or "")[:100] or None,
+                default=(c.id == actual),
+            ))
+        super().__init__(placeholder="Canal de logs…", min_values=1, max_values=1,
+                         custom_id=f"{UMBRAL}log_channel_id", options=opciones)
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        valor = int(self.values[0])
+        await _guardar(interaction, "log_channel_id", valor or None)
+
+
+class AnadirWhitelist(discord.ui.Modal, title="Añadir dominio a la whitelist"):
+    """Pedir el dominio a escribir. Un `Select` de canales no sirve para texto libre."""
+
+    def __init__(self):
+        super().__init__()
+        self.dominio = discord.ui.TextInput(
+            label="Dominio",
+            placeholder="ejemplo.com",
+            max_length=100,
+            required=True,
+        )
+        self.add_item(self.dominio)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        from core.guild_config import agregar_dominio, obtener_config_guild
+
+        # Se reutiliza la normalización y la validación del comando `/whitelist`, en vez
+        # de reimplementarlas: dos copias del chequeo de dominio siempre divergen.
+        bruto = normalizar_dominio(self.dominio.value)
+        if not es_dominio_valido(bruto):
+            await interaction.response.send_message(
+                f"{emb.EMOJI_ERROR} Eso no parece un dominio: `{self.dominio.value}`",
+                ephemeral=True)
+            return
+
+        config = await obtener_config_guild(interaction.guild.id)
+        if bruto in config.get("whitelist", []):
+            await interaction.response.send_message(
+                f"{emb.EMOJI_CORRECTO} `{bruto}` ya está en la whitelist.",
+                ephemeral=True)
+            return
+
+        await agregar_dominio(interaction.guild.id, bruto)
+        await interaction.response.send_message(
+            f"{emb.EMOJI_CORRECTO} `{bruto}` añadido a la whitelist. Sus enlaces no se "
+            f"analizan, pero el bot sigue avisando si quieres.",
+            ephemeral=True)
+
+
+class BotonAnadirWhitelist(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Añadir dominio", custom_id=f"{PREFIJO}wl_add",
+                         style=discord.ButtonStyle.secondary)
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        await interaction.response.send_modal(AnadirWhitelist())
 
 
 class SelectorMotivos(discord.ui.Select):
@@ -232,6 +321,16 @@ class PanelConfig(discord.ui.View):
     def _rellenar(self, config: dict) -> None:
         self.add_item(MenuSecciones(self.seccion))
 
+        # El canal de logs solo se puede elegir si el panel se abrió en un servidor con
+        # canales de texto; sin ellos, el valor se sigue mostrando en el embed.
+        if self.seccion == esq.GENERAL and self.guild is not None:
+            canales = self._canales_de_texto()
+            if canales is not None:
+                self.add_item(SelectorCanalLog(config.get("log_channel_id"), canales))
+
+        if self.seccion == esq.EXCLUSIONES:
+            self.add_item(BotonAnadirWhitelist())
+
         if self.seccion == esq.CONTENIDO:
             for clave in esq.claves_de(esq.CONTENIDO):
                 if clave.tipo == "float":
@@ -266,6 +365,18 @@ class PanelConfig(discord.ui.View):
                     clave.nombre, str(config.get(clave.nombre, clave.default))))
 
         self._avisar_si_no_cabe()
+
+    def _canales_de_texto(self):
+        """Canales de texto del guild, o None si no se pueden obtener.
+
+        Se capturan los errores: un panel que no se puede construir es peor que un panel
+        sin el selector, y `get_channel` puede fallar por permisos o por rate limit.
+        """
+        try:
+            return [c for c in self.guild.text_channels if c.permissions_for(self.guild.me).send_messages]
+        except Exception as e:
+            log.debug(f"No se pudieron listar los canales: {type(e).__name__}")
+            return None
 
     def _avisar_si_no_cabe(self) -> None:
         """Falla ruidosamente en el log, no de forma incomprensible en el comando.
@@ -318,12 +429,6 @@ async def _guardar(interaction: discord.Interaction, nombre: str, valor) -> None
         return
 
     await actualizar_config(interaction.guild.id, **{nombre: validado})
-    if nombre == "silent_mode":
-        # El master y "avisar limpios" van juntos: con el master activo no se manda nada
-        # limpio, y al desactivarlo vuelve a mandarse. `/silentmode` ya lo hacía así, así
-        # que sin esto los dos caminos divergían: el panel dejaba la guild en "general
-        # apagado pero no avises de lo limpio", que el usuario no ve que es contradictorio.
-        await actualizar_config(interaction.guild.id, avisar_limpios=not validado)
     log.debug(f"PANEL {nombre}={validado!r} → guild={interaction.guild.id}")
 
     panel = await PanelConfig.crear(_seccion_de(nombre), interaction.guild)

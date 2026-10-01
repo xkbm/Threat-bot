@@ -45,22 +45,18 @@ class ConfiguracionCog(commands.Cog):
     async def silentmode(self, interaction: discord.Interaction, estado: bool) -> None:
         """Atajo de un paso del panel, en la sección Aviso.
 
-        Ajusta también `avisar_limpios`, igual que el panel. Si no, una guild que
-        dejaron el panel en "modo apagado pero avisar limpios" podía quedarse así: el
-        admin ejecutaba `/silentmode True` veía "modo silencioso activado" y recibía el
-        embed de cada mensaje limpio, porque `debe_enviar_embed` con el master apagado
-        devuelve True siempre y el valor contradictorio ya no importaba pero tampoco se
-        corregía.
+        Solo toca `silent_mode`. Antes también ajustaba `avisar_limpios` en cascada, y en
+        el panel igual: encender un interruptor apagaba el otro, que parece un fallo y no
+        lo es. No hace falta acoplarlos porque `debe_enviar_embed` con el master apagado
+        devuelve True siempre: `avisar_limpios` solo cuenta con el master encendido, así
+        que los dos son independientes de verdad.
         """
         if not interaction.guild:
             await interaction.response.send_message(
                 f"{self.bot.EMOJI_INCORRECTO} Este comando solo funciona en servidores.",
                 ephemeral=True)
             return
-        await actualizar_config(
-            interaction.guild.id, inmediato=True,
-            silent_mode=estado, avisar_limpios=not estado,
-        )
+        await actualizar_config(interaction.guild.id, inmediato=True, silent_mode=estado)
         log.debug(f"SILENTMODE → guild={interaction.guild.id} estado={estado} admin={interaction.user.id}")
         extras = " · ".join((
             f"avisar limpios: {'sí' if not estado else 'no'}",
