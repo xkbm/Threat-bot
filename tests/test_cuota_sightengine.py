@@ -374,7 +374,7 @@ class TestElCableadoDeLaCuota:
         from api import sightengine as se
 
         cuerpo = {"error": {"type": "unsupported_model", "message": "model not available"}}
-        (resultado, bot), _ = (await self._analizar_con_respuesta(monkeypatch, se, 400, cuerpo),)
+        _resultado, bot = await self._analizar_con_respuesta(monkeypatch, se, 400, cuerpo)
 
         # Un 400 de modelo no disponible reintenta hasta agotar la lista; cada intento es
         # una petición rechazada, así que el contador tiene que volver a cero.

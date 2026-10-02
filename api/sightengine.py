@@ -525,9 +525,9 @@ async def analizar_imagen_multimodelo(
                 # cual sea el contador no mienta. Antes solo se devolvía en el camino de
                 # reintento, y hacía que una imagen costara hasta 15 operaciones en el
                 # contador local cuando la real costaba una.
-                pass
+                await liberar_se_key(pair, reservadas)
 
-                if False and _es_cuota_agotada(cuerpo, resp.status):
+                if _es_cuota_agotada(cuerpo, resp.status):
                     # Plan agotado. Se dice lo que es, porque el embed de ERROR_HTTP dice
                     # "fallo de red" y eso hace que un agotamiento de cuota se diagnostique
                     # como problema de internet durante el resto del mes. Y se cachea como
