@@ -1,6 +1,9 @@
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "strict"
+# Sin esto pytest-asyncio 0.24 avisa en cada ejecución y las versiones futuras
+# cambiarán el scope del event loop de las fixtures async a "function" por su cuenta.
+asyncio_default_fixture_loop_scope = "function"
 filterwarnings = ["ignore::DeprecationWarning"]
 
 [tool.ruff]
