@@ -195,7 +195,10 @@ async def enviar_log_guild(guild_id: int, tipo: str, valor: str, detalles: str, 
     if channel is None:
         return None
     if es_nsfw:
-        embed = emb.nsfw(tipo, valor, detalles)
+        # El usuario va también aquí. Antes este embed no lo llevaba y los botones de
+        # Ban/Kick sí apuntaban a él: un moderador podía banear a alguien que el log no
+        # nombraba.
+        embed = emb.nsfw(tipo, valor, detalles, usuario)
     else:
         embed = emb.amenaza(tipo, valor, detalles, usuario, vt_link=url_vt)
     view = LogActionView(guild_id, usuario.id, elemento_id=elemento_id)

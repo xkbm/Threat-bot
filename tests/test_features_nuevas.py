@@ -341,7 +341,10 @@ class TestHistoryEnviaUnEmbedYNoSuTexto:
 
         class _Interaccion:
             def __init__(self):
-                self.guild = types.SimpleNamespace(id=7)
+                # `get_member` lo usa /history para poner el nombre del autor en cada
+                # línea. El guild real lo tiene siempre; el mock no, y sin él el test
+                # reventaba por algo que en producción no puede pasar.
+                self.guild = types.SimpleNamespace(id=7, get_member=lambda _id: None)
                 self.channel = _Canal()
                 self.response = _Resp()
                 self.followup_enviados = enviados

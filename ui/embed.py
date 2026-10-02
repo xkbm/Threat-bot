@@ -288,11 +288,25 @@ def aviso(texto: str, descripcion: str = "", campos: Optional[list[tuple[str, st
     return pie(embed, texto, avatar_url) if con_pie else embed
 
 
-def nsfw(tipo: str, valor: str, detalles: str) -> discord.Embed:
+def nsfw(tipo: str, valor: str, detalles: str, usuario: discord.abc.User) -> discord.Embed:
+    """Log de contenido NSFW o restringido.
+
+    El usuario es obligatorio a propósito: es el canal donde se decide si se banea o
+    expulsa a alguien, y antes este embed salía sin él. Los botones de Ban/Kick ya
+    apuntaban al autor correcto, así que el moderador tenía botones para banear a alguien
+    que el propio log no nombraba. Sin eso no se puede ni leer ni copiar el ID.
+
+    Va en la misma forma que `amenaza` a propósito: un moderador que lee los dos no tiene
+    que aprender dos formatos.
+    """
     embed = _nuevo(TITULOS["nsfw"], COLOR_NSFW, f"**{tipo}** con contenido NSFW")
-    embed.add_field(name=f"{EMOJI_NSFW} Elemento", value=f"`{valor}`", inline=False)
+    embed.add_field(name=f"{EMOJI_NSFW} Elemento", value=f"```{valor}```", inline=False)
+    embed.add_field(name=f"{EMOJI_GUARDIAN} Usuario", value=usuario.mention, inline=True)
     if detalles:
-        embed.add_field(name=f"{EMOJI_GUARDIAN} Detectado por", value=detalles, inline=False)
+        embed.add_field(name=f"{EMOJI_SHIELD} Detectado por", value=detalles, inline=True)
+    # El ID explícito se perdería al mover el pie al formato de marca, y quien modera lo
+    # necesita para herramientas de moderación y para comprobar si es la misma persona.
+    embed.add_field(name="ID", value=f"`{usuario.id}`", inline=True)
     return pie(embed, f"NSFW · {tipo}")
 
 

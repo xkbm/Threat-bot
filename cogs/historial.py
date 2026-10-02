@@ -102,10 +102,18 @@ class HistorialCog(commands.Cog):
             veredicto = Veredicto.desde(ev["veredicto"])
             enlace = (f"https://discord.com/channels/{interaction.guild.id}"
                       f"/{ev['channel_id']}/{ev['message_id']}")
-            linea = (f"{veredicto.emoji} [{_tiempo_relativo(ev['created_at'])}]({enlace})"
-                     f" \u00b7 {ev['total']} elemento(s)")
+            # Quién publicó el mensaje. La tabla lo guardaba y hasta hay filtro por autor,
+            # pero la línea no lo decía: un historial de amenazas sin nombres obliga a ir
+            # al enlace uno por uno para averiguar a quién banear. Si el usuario ya no está
+            # en el servidor se cae al `<@id>`, que Discord renderiza con el ID y sigue
+            # sirviendo para buscarlo.
+            member = interaction.guild.get_member(ev["author_id"]) if interaction.guild else None
+            autor = member.mention if member is not None else f"<@{ev['author_id']}>"
+            linea = (f"{veredicto.emoji} [{autor}]({enlace})"
+                     f" · {_tiempo_relativo(ev['created_at'])}"
+                     f" · {ev['total']} elemento(s)")
             if ev["detalle"]:
-                linea += f" \u00b7 {ev['detalle']}"
+                linea += f" · {ev['detalle']}"
             lineas.append(linea)
 
         await self._embed(

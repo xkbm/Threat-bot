@@ -1225,16 +1225,6 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
     if debe_enviar_embed(senales, config):
         await safe_send(message, embed, reference=message)
 
-    # Una sola reacción por mensaje. El controlador es quien garantiza el invariante:
-    # antes los emojis se añadían en cinco sitios y solo se quitaba el loading, así que
-    # un mensaje con whitelist + doble extensión + NSFW salía con tres a la vez.
-    if reacciones_activas(config):
-        await _controlador_para(bot, message).set(resolver_reaccion(senales))
-    else:
-        await safe_remove_loading(bot, message)
-    # El analisis termino: el controlador ya no hace falta y el cache debe quedar limpio.
-    _liberar_controlador(bot, message)
-
     # Registro para /history. Nunca lanza: es un extra informativo, y perder un
     # registro no puede tumbar un análisis que ya se ha hecho y publicado.
     if total_elementos:
@@ -1247,12 +1237,49 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
         except Exception as e:
             log.debug(f"No se registró el evento de /history: {type(e).__name__}")
 
-    # Strict mode
+    # Modo estricto, ANTES de la reacción.
+    #
+    # Poner un emoji en un mensaje que se va a borrar es una llamada a la API
+    # garantizadamente inútil: el `delete` de después se lleva el mensaje y el emoji con
+    # él. En un canal con mucho contenido peligroso son dos peticiones por mensaje donde
+    # una bastaba, y ese es justo el tráfico que hace que Discord devuelva 429.
+    #
+    # Se borra primero y solo se reacciona si el borrado NO funcionó: si al bot le falta
+    # permiso de borrar, el mensaje sigue ahí y la reacción es la única señal de que se
+    # miró. Reaccionar a un mensaje ya borrado sería tirar la llamada.
+    borrado = False
     if debe_borrar(has_threat, has_doble_ext, has_mime_mismatch, strict_mode):
         try:
             await message.delete()
-        except (discord.errors.Forbidden, discord.errors.NotFound):
-            pass
+            borrado = True
+            log.debug(f"Mensaje {message.id} borrado por modo estricto")
+        except (discord.errors.Forbidden, discord.errors.NotFound) as e:
+            # Sin permiso o ya no estaba. El mensaje sigue visible, así que la reacción
+            # sigue haciendo falta y se pone más abajo.
+            #
+            # Se loguea porque el modo estricto acaba de no hacer su trabajo, y antes
+            # pasaba en silencio: sin registro, un mensaje que sobrevivió por falta de
+            # permiso era indistinguible de un mensaje que nunca fue una amenaza. Falta
+            # `Manage Messages` en el canal, que es la causa real aquí.
+            borrado = False
+            log.warning(
+                f"No se pudo borrar el mensaje {message.id} en modo estricto "
+                f"({type(e).__name__}): {e}"
+            )
+
+    # Una sola reacción por mensaje. El controlador es quien garantiza el invariante:
+    # antes los emojis se añadían en cinco sitios y solo se quitaba el loading, así que
+    # un mensaje con whitelist + doble extensión + NSFW salía con tres a la vez.
+    if borrado:
+        # Ni reacción ni quitar el loading: el mensaje ya no existe, y quitar una
+        # reacción de un mensaje borrado sería otra llamada a la API en balde.
+        pass
+    elif reacciones_activas(config):
+        await _controlador_para(bot, message).set(resolver_reaccion(senales))
+    else:
+        await safe_remove_loading(bot, message)
+    # El analisis termino: el controlador ya no hace falta y el cache debe quedar limpio.
+    _liberar_controlador(bot, message)
 
     # Logs por cada amenaza detectada. `elemento_id` tiene que ser el MISMO que se usó al
     # registrar la infracción (la URL expandida), o el botón "Ignorar" del log no

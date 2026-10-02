@@ -284,10 +284,61 @@ class TestFlujoCompleto:
         await asyncio.sleep(0.05)
 
         assert len(msg.analizadas) == 2, msg.analizadas
-        assert any("Warning" in r for r in msg.reacciones), msg.reacciones
+        # Modo estricto: el mensaje se borra, así que NO lleva reacción. Reaccionar a un
+        # mensaje que el `delete` de después se lleva era una llamada a la API inútil, y
+        # en un canal con mucho contenido peligroso esas llamadas se suman justo cuando
+        # Discord está más cerca de devolver 429. Antes este test exigía el ⚠️ aquí, o
+        # sea fijaba el desperdicio.
+        assert msg.borrado, "el modo estricto tenía que borrar el mensaje"
+        assert not any("Warning" in r for r in msg.reacciones), msg.reacciones
+        # El embed sí se manda, y es lo que avisa al canal de que hubo una amenaza.
         assert len(msg.enviados) == 1
         assert "Amenazas" in msg.enviados[0].title
         assert len(msg.enviados[0].fields) > 0
+
+    @pytest.mark.asyncio
+    async def test_si_no_se_puede_borrar_la_reaccion_sigue_puesta(self, bot_analisis):
+        """El caso revés, que es el que evita que el arreglo se lleve por delante la
+        señal.
+
+        Si al bot le falta permiso de borrar, el mensaje sigue ahí y visible: la reacción
+        pasa a ser lo único que dice "esto se ha mirado y es malo". Quitar la reacción
+        siempre, sin mirar si el borrado funcionó, dejaría los mensajes Dangerous a la
+        vista sin ninguna marca. Por eso la reacción se decide con el resultado real del
+        `delete` y no con la intención de borrar.
+        """
+        from core.utils import clave_analisis
+        import ui.message_handler as mh
+
+        msg = _Mensaje("https://ejemplo-noborrable.test/malo")
+
+        async def _analizar_falso(url, *a, **k):
+            from core import cache as cache_mod
+            await cache_mod.set_cache_mem(
+                clave_analisis("url", url), "malicioso", mal=3,
+                datos={"valor": url, "vt_link": None, "top_text": None,
+                       "veredicto": "malicioso", "susp": 0})
+            return "malicioso", _embed_malicioso(), 3
+
+        async def _borrar_fallido():
+            class _Resp:
+                status = 403
+                reason = "Forbidden"
+                text = "Missing Permissions"
+            raise discord.errors.Forbidden(_Resp(), "Missing Permissions")
+
+        mh.analizar_url = _analizar_falso
+        mh.expandir_url = lambda bot, url: asyncio.sleep(0, result=url)
+        msg.delete = _borrar_fallido
+
+        await mh.procesar_analisis(bot_analisis, msg)
+        await asyncio.sleep(0.05)
+
+        assert not msg.borrado
+        assert any("Warning" in r for r in msg.reacciones), (
+            "sin borrar, la reacción es la única señal y no puede desaparecer: "
+            f"{msg.reacciones}"
+        )
 
     @pytest.mark.asyncio
     async def test_la_cache_hace_acierto_de_verdad(self, bot_analisis):

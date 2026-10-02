@@ -134,7 +134,8 @@ class TestPaletaPorSeveridad:
         assert emb.aviso("t", "d").color == discord.Color(COLOR_NEUTRAL)
 
     def test_nsfw_rojo(self):
-        e = emb.nsfw("Imagen", "http://x.png", "Desnudez 90%")
+        u = type("U", (), {"mention": "<@1>", "id": 1})()
+        e = emb.nsfw("Imagen", "http://x.png", "Desnudez 90%", u)
         assert e.color == discord.Color(COLOR_NSFW)
 
     def test_amenaza_roja(self):
@@ -339,6 +340,59 @@ class TestServerHostname:
             assert "Traceback" not in motivo, motivo
             assert "_ssl.c" not in motivo, motivo
             assert len(motivo) < 80, motivo
+
+
+class TestElLogSiempreDiceQuien:
+    """Ningún log de amenaza puede salir sin el autor.
+
+    El log del canal es donde un moderador decide a quién banea. `emb.amenaza` ya lo
+    llevaba, pero `emb.nsfw` no lo recibía: el embed salía con el elemento y el motivo
+    y nada más, mientras los botones de Ban/Kick sí apuntaban al autor correcto. Es decir,
+    un moderador podía banear a alguien que el propio log no nombraba, y sin el ID no
+    había forma de comprobar si eran la misma persona.
+    """
+
+    @staticmethod
+    def _usuario():
+        return type("U", (), {"mention": "<@42>", "id": 42})()
+
+    def test_nsfw_lleva_usuario(self):
+        e = emb.nsfw("Imagen NSFW", "foto.png", "Desnudez 90%", self._usuario())
+        assert any("Usuario" in f.name for f in e.fields), [f.name for f in e.fields]
+
+    def test_nsfw_lleva_el_id_explicito(self):
+        e = emb.nsfw("Imagen NSFW", "foto.png", "Desnudez 90%", self._usuario())
+        assert any(f.name == "ID" and "42" in f.value for f in e.fields)
+
+    def test_amenaza_sigue_llevando_usuario(self):
+        e = emb.amenaza("URL", "http://x", "3 detecciones", self._usuario())
+        assert any("Usuario" in f.name for f in e.fields)
+
+    def test_ambos_formatean_el_usuario_igual(self):
+        """Un moderador no debería aprender dos formatos para leer quién publicó qué.
+
+        Los nombres del resto de campos sí difieren, y a propósito: un threat de URL y
+        una imagen no tienen la misma información. Lo que tiene que ser igual es cómo se
+        identifica a la persona, que es lo que se lee en los dos.
+        """
+        u = self._usuario()
+        n = emb.nsfw("Imagen NSFW", "foto.png", "d", u)
+        a = emb.amenaza("URL", "http://x", "d", u)
+
+        def _autor(e):
+            return sorted(
+                (etiqueta(f.name), f.value) for f in e.fields if "Usuario" in f.name or f.name == "ID"
+            )
+
+        assert _autor(n) == _autor(a), (_autor(n), _autor(a))
+        assert _autor(n), "el embed de NSFW tiene que identificar al autor"
+
+    def test_el_elemento_va_en_code_block(self):
+        """Un nombre de archivo o una URL es texto de atacante: sin code block puede
+        inyectar markdown y romper la maquetación del log."""
+        e = emb.nsfw("Imagen NSFW", "`inyeccion`", "d", self._usuario())
+        elemento = next(f for f in e.fields if "Elemento" in f.name)
+        assert elemento.value.startswith("```") and elemento.value.endswith("```")
 
 
 class TestCampos:
