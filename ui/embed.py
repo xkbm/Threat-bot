@@ -266,11 +266,15 @@ def error_cuota(espera: Optional[int] = None) -> discord.Embed:
 
 def aviso(texto: str, descripcion: str = "", campos: Optional[list[tuple[str, str, bool]]] = None,
           color: int = COLOR_NEUTRAL, icono: str = EMOJI_SHIELD, con_pie: bool = True,
-          avatar_url: Optional[str] = None) -> discord.Embed:
+          avatar_url: Optional[str] = None, pie_texto: Optional[str] = None) -> discord.Embed:
     """Embed informativo. `campos` es una lista de (nombre, valor, inline).
 
     `con_pie=False` se usa cuando el embed se completa más abajo y el pie se añade
     al final, con un contexto que ya incluye los contadores.
+
+    `pie_texto` sustituye el pie por defecto. Lo usa el panel de ajustes, cuyo mensaje
+    es efímero y no se actualiza al reiniciar el bot: sin una marca de tiempo no hay forma
+    de distinguir un panel viejo de uno actual.
     """
     embed = discord.Embed(
         title=f"{icono} {texto}",
@@ -279,6 +283,8 @@ def aviso(texto: str, descripcion: str = "", campos: Optional[list[tuple[str, st
     )
     for nombre, valor, inline in (campos or []):
         embed.add_field(name=nombre, value=valor, inline=inline)
+    if pie_texto is not None:
+        return pie(embed, pie_texto, avatar_url)
     return pie(embed, texto, avatar_url) if con_pie else embed
 
 

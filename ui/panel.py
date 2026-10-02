@@ -322,15 +322,23 @@ class SelectorAccion(discord.ui.Select):
 class BotonBool(discord.ui.Button):
     """Interruptor. Solo sabe su clave; el valor vive en la config del guild.
 
-    El estado se marca con texto ("sí"/"no") y con el color del botón, no con un emoji
-    unicode: el set del bot es de emojis personalizados y un tick plano del sistema
-    rompería la identidad visual. Con texto además se lee sin depender del color.
+    El estado va en la propia etiqueta ("Avisos: apagados"), no en un sufijo aparte. Con
+    un sufijo tipo "· sí" sobre una etiqueta negativa salía "No avisar de nada · sí", que
+    se lee justo al revés; y con etiquetas en positivo el sufijo era redundante. Poner el
+    estado dentro de la frase hace que no dependa del color para saberse.
     """
 
-    def __init__(self, nombre: str, etiqueta: str, activo: bool):
+    def __init__(self, nombre: str, etiqueta: str, activo: bool, positivo: bool = False):
         self.nombre = nombre
+        # `positivo` marca las etiquetas que ya son una afirmación ("Avisar de todo"):
+        # en esas, el estado es el propio "sí/no" y no hace falta repetirlo. En las
+        # negativas ("Avisos") se invierte la frase para que nunca se contradiga.
+        if positivo:
+            texto = f"{etiqueta}: {'activado' if activo else 'desactivado'}"
+        else:
+            texto = f"{etiqueta}: {'sí' if activo else 'no'}"
         super().__init__(
-            label=f"{etiqueta[:70]} \u00b7 {'sí' if activo else 'no'}",
+            label=texto[:80],
             custom_id=f"{BOOLEANO}{nombre}",
             style=discord.ButtonStyle.success if activo else discord.ButtonStyle.secondary,
         )
@@ -349,6 +357,11 @@ class PanelConfig(discord.ui.View):
         super().__init__(timeout=None)
         self.seccion = seccion
         self.guild: Optional[discord.Guild] = None
+        # Momento en que se construyó este panel, para el pie del embed. Cada vez que se
+        # repinta tras un cambio se vuelve a poner a ahora, que es lo que quiere: que se
+        # vea que el panel está al día.
+        import time as _time
+        self._creado = _time.time()
 
     @classmethod
     async def crear(cls, seccion: str, guild: discord.Guild) -> "PanelConfig":
@@ -394,7 +407,8 @@ class PanelConfig(discord.ui.View):
         fila: list[discord.ui.Button] = []
         for clave in claves:
             activo = bool(config.get(clave.nombre, clave.default))
-            fila.append(BotonBool(clave.nombre, clave.etiqueta, activo))
+            fila.append(BotonBool(clave.nombre, clave.etiqueta, activo,
+                                  positivo=clave.afirmativa))
             if len(fila) == MAX_BOTONES_POR_FILA:
                 for boton in fila:
                     self.add_item(boton)
@@ -453,8 +467,18 @@ class PanelConfig(discord.ui.View):
             f"Ajustes \u00b7 {esq.TITULOS_SECCION[self.seccion]}",
             descripcion,
             campos=[(etiqueta, valor, True) for etiqueta, valor in lineas] or None,
-            con_pie=False,
+            # La hora en el pie, porque este mensaje es efímero y **no se actualiza al
+            # reiniciar el bot**: es una foto del momento en que se abrió. Sin la fecha no
+            # hay forma de distinguir un panel viejo de uno actual, y el admin ve que su
+            # ajuste "no hace nada" cuando en realidad está mirando un mensaje antiguo.
+            pie_texto=f"Ajustes \u00b7 generado a las {self._generado().strftime('%H:%M')}",
         )
+
+    def _generado(self):
+        import datetime as _dt
+        import time as _time
+
+        return _dt.datetime.fromtimestamp(self._creado or _time.time())
 
 
 async def _guardar(interaction: discord.Interaction, nombre: str, valor) -> None:

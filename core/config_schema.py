@@ -117,6 +117,9 @@ class Clave:
     maximo: Optional[float] = None
     opciones: Optional[List[str]] = None   # valores admitidos si es elección cerrada
     ayuda: str = ""
+    # La etiqueta ya es una afirmación ("Avisar de todo"): el botón pone el estado sin
+    # invertirla, porque "Avisar de todo: no" sí se lee al revés.
+    afirmativa: bool = False
 
     def valida(self, valor: Any) -> Any:
         """Normaliza un valor o lanza `ValueError` si no se puede representar.
@@ -201,9 +204,11 @@ ESQUEMA: tuple[Clave, ...] = (
           ayuda="Donde queda constancia de lo que se ha encontrado. Déjalo vacío si no "
                 "quieres registro."),
     # --- Aviso ---
-    _b("silent_mode", AVISO, "No avisar de nada", True,
-       "Silencia todo de golpe, sin tocar el resto. Para cuando el bot se está "
-       "comiendo un canal. Las reacciones siguen puestas."),
+    Clave("avisar_todo", "bool", AVISO, "Avisar de todo", True,
+          afirmativa=True,
+          ayuda="El interruptor general. Desactivado, el bot no manda ningún aviso, ni de "
+                "amenazas: es para cuando se está comiendo un canal. Para callar una sola "
+                "cosa, desmarcala abajo. Las reacciones se ponen igual."),
     _b("reacciones", AVISO, "Poner un emoji en el mensaje", True,
        "El emoji que resume cómo acabó el análisis. Es independiente de los avisos: "
        "puedes querer el emoji pero no los mensajes largos."),

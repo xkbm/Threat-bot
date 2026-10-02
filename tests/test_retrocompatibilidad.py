@@ -80,7 +80,10 @@ class TestConfiguracionAntigua:
             "avisar_errores": True, "motivos_fallo": ["sin_cuota"],
         }
         config = await _config_de(1)
-        assert config["silent_mode"] is True
+        # La clave vieja se traduce y desaparece: si se quedara, habría dos
+        # interruptores con el mismo nombre y sentidos distintos en la misma config.
+        assert config["avisar_todo"] is True
+        assert "silent_mode" not in config
         assert debe_enviar_embed(_con_veredicto(Veredicto.MALICIOSO), config) is True
 
     @pytest.mark.asyncio
@@ -107,11 +110,11 @@ class TestLoQueSigueImportando:
     async def test_el_default_no_depende_del_silent_mode_guardado(self, guild_vacia):
         """Con el interruptor general apagado el bot no avisa de nada, solo importa qué
         haya en la lista. Ese estado es el que un admin elige a propósito."""
-        guild_vacia.guilds_data[1] = {"silent_mode": False, "notificar": ["nsfw"]}
+        guild_vacia.guilds_data[1] = {"avisar_todo": False, "notificar": ["nsfw"]}
         config = await _config_de(1)
         assert debe_enviar_embed(_con_veredicto(Veredicto.NSFW), config) is False
         assert debe_enviar_embed(_con_veredicto(Veredicto.NSFW),
-                                 {**config, "silent_mode": True}) is True
+                                 {**config, "avisar_todo": True}) is True
 
     @pytest.mark.asyncio
     async def test_el_ruido_no_avisa_sin_que_haya_que_configurar_nada(self, guild_vacia):

@@ -3,7 +3,7 @@ from typing import Optional, Any
 import logging
 from core import state
 from core.config import DOMINIOS_PROTEGIDOS
-from core.aviso import config_aviso_por_defecto
+from core.aviso import config_aviso_por_defecto, migrar_aviso
 from core.config_schema import validar
 from core.database import (
     guardar_datos, guardar_config_db, registrar_infraccion_db,
@@ -29,8 +29,12 @@ async def remove_guild_lock(guild_id: int) -> None:
         _guild_locks.pop(guild_id, None)
 
 def _config_por_defecto() -> dict[str, Any]:
+    # `silent_mode` NO va aquí. Si estuviera, la migración no haría nada —vería
+    # `avisar_todo` ya presente— y la clave vieja se quedaría en la configuración junto a
+    # la nueva, con el mismo nombre y sentidos distintos. Para una guild nueva no hace
+    # falta: `config_aviso_por_defecto` ya trae `avisar_todo`. Para una que venga de un
+    # `data.json` viejo, la traduce `migrar_aviso` en `_asegurar_guild`.
     cfg: dict[str, Any] = {
-        "silent_mode": True,
         "strict_mode": True,
         "auto_scan_enabled": True,
         "log_channel_id": None,
@@ -38,11 +42,10 @@ def _config_por_defecto() -> dict[str, Any]:
         "infracciones": {},
         "infracciones_registradas": {},
     }
-    # Los interruptores de aviso no son una decisión del usuario todavía: se derivan
-    # de su `silent_mode` actual para que un servidor que actualice el bot no vea
-    # ningún cambio en lo que recibe. En cuanto los toque desde el panel se guardan
-    # explícitos y esta derivación ya no vuelve a aplicarse.
-    cfg.update(config_aviso_por_defecto(cfg["silent_mode"]))
+    # La lista de qué avisa no es una decisión del usuario todavía: se rellena con el
+    # catálogo por defecto para que un servidor que actualice el bot no vea ningún cambio
+    # en lo que recibe. En cuanto se toque desde el panel se guarda explícita.
+    cfg.update(config_aviso_por_defecto())
     return cfg
 
 
@@ -54,22 +57,43 @@ def _asegurar_guild(guild_id: int) -> dict[str, Any]:
     if guild_id not in state.bot.guilds_data:
         state.bot.guilds_data[guild_id] = _config_por_defecto()
     config = state.bot.guilds_data[guild_id]
+    # `silent_mode` → `avisar_todo`, una sola vez y antes de nada. Si se hiciese después
+    # de rellenar los defaults, un servidor con la clave antigua se quedaría con
+    # `avisar_todo` en su default y su interruptor se movería solo.
+    migrar_aviso(config)
 
-    # El orden importa y es la razón de que esta función exista. Los interruptores de
-    # aviso se derivan del `silent_mode` **de este** guild, y tienen que fijarse ANTES
-    # del `setdefault` genérico: si se pusieran después, el genérico ya habría metido
-    # `avisar_limpios` derivado del `silent_mode` por defecto (True), y una guild que
-    # tuviera `silent_mode: False` en su data.json se quedaría con `avisar_limpios:
-    # False` y dejaría de recibir los embeds de mensajes limpios al actualizar el bot.
-    for clave, valor in config_aviso_por_defecto(config.get("silent_mode", True)).items():
-        if clave == "silent_mode":
-            continue
+    # La lista de qué avisa se rellena ANTES del `setdefault` genérico, con el catálogo
+    # por defecto y no con lo que haya en la configuración. Un `data.json` anterior no
+    # tiene la clave y es justo lo que se quiere completar aquí.
+    for clave, valor in config_aviso_por_defecto().items():
         config.setdefault(clave, valor)
+
+    # Y después, los defaults del ESQUEMA.
+    #
+    # Se recorre el esquema y no una lista escrita a mano, porque las dos se separaron
+    # ya: `avisar_amenazas` estaba en el esquema y no en la config, así que solo
+    # funcionaba por el `get(..., True)` de cada sitio que la leía. Con dos listas
+    # siempre acaba faltando una.
+    from core.config_schema import ESQUEMA
+
+    for clave in ESQUEMA:
+        if clave.nombre not in config:
+            config[clave.nombre] = _default_de(clave)
 
     for key, default_val in _config_por_defecto().items():
         config.setdefault(key, default_val)
 
     return config
+
+
+def _default_de(clave) -> Any:
+    """El default declarado en el esquema para una `Clave`.
+
+    Para listas se devuelve una copia: devolver la del esquema dejaría que un `append` en
+    la configuración de un guild contaminara el default de todos los demás.
+    """
+    valor = clave.default
+    return list(valor) if isinstance(valor, list) else valor
 
 
 def _con_umbrales(config: dict[str, Any]) -> dict[str, Any]:

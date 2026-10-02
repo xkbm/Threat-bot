@@ -146,17 +146,24 @@ class TestConfigPorDefecto:
     async def test_tiene_todas_las_claves(self, fake_bot):
         config = await obtener_config_guild(1)
         for clave in (
-            "silent_mode", "strict_mode", "auto_scan_enabled", "log_channel_id",
+            # `silent_mode` ya no está: se tradujo a `avisar_todo` al leer, y que las dos
+            # coexistieran en la configuración era justo el problema que se arregla.
+            "avisar_todo", "notificar", "reacciones",
+            "strict_mode", "auto_scan_enabled", "log_channel_id", "avisar_amenazas",
             "whitelist", "infracciones", "infracciones_registradas",
         ):
             assert clave in config, f"falta {clave} en la config por defecto"
+        assert "silent_mode" not in config, "la clave vieja debe desaparecer al migrar"
 
     @pytest.mark.asyncio
     async def test_repone_claves_que_faltan(self, fake_bot):
         """Un data.json antiguo sin auto_scan_enabled no debe romper el handler."""
-        fake_bot.guilds_data[1] = {"silent_mode": False}
+        fake_bot.guilds_data[1] = {"silent_mode": False}   # clave legada
         config = await obtener_config_guild(1)
-        assert config["silent_mode"] is False
+        # La traducción conserva el comportamiento: `silent_mode: False` ya callaba, y
+        # `avisar_todo: False` también.
+        assert config["avisar_todo"] is False
+        assert "silent_mode" not in config
         assert config["auto_scan_enabled"] is True
 
 

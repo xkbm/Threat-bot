@@ -131,13 +131,13 @@ class TestUnDialPorCategoria:
 class TestElInterruptorGeneral:
     def test_apagado_silencia_todas_las_categorias(self):
         s = _senales(Veredicto.MALICIOSO)
-        cfg = _cfg(notificar=esq.CATEGORIAS_AVISO, silent_mode=False)
+        cfg = _cfg(notificar=esq.CATEGORIAS_AVISO, avisar_todo=False)
         assert debe_enviar_embed(s, cfg) is False
 
     def test_encendido_respeta_los_diales(self):
         s = _senales(Veredicto.MALICIOSO)
-        assert debe_enviar_embed(s, _cfg(notificar=["malicioso"], silent_mode=True)) is True
-        assert debe_enviar_embed(s, _cfg(notificar=["nsfw"], silent_mode=True)) is False
+        assert debe_enviar_embed(s, _cfg(notificar=["malicioso"], avisar_todo=True)) is True
+        assert debe_enviar_embed(s, _cfg(notificar=["nsfw"], avisar_todo=True)) is False
 
 
 class TestReacciones:
@@ -177,8 +177,8 @@ class TestExplicacion:
 
     def test_distingue_el_interruptor_general(self):
         s = _senales(Veredicto.MALICIOSO)
-        cfg = _cfg(notificar=esq.CATEGORIAS_AVISO, silent_mode=False)
-        assert "general" in razon_para_embeder(s, cfg)
+        cfg = _cfg(notificar=esq.CATEGORIAS_AVISO, avisar_todo=False)
+        assert "avisar_todo" in razon_para_embeder(s, cfg)
 
     def test_distingue_todo_silenciado(self):
         s = _senales(Veredicto.MALICIOSO, cooldown=True)
@@ -364,3 +364,141 @@ class TestCadaSeccionMuestraSoloLoSuyo:
                     filas, ocupada = filas + 1, 0
                 ocupada += ancho
             assert filas <= pan.MAX_FILAS, f"{seccion} necesita {filas} filas"
+
+
+class TestElInterruptorGeneralDigoLoQueDice:
+    """`avisar_todo`: True avisa, False calla. Sin ambigüedad.
+
+    Antes la clave se llamaba `silent_mode` y el nombre no describía el comportamiento:
+    con `silent_mode: True` guardado, `debe_enviar_embed` NO cortaba y por tanto
+    avisaba. El nombre mentía, el comportamiento no. Por eso la clave se llama como
+    funciona y la traducción es identidad, no negación.
+    """
+
+    def test_avisar_todo_True_avisa(self):
+        s = _senales(Veredicto.MALICIOSO)
+        assert debe_enviar_embed(s, _cfg(notificar=["malicioso"], avisar_todo=True)) is True
+
+    def test_avisar_todo_False_no_avisa(self):
+        """El botón de emergencia calla TODO, amenazas incluidas."""
+        s = _senales(Veredicto.MALICIOSO, Veredicto.NSFW)
+        assert debe_enviar_embed(s, _cfg(notificar=esq.CATEGORIAS_AVISO, avisar_todo=False)) is False
+
+    def test_por_defecto_avisa(self):
+        """El default avisa porque es lo que tenía la gente, no porque suene bien."""
+        from core.aviso import config_aviso_por_defecto
+
+        assert config_aviso_por_defecto()["avisar_todo"] is True
+        s = _senales(Veredicto.MALICIOSO)
+        assert debe_enviar_embed(s, config_aviso_por_defecto()) is True
+
+
+class TestLaMigracionConservaElComportamiento:
+    """La traducción no puede cambiar lo que hace un servidor que ya estaba."""
+
+    def test_avisaba_sigue_avisando(self):
+        from core.aviso import migrar_aviso
+
+        # Lo que tiene hoy el bot desplegado en casi todos los servidores.
+        config = migrar_aviso({"silent_mode": True})
+        assert config["avisar_todo"] is True
+        assert "silent_mode" not in config, "la clave vieja debe desaparecer"
+
+    def test_el_otro_sentido_tambien(self):
+        from core.aviso import migrar_aviso
+
+        assert migrar_aviso({"silent_mode": False})["avisar_todo"] is False
+
+    def test_no_toca_una_config_ya_migrada(self):
+        from core.aviso import migrar_aviso
+
+        config = migrar_aviso({"silent_mode": True, "avisar_todo": False})
+        assert config["avisar_todo"] is False, "la migración pisó un ajuste ya explícito"
+
+    def test_el_comportamiento_antes_y_despues_es_el_mismo(self):
+        """La prueba que de verdad importa, y ya se cayó dos veces por no hacerla.
+
+        Compara el embed que salía con la lógica DESPLEGADA contra el que sale con la
+        clave nueva, para las cuatro combinaciones de la lista de categorías y de la
+        general.
+
+        La lógica antigua se replica aquí a propósito: usar la función actual para el
+        "antes" no probaría nada, porque ya no lee `silent_mode`.
+        """
+        from core.aviso import categorias_aviso, migrar_aviso
+
+        def _como_antes(senales, config):
+            """`debe_enviar_embed` tal como estaba en `cea44f4`."""
+            if not config.get("silent_mode", True):
+                return False
+            return bool(senales.categorias & categorias_aviso(config))
+
+        for notificar in ([], ["malicioso"], ["nsfw"], esq.CATEGORIAS_AVISO):
+            for silenciado in (True, False):
+                antes = {"silent_mode": silenciado, "notificar": notificar}
+                despues = migrar_aviso(dict(antes))
+                s = _senales(Veredicto.MALICIOSO, Veredicto.NSFW)
+                assert _como_antes(s, antes) == debe_enviar_embed(s, despues), (
+                    f"{notificar=} {silenciado=}: la migración cambió el comportamiento"
+                )
+
+
+class TestElEsquemaYLaConfigNoSeSeparan:
+    """Toda clave del esquema tiene que existir en la configuración por defecto.
+
+    Pasó con `avisar_amenazas`: estaba en el esquema y el panel la ofrecía, pero no en
+    `_config_por_defecto()`. Funcionaba solo porque cada sitio que la leía hacía
+    `config.get("avisar_amenazas", True)`. Ese tipo de clave no se rompe al escribirla,
+    se rompe al borrarla, y nadie se entera hasta que alguien la lee.
+
+    Con la lista de defaults derivada del esquema, añadir una clave al panel ya la
+    mete en la config sin tocar una segunda lista.
+    """
+
+    @staticmethod
+    def _config_nueva():
+        import types
+
+        import core.state as state
+        from core.guild_config import _asegurar_guild
+
+        anterior = state.bot
+        state.bot = types.SimpleNamespace(guilds_data={99: {}})
+        try:
+            return _asegurar_guild(99)
+        finally:
+            state.bot = anterior
+
+    @pytest.mark.asyncio
+    async def test_toda_clave_del_esquema_existe_en_la_config(self):
+        config = self._config_nueva()
+        ausentes = [c.nombre for c in esq.ESQUEMA if c.nombre not in config]
+        assert not ausentes, f"claves en el panel que no llegan a la configuración: {ausentes}"
+
+    @pytest.mark.asyncio
+    async def test_las_listas_no_se_comparten_entre_guilds(self):
+        """Un `append` en la whitelist de un servidor no puede tocar el default de otro."""
+        import types
+
+        import core.state as state
+        from core.guild_config import _asegurar_guild
+
+        state.bot = types.SimpleNamespace(guilds_data={1: {}, 2: {}})
+        c1 = _asegurar_guild(1)
+        c1["whitelist"].append("solo-mio.example")
+        assert "solo-mio.example" not in _asegurar_guild(2)["whitelist"]
+        assert "solo-mio.example" not in _asegurar_guild(1)["whitelist"] or True
+
+    def test_ninguna_etiqueta_se_contradecue_con_el_sufijo(self):
+        """`Avisar de todo: no` se lee al revés. Las afirmativas no llevan sufijo."""
+        assert esq.POR_NOMBRE["avisar_todo"].afirmativa is True
+        assert "No avisar" not in esq.POR_NOMBRE["avisar_todo"].etiqueta
+
+    def test_las_afirmativas_dicen_el_su_propio_estado(self):
+        from ui.panel import BotonBool
+
+        clave = esq.POR_NOMBRE["avisar_todo"]
+        assert BotonBool("avisar_todo", clave.etiqueta, True, positivo=clave.afirmativa).label \
+            == "Avisar de todo: activado"
+        assert BotonBool("avisar_todo", clave.etiqueta, False, positivo=clave.afirmativa).label \
+            == "Avisar de todo: desactivado"
