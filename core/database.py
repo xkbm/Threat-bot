@@ -428,6 +428,7 @@ async def _flush_datos(incluir_guilds: bool = False) -> None:
             "sightengine": {
                 "total_requests": state.bot.se_key_total_requests,
                 "daily_usage": state.bot.se_key_daily_usage,
+                "monthly_usage": state.bot.se_key_monthly_usage,
             }
         }
         data_to_save["__antispam__"] = {
@@ -560,6 +561,9 @@ async def cargar_datos() -> None:
         se_data = api_usage.get("sightengine", {})
         state.bot.se_key_total_requests = se_data.get("total_requests", {})
         state.bot.se_key_daily_usage = se_data.get("daily_usage", {})
+        # El mensual es el que manda en el plan gratuito. Antes no se guardaba porque no se
+        # comprobaba: un reinicio del bot lo ponía a cero y el mes se reiniciaba solo.
+        state.bot.se_key_monthly_usage = se_data.get("monthly_usage", {})
         if not hasattr(state.bot, 'se_key_usage') or not state.bot.se_key_usage:
             state.bot.se_key_usage = {}
         state.bot.user_scan_history = _restaurar_claves_antispam(antispam_data.get("user_scan_history", {}))

@@ -385,7 +385,7 @@ class TestCadaSeccionMuestraSoloLoSuyo:
         emojis = {n: getattr(cfg, n) for n in dir(cfg) if n.startswith("EMOJI_")}
         state.bot = types.SimpleNamespace(
             **emojis, guilds_data={}, vt_key_total_requests={}, vt_key_daily_usage={},
-            se_key_total_requests={}, se_key_daily_usage={}, user_scan_history={},
+            se_key_total_requests={}, se_key_daily_usage={}, se_key_monthly_usage={}, user_scan_history={},
             antispam_scan={}, vt_key_usage={}, se_key_usage={}, vt_user_requests={},
         )
 

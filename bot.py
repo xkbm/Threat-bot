@@ -73,6 +73,7 @@ bot.se_key_index = 0
 bot.se_key_usage = {}
 bot.se_key_total_requests = {}
 bot.se_key_daily_usage = {}
+bot.se_key_monthly_usage = {}
 bot.se_key_count = 0
 
 # ========== EXPORTACIONES A COGS ==========

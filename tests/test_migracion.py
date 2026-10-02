@@ -303,6 +303,7 @@ class TestVolcadoCompleto:
             vt_key_daily_usage={"k1": {"count": 7, "date": "2026-10-01"}},
             se_key_total_requests={"u1": 5},
             se_key_daily_usage={"u1": {"count": 5, "date": "2026-10-01"}},
+            se_key_monthly_usage={"u1": {"count": 120, "month": "2026-10"}},
             user_scan_history={}, antispam_scan={},
         )
         db.state.bot = bot
@@ -361,7 +362,7 @@ class TestCargaDeDatos:
         anterior_bot = db.state.bot
         bot = types.SimpleNamespace(
             guilds_data={}, vt_key_total_requests={}, vt_key_daily_usage={},
-            se_key_total_requests={}, se_key_daily_usage={},
+            se_key_total_requests={}, se_key_daily_usage={}, se_key_monthly_usage={},
             user_scan_history={}, antispam_scan={}, vt_key_usage={}, se_key_usage={},
         )
         db.state.bot = bot
@@ -393,7 +394,7 @@ class TestSQLiteEsLaFuenteDeVerdad:
             anterior = state.bot
             state.bot = types.SimpleNamespace(
                 guilds_data={}, vt_key_total_requests={}, vt_key_daily_usage={},
-                se_key_total_requests={}, se_key_daily_usage={},
+                se_key_total_requests={}, se_key_daily_usage={}, se_key_monthly_usage={},
                 user_scan_history={}, antispam_scan={}, vt_key_usage={}, se_key_usage={},
             )
             try:
@@ -419,7 +420,7 @@ class TestSQLiteEsLaFuenteDeVerdad:
             anterior = state.bot
             state.bot = types.SimpleNamespace(
                 guilds_data={}, vt_key_total_requests={}, vt_key_daily_usage={},
-                se_key_total_requests={}, se_key_daily_usage={},
+                se_key_total_requests={}, se_key_daily_usage={}, se_key_monthly_usage={},
                 user_scan_history={}, antispam_scan={}, vt_key_usage={}, se_key_usage={},
             )
             try:

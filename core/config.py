@@ -71,6 +71,12 @@ EXPIRACION: dict[str, int] = {
     # SightEngine ya nos cobró las 5 operaciones. Sin caché, cada reaparición de esa
     # imagen volvía a pagar las 5. Con el plan de 2.000/mes son 400 imágenes quemadas.
     "se_sin_modelos": 24 * 3600,
+    # Cuota del plan agotada. No es transitorio: no se arregla esperando, se arregla en
+    # el mes que viene. Con la caducidad corta de `se_transitorio`, cada imagen que
+    # apareciera durante el resto del mes volvía a llamar a la API y a chocar contra el
+    # mismo muro. 6 horas es suficiente para no repetir el intento en cada reaparición
+    # dentro de una misma jornada.
+    "se_sin_cuota": 6 * 3600,
     # Fallos de red o excepción: no suelen costar operaciones, pero sin una hora de
     # memoria cada reaparición durante una caída provoca una avalancha contra la API.
     "se_transitorio": 15 * 60,

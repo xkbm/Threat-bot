@@ -87,7 +87,7 @@ def _bot(session=None):
         session=session or FakeSession(), _download_sem=_Sem(),
         _reaction_controllers={}, user=None, db_pool=None,
         guilds_data={}, vt_key_total_requests={}, vt_key_daily_usage={},
-        se_key_total_requests={}, se_key_daily_usage={},
+        se_key_total_requests={}, se_key_daily_usage={}, se_key_monthly_usage={},
         user_scan_history={}, antispam_scan={}, vt_key_usage={}, se_key_usage={},
         vt_user_requests={}, vt_request_times={}, keys={},
     )

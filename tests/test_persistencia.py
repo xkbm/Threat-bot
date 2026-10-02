@@ -78,6 +78,7 @@ def bot_de_prueba(tmp_path):
         vt_key_daily_usage={"k1": {"count": 7, "date": "2026-01-01"}},
         se_key_total_requests={"u1": 5},
         se_key_daily_usage={"u1": {"count": 5, "date": "2026-01-01"}},
+        se_key_monthly_usage={"u1": {"count": 120, "month": "2026-01"}},
         user_scan_history={(1, 42): [1.0, 2.0]},
         antispam_scan={1: 3},
     )

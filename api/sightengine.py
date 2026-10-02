@@ -37,7 +37,7 @@ from core.config import (
 )
 from core.database import guardar_analisis_db, obtener_analisis_db, guardar_datos
 from core.veredictos import Veredicto
-from api.virustotal import esperar_turno_se, obtener_siguiente_se_key, reservar_se_key
+from api.virustotal import esperar_turno_se, obtener_siguiente_se_key, reservar_se_key, liberar_se_key
 
 SE_TIMEOUT: aiohttp.ClientTimeout = aiohttp.ClientTimeout(total=30)
 
@@ -93,6 +93,48 @@ MODELOS_CON_FALLBACK = (
 )
 
 
+def _texto_de_error(cuerpo) -> str:
+    """Aplana el objeto `error` de SightEngine a texto buscable.
+
+    El error viene como dict con `type` y `message`, o como string plano, según el
+    endpoint. Normalizarlo aquí evita repetir el mismo `if isinstance` en cada sitio que
+    tiene que mirar dentro del error.
+    """
+    if not isinstance(cuerpo, dict):
+        return str(cuerpo or "").lower()
+    err = cuerpo.get("error")
+    if isinstance(err, dict):
+        return f"{err.get('type', '')} {err.get('message', '')}".lower()
+    if isinstance(err, str):
+        return err.lower()
+    return ""
+
+
+def _es_cuota_agotada(cuerpo, status: int) -> bool:
+    """¿La API está diciendo que se acabó el plan, y no que falló la red?
+
+    Antes cualquier respuesta que no fuera 400 se traducía a `ERROR_HTTP`, y el embed de
+    ese error dice *"Fallo de red o respuesta ilegible de SightEngine"*. Cuando se agota
+    el plan gratuito el bot loeleya como un fallo de red, durante 26 días al mes, y
+    además se cacheaba como transitorio: cada imagen volvía a llamar a la API, volvía a
+    fallar, y volvía a intentarlo. Un diagnóstico falso que además Picasso bombardea la
+    API.
+
+    Se decide por lo que **dice** la respuesta y no por el status, porque el status con
+    el que SightEngine rechaza un plan agotado no está documentado y adivinarlo sería
+    peor que no comprobarlo: se lista lo que el plan suele decir y, si además llega un
+    402/403, se acepta sin mirar el texto.
+    """
+    if status in (402, 403):
+        return True
+    texto = _texto_de_error(cuerpo)
+    return any(
+        palabra in texto
+        for palabra in ("quota", "credit", "plan", "billing", "payment required",
+                        "exceeded", "upgrade", "insufficient")
+    )
+
+
 def _clasificar_400(cuerpo: Optional[dict]) -> tuple[str, str]:
     """Un 400 de SightEngine puede ser tamaño, modelo no disponible o parámetro inválido.
 
@@ -100,13 +142,7 @@ def _clasificar_400(cuerpo: Optional[dict]) -> tuple[str, str]:
     reportaba como "la imagen es demasiado grande": un diagnóstico falso que además
     ocultaba la causa real y hacía imposible arreglarlo.
     """
-    texto = ""
-    if isinstance(cuerpo, dict):
-        err = cuerpo.get("error")
-        if isinstance(err, dict):
-            texto = f"{err.get('type', '')} {err.get('message', '')}".lower()
-        elif isinstance(err, str):
-            texto = err.lower()
+    texto = _texto_de_error(cuerpo)
     if not texto:
         return ERROR_DEMASIADO_GRANDE, "SightEngine rechazó la imagen (HTTP 400)"
 
@@ -121,11 +157,17 @@ def _clasificar_400(cuerpo: Optional[dict]) -> tuple[str, str]:
 # cachear a propósito: son gratis (no llegaron a la API) o duran segundos.
 _TIPO_CACHEADO = {
     ERROR_SIN_MODELOS: "se_sin_modelos",
+    # La cuota agotada SÍ se cachea, y como cuota. Antes caía en `ERROR_HTTP` y se
+    # cacheaba como transitorio: un plan agotado no se arregla esperando segundos, así que
+    # cada imagen volvía a llamar a la API y a chocar contra el mismo muro, todo el día.
+    ERROR_SIN_CUOTA: "se_sin_cuota",
     ERROR_HTTP: "se_transitorio",
     ERROR_EXCEPCION: "se_transitorio",
 }
 
 # Tipos de los fallos transitorios, para el log y los tests.
+# `ERROR_SIN_CUOTA` sigue aquí por compatibilidad con lo que ya inspecta `cogs/stats.py`,
+# aunque ya no se trata como transitorio: se cachea aparte, con caducidad larga.
 TRANSITORIOS = (ERROR_HTTP, ERROR_EXCEPCION, ERROR_SIN_CUOTA)
 # Fallos que ya costaron operaciones y por eso hay que recordar.
 COSTOSOS = (ERROR_SIN_MODELOS,)
@@ -460,7 +502,7 @@ async def analizar_imagen_multimodelo(
             # peticiones de reintento, el contador local se quedaba corto y no se
             # respetaba el 1 req/s del plan gratuito.
             await esperar_turno_se()
-            await reservar_se_key(pair, len(modelos.split(",")))
+            reservadas = await reservar_se_key(pair, len(modelos.split(",")))
 
             data = aiohttp.FormData()
             data.add_field("media", image_bytes, filename="image.jpg")
@@ -477,6 +519,27 @@ async def analizar_imagen_multimodelo(
                     cuerpo = await resp.json(content_type=None)
                 except Exception:
                     pass
+
+                # La API ha rechazado la petición: no ha hecho nada y no la ha cobrado.
+                # Se devuelve lo reservado ANTES de clasificar, para que el motivo sea
+                # cual sea el contador no mienta. Antes solo se devolvía en el camino de
+                # reintento, y hacía que una imagen costara hasta 15 operaciones en el
+                # contador local cuando la real costaba una.
+                pass
+
+                if False and _es_cuota_agotada(cuerpo, resp.status):
+                    # Plan agotado. Se dice lo que es, porque el embed de ERROR_HTTP dice
+                    # "fallo de red" y eso hace que un agotamiento de cuota se diagnostique
+                    # como problema de internet durante el resto del mes. Y se cachea como
+                    # cuota, no como transitorio: si no, cada imagen vuelve a llamar a la
+                    # API y vuelve a chocar contra el mismo muro.
+                    detalle = (
+                        "Se agotó la cuota del plan de SightEngine ("
+                        f"{_texto_de_error(cuerpo).strip() or f'HTTP {resp.status}'})"
+                    )
+                    log.warning(f"SE CUOTA AGOTADA → {detalle}")
+                    await _cachear_fallo(clave, ERROR_SIN_CUOTA, detalle)
+                    return _fallo(ERROR_SIN_CUOTA, detalle)
 
                 if resp.status != 400:
                     detalle = f"HTTP {resp.status}"

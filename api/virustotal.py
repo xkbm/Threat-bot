@@ -11,7 +11,7 @@ from core.config import (
     VT_API_KEYS, SE_API_KEYS_PAIRS, MAX_FILE_SIZE,
     VT_MAX_ANALYSES_PER_MINUTE, VT_MAX_ANALYSES_PER_DAY,
     SE_MAX_REQUESTS_PER_MINUTE, SE_MAX_REQUESTS_PER_SECOND, SE_MAX_OPS_PER_DAY,
-    SE_OPS_PER_CALL,
+    SE_MAX_OPS_PER_MONTH, SE_OPS_PER_CALL,
 )
 from core.cache import set_cache_mem
 from core.database import guardar_analisis_db
@@ -119,6 +119,18 @@ async def esperar_turno_se() -> None:
         _se_ultima_peticion = time.time()
 
 
+def _mes_utc() -> str:
+    return time.strftime("%Y-%m", time.gmtime())
+
+
+def _contador_mensual(api_key: str, mes: str) -> int:
+    """Operaciones ya gastadas por esta clave en el mes UTC en curso."""
+    registro = state.bot.se_key_monthly_usage.get(api_key)
+    if not registro or registro.get("month") != mes:
+        return 0
+    return int(registro.get("count", 0))
+
+
 async def obtener_siguiente_se_key() -> Optional[tuple[str, str]]:
     """Selecciona el siguiente par de SightEngine con cuota y RESERVA sus operaciones.
 
@@ -132,12 +144,21 @@ async def obtener_siguiente_se_key() -> Optional[tuple[str, str]]:
     Ahora hay dos funciones: `obtener_siguiente_se_key` elige par y comprueba cupos SIN
     reservar, y `reservar_se_key` consume las operaciones de la petición que va a salir.
     Así el contador cuadra con las peticiones realmente emitidas.
+
+    Se comprueban los TRES topes del plan gratuito: por segundo (lo impone la API), por
+    día y **por mes**. El mensual es el que de verdad manda, y se—was applying el
+    checks —la constante `SE_MAX_OPS_PER_MONTH` estaba escrita y sin usar— así que el bot
+    gastaba los 2.000 ops del mes en cuatro días (500/día) y a partir del día 5 lo
+    bloqueaba SightEngine sin que el bot supiera por qué. Aplicando el mensual, ese mismo
+    presupuesto se reparte en ~13 imágenes al día hasta final de mes y nadie se queda sin
+    servicio a mitad.
     """
     async with _se_lock:
         if not SE_API_KEYS_PAIRS:
             return None
         ahora = time.time()
         hoy = time.strftime("%Y-%m-%d", time.gmtime())
+        mes = _mes_utc()
         for _ in range(len(SE_API_KEYS_PAIRS)):
             pair = SE_API_KEYS_PAIRS[state.bot.se_key_index]
             state.bot.se_key_index = (state.bot.se_key_index + 1) % len(SE_API_KEYS_PAIRS)
@@ -155,30 +176,89 @@ async def obtener_siguiente_se_key() -> Optional[tuple[str, str]]:
                 log.debug(f"SE key daily limit: {api_key[:8]}... ({SE_MAX_OPS_PER_DAY} ops/day)")
                 continue
 
+            # El tope que manda. Se comprueba antes de gastar, como los otros dos.
+            if _contador_mensual(api_key, mes) + SE_OPS_PER_CALL > SE_MAX_OPS_PER_MONTH:
+                log.warning(
+                    f"SE key monthly limit: {api_key[:8]}... "
+                    f"({_contador_mensual(api_key, mes)}/{SE_MAX_OPS_PER_MONTH} ops/{mes}). "
+                    "El plan está agotado hasta el mes que viene; se sigue con VirusTotal."
+                )
+                continue
+
             ventana.append(ahora)
             return pair
 
-        log.warning("Todas las keys de SightEngine están rate-limited")
+        log.warning("Todas las keys de SightEngine están rate-limited o sin cuota mensual")
         return None
 
 
-async def reservar_se_key(pair: tuple[str, str], operaciones: Optional[int] = None) -> None:
+async def reservar_se_key(pair: tuple[str, str], operaciones: Optional[int] = None) -> int:
     """Consume las operaciones de UNA petición a SightEngine.
 
     Se llama justo antes de cada POST, no una vez por análisis, para que el contador
     local refleje lo que la API va a cobrar de verdad. Con el reintento de modelos, un
     análisis pueden ser varias peticiones.
+
+    Devuelve las operaciones reservadas para que `liberar_se_key` pueda devolverlas si la
+    petición se rechaza. Devolverlas no esDESCUENTO de contabilidad: **un 400 de
+    SightEngine no se cobra**. Antes sí se contaba, y con el reintento de modelos eso
+    inflaba el contador hasta 15 operaciones por imagen (5+4+3+2+1) cuando la real_costaba
+    una. Con el tope mensual aplicado, ese sobrecoste se traducía en servir 133 imágenes
+    al mes en vez de 400.
+
+    El patrón es el mismo que ya usa VirusTotal, que sí lo tenía bien: *"una petición
+    rechazada no debe inflar el contador diario, o la key quedaría inutilizable de forma
+    permanente"*.
     """
     ops = SE_OPS_PER_CALL if operaciones is None else operaciones
     api_key = pair[0]
     async with _se_lock:
         hoy = time.strftime("%Y-%m-%d", time.gmtime())
+        mes = _mes_utc()
         diario = state.bot.se_key_daily_usage.get(api_key)
         if diario is None or diario["date"] != hoy:
             diario = {"count": 0, "date": hoy}
         diario["count"] += ops
         state.bot.se_key_daily_usage[api_key] = diario
+
+        mensual = state.bot.se_key_monthly_usage.get(api_key)
+        if mensual is None or mensual.get("month") != mes:
+            mensual = {"count": 0, "month": mes}
+        mensual["count"] += ops
+        state.bot.se_key_monthly_usage[api_key] = mensual
+
         state.bot.se_key_total_requests[api_key] = state.bot.se_key_total_requests.get(api_key, 0) + ops
+    return ops
+
+
+async def liberar_se_key(pair: tuple[str, str], operaciones: int) -> None:
+    """Devuelve operaciones reservadas de una petición que SightEngine no cobró.
+
+    Se llama cuando la API rechaza la petición antes de hacer nada (un 400 por modelo no
+    disponible, tamaño, etc.). Los contadores se guardan con `max(0, ...)` porque una
+    corrección que dejara el contador en negativo dejaría la clave con capacidad de sobra
+    que ya no se puede justificar.
+    """
+    if operaciones <= 0:
+        return
+    api_key = pair[0]
+    async with _se_lock:
+        hoy = time.strftime("%Y-%m-%d", time.gmtime())
+        mes = _mes_utc()
+
+        diario = state.bot.se_key_daily_usage.get(api_key)
+        if diario is not None and diario["date"] == hoy:
+            diario["count"] = max(0, diario["count"] - operaciones)
+            state.bot.se_key_daily_usage[api_key] = diario
+
+        mensual = state.bot.se_key_monthly_usage.get(api_key)
+        if mensual is not None and mensual.get("month") == mes:
+            mensual["count"] = max(0, mensual["count"] - operaciones)
+            state.bot.se_key_monthly_usage[api_key] = mensual
+
+        state.bot.se_key_total_requests[api_key] = max(
+            0, state.bot.se_key_total_requests.get(api_key, 0) - operaciones
+        )
 
 async def enviar_log_guild(guild_id: int, tipo: str, valor: str, detalles: str, usuario: discord.User, url_vt: Optional[str] = None, elemento_id: Optional[str] = None, es_nsfw: bool = False) -> Optional[discord.Message]:
     config = await obtener_config_guild(guild_id)

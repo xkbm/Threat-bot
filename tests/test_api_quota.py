@@ -24,6 +24,7 @@ class FakeBot:
         self.se_key_usage = {}
         self.se_key_total_requests = {}
         self.se_key_daily_usage = {}
+        self.se_key_monthly_usage = {}
 
 
 @pytest.fixture
@@ -151,6 +152,114 @@ class TestObtenerSiguienteSeKey:
         for modelos in (5, 4, 3, 2, 1):
             await vt.reservar_se_key(par, modelos)
         assert fake_bot.se_key_daily_usage["user"]["count"] == 15
+
+    @pytest.mark.asyncio
+    async def test_lo_que_la_api_rechaza_no_se_cobra(self, fake_bot, monkeypatch):
+        """Un 400 de SightEngine no cuesta operaciones, así que no debe contar.
+
+        Es lo que hace inútil el sobrecoste del reintento: si a la cuenta le falta
+        `nudity-2.1`, el análisis emite cinco peticiones, cuatro se rechazan y solo una
+        cuesta algo. Sin devolver las reservadas, el contador subía 15 por una imagen que
+        cuesta una, y con el tope mensual eso son 133 imágenes al mes en vez de 400.
+        """
+        par = ("user", "secret")
+        monkeypatch.setattr(vt, "SE_API_KEYS_PAIRS", [par])
+        await vt.obtener_siguiente_se_key()
+        for modelos in (5, 4, 3, 2):
+            await vt.liberar_se_key(par, await vt.reservar_se_key(par, modelos))
+        await vt.reservar_se_key(par, 1)
+        assert fake_bot.se_key_daily_usage["user"]["count"] == 1
+        assert fake_bot.se_key_total_requests["user"] == 1
+
+    @pytest.mark.asyncio
+    async def test_devolver_no_deja_contadores_negativos(self, fake_bot, monkeypatch):
+        """Una corrección de más no puede fabricar capacidad de sobra."""
+        par = ("user", "secret")
+        monkeypatch.setattr(vt, "SE_API_KEYS_PAIRS", [par])
+        await vt.reservar_se_key(par, 3)
+        await vt.liberar_se_key(par, 99)
+        assert fake_bot.se_key_daily_usage["user"]["count"] == 0
+        assert fake_bot.se_key_total_requests["user"] == 0
+
+    @pytest.mark.asyncio
+    async def test_devolver_ignora_cero_y_negativos(self, fake_bot, monkeypatch):
+        par = ("user", "secret")
+        monkeypatch.setattr(vt, "SE_API_KEYS_PAIRS", [par])
+        await vt.reservar_se_key(par, 4)
+        await vt.liberar_se_key(par, 0)
+        await vt.liberar_se_key(par, -5)
+        assert fake_bot.se_key_daily_usage["user"]["count"] == 4
+
+
+class TestElTopeMensualSeAplica:
+    """El tope que de verdad manda en el plan gratuito, y que no se comprobaba.
+
+    El plan es 2.000 ops al mes con un tope duro de 500/día. Aplicando solo el diario, el
+    bot gastaba las 2.000 en cuatro días y a partir del quinto lo bloqueaba SightEngine
+    sin enterarse: 26 días de "no funciona". Con el mensual comprobado, ese mismo
+    presupuesto se reparte en ~13 imágenes al día hasta final de mes.
+
+    La constante `SE_MAX_OPS_PER_MONTH` estaba escrita en `core/config.py` y solo la
+    usaban los tests, que además affirmaban que sí se cumplía.
+    """
+
+    @staticmethod
+    def _par(monkeypatch):
+        par = ("user", "secret")
+        monkeypatch.setattr(vt, "SE_API_KEYS_PAIRS", [par])
+        return par
+
+    def test_la_constante_existe_y_manda(self):
+        from core.config import SE_MAX_OPS_PER_MONTH, SE_OPS_PER_CALL
+
+        assert SE_MAX_OPS_PER_MONTH == 2000
+        # 2000 ops / 5 por imagen = 400 imágenes al mes.
+        assert SE_MAX_OPS_PER_MONTH // SE_OPS_PER_CALL == 400
+
+    @pytest.mark.asyncio
+    async def test_dos_mil_una_peticion_no_cabe(self, fake_bot, monkeypatch):
+        self._par(monkeypatch)
+        mes = vt.time.strftime("%Y-%m", vt.time.gmtime())
+        fake_bot.se_key_monthly_usage["user"] = {"count": 1999, "month": mes}
+        assert await vt.obtener_siguiente_se_key() is None
+
+    @pytest.mark.asyncio
+    async def test_llego_exactamente_al_tope_y_pasa(self, fake_bot, monkeypatch):
+        par = self._par(monkeypatch)
+        mes = vt.time.strftime("%Y-%m", vt.time.gmtime())
+        fake_bot.se_key_monthly_usage["user"] = {"count": 1995, "month": mes}
+        assert await vt.obtener_siguiente_se_key() == par
+
+    @pytest.mark.asyncio
+    async def test_el_mensual_arranca_a_cero_cada_mes(self, fake_bot, monkeypatch):
+        """Un mes viejo no puede dejar la clave sin servicio para siempre."""
+        self._par(monkeypatch)
+        fake_bot.se_key_monthly_usage["user"] = {"count": 2000, "month": "1999-01"}
+        assert await vt.obtener_siguiente_se_key() is not None
+
+    @pytest.mark.asyncio
+    async def test_el_mensual_suma_al_reservar(self, fake_bot, monkeypatch):
+        par = self._par(monkeypatch)
+        await vt.obtener_siguiente_se_key()
+        await vt.reservar_se_key(par, 5)
+        mes = vt.time.strftime("%Y-%m", vt.time.gmtime())
+        assert fake_bot.se_key_monthly_usage["user"]["count"] == 5
+        assert fake_bot.se_key_monthly_usage["user"]["month"] == mes
+
+    @pytest.mark.asyncio
+    async def test_liberar_tambien_devuelve_el_mensual(self, fake_bot, monkeypatch):
+        par = self._par(monkeypatch)
+        await vt.reservar_se_key(par, 5)
+        await vt.liberar_se_key(par, 5)
+        assert fake_bot.se_key_monthly_usage["user"]["count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_el_diario_sigue_aplicandose(self, fake_bot, monkeypatch):
+        """El mensual no sustituye al diario: los dos son topes reales del plan."""
+        self._par(monkeypatch)
+        hoy = vt.time.strftime("%Y-%m-%d", vt.time.gmtime())
+        fake_bot.se_key_daily_usage["user"] = {"count": 500, "date": hoy}
+        assert await vt.obtener_siguiente_se_key() is None
 
     @pytest.mark.asyncio
     async def test_el_numero_de_ops_equivale_a_los_modelos(self):

@@ -164,8 +164,13 @@ class TestCacheDeFallosDeSightEngine:
 
     @pytest.mark.asyncio
     async def test_lo_gratis_no_se_cachea(self, monkeypatch):
-        """Sin cuota y sin claves no cuestan operaciones: cachearlas solo haría que el
-        bot siguiera creyendo que no hay cuota después de que la hubiera."""
+        """Lo que no llega a la API no se cachea: no cuesta nada y no hay nada que evitar.
+
+        Se mantiene para `sin_claves` y `demasiado_grande`. Para `sin_cuota` ya NO es
+        cierto, y por eso tiene su propio test abajo: una cuota agotada SÍ se cachea,
+        porque hay una petición de por medio y porque repetirla cada pocos minutos durante
+        el resto del mes solo genera llamadas que la API va a rechazar.
+        """
         from api import sightengine as se
 
         guardados = []
@@ -174,10 +179,37 @@ class TestCacheDeFallosDeSightEngine:
             guardados.append(tipo)
 
         monkeypatch.setattr(se, "guardar_analisis_db", _guardar)
-        await se._cachear_fallo("c", se.ERROR_SIN_CUOTA, "x")
         await se._cachear_fallo("c", se.ERROR_SIN_CLAVES, "x")
         await se._cachear_fallo("c", se.ERROR_DEMASIADO_GRANDE, "x")
         assert guardados == []
+
+    @pytest.mark.asyncio
+    async def test_la_cuota_agotada_si_se_cachea(self, monkeypatch):
+        """Regresión: la cuota agotada se cacheaba como transitorio y no como cuota.
+
+        Un plan agotado no se arregla esperando 15 minutos: se arregla en el mes que
+        viene. Con la caducidad de transitorio, cada imagen que apareciera durante el
+        resto del mes llamaba a la API y chocaba contra el mismo muro. Y el embed decía
+        "fallo de red", que manda al usuario a reiniciar el router en vez de a esperar.
+        """
+        from api import sightengine as se
+
+        guardados = []
+
+        async def _guardar(clave, tipo, resultado, *, mal=0, datos=None, **kw):
+            guardados.append(tipo)
+
+        monkeypatch.setattr(se, "guardar_analisis_db", _guardar)
+        await se._cachear_fallo("c", se.ERROR_SIN_CUOTA, "agotada")
+        assert guardados == ["se_sin_cuota"]
+
+    def test_la_cuota_caduca_mas_que_lo_transitorio(self):
+        from core.config import EXPIRACION
+
+        assert EXPIRACION["se_sin_cuota"] > EXPIRACION["se_transitorio"], (
+            "esperar 15 minutos no arregla un plan agotado; esperar unas horas tampoco, "
+            "pero evita repetir la llamada en cada reaparición de una misma jornada"
+        )
 
     @pytest.mark.asyncio
     async def test_un_fallo_que_no_se_puede_cachear_no_revienta(self, monkeypatch):
@@ -205,3 +237,174 @@ class TestCacheDeFallosDeSightEngine:
 
         assert guardados["error"] == se.ERROR_SIN_MODELOS
         assert guardados["detalle"] == "la respuesta no incluye los modelos"
+
+
+class TestDistinguirCuotaAgotadaDeFalloDeRed:
+    """El plan se acaba un día. Antes el bot decía "fallo de red" y no era verdad.
+
+    Cuando SightEngine rechaza porque se agotó el plan, el código hacía
+    `if resp.status != 400: ERROR_HTTP`. Como el status con el que rechaza un plan
+    agotado no es 400, todo lo que no fuera un 400 se traducía a "fallo de red", y el
+    embed de ese error lo dice literalmente: "Fallo de red o respuesta ilegible de
+    SightEngine". Un usuario con el router perfectamente bien leía que tenía la internet
+    rota.
+
+    Y como además se cacheaba como transitorio (15 minutos), cada imagen que apareciera
+    durante el resto del mes volvía a llamar a la API y a chocar contra el mismo muro.
+
+    Detalle importante: se decide por lo que DICE la respuesta, no por el status. El
+    status con el que se rechaza un plan agotado no está documentado, y clavar el
+    diagnóstico en un status adivinado sería peor que no comprobarlo.
+    """
+
+    @pytest.mark.parametrize("status", [400, 402, 403, 429, 500])
+    def test_se_reconoce_por_el_texto_del_error(self, status):
+        from api import sightengine as se
+
+        cuerpo = {"status": "failure", "error": {"type": "quota_exceeded",
+                                                 "message": "Your plan's monthly quota is used up"}}
+        assert se._es_cuota_agotada(cuerpo, status) is True
+
+    def test_un_error_normal_no_se_confunde_con_cuota(self):
+        """Un 500 de verdad SÍ es un fallo de red, y debe seguir siéndolo."""
+        from api import sightengine as se
+
+        assert se._es_cuota_agotada(
+            {"status": "failure", "error": {"type": "internal_error", "message": "oops"}}, 500
+        ) is False
+        assert se._es_cuota_agotada(None, 500) is False
+
+    def test_un_400_de_modelo_no_disponible_no_es_cuota(self):
+        """El 400 de "no tengo ese modelo" no es cuota agotada: es configuración.
+
+        Confundir los dos convertiría "ajusta tus modelos" en "espera al mes que viene".
+        """
+        from api import sightengine as se
+
+        cuerpo = {"error": {"type": "unsupported_model",
+                            "message": "model 'nudity-2.1' not available"}}
+        assert se._es_cuota_agotada(cuerpo, 400) is False
+        assert se._clasificar_400(cuerpo)[0] == se.ERROR_MODELO_NO_DISPONIBLE
+
+    def test_el_error_aplano_se_lee_tambien(self):
+        """La documentación muestra el `error` como objeto y como texto según el endpoint."""
+        from api import sightengine as se
+
+        assert se._es_cuota_agotada({"error": "quota exceeded for this month"}, 400) is True
+
+    def test_el_texto_de_error_se_normaliza(self):
+        from api import sightengine as se
+
+        texto = se._texto_de_error({"error": {"type": "Plan", "message": "No credits left"}})
+        assert "plan" in texto and "credits" in texto
+        assert se._texto_de_error(None) == ""
+        assert se._texto_de_error({}) == ""
+
+
+class TestElCableadoDeLaCuota:
+    """Estos van a través de `analizar_imagen_multimodelo`, no contra la función suelta.
+
+    Importa porque es exactamente donde fallaban los otros: `liberar_se_key` y
+    `_es_cuota_agotada` se podían probar por encima y pasar, mientras el bucle de
+    peticiones no llamaba a la primera ni miraba la segunda. Los dos comprobaban que la
+    función era correcta, no que nadie la usara — y el defecto era justo que no la usaba.
+    """
+
+    async def _analizar_con_respuesta(self, monkeypatch, se, status, cuerpo):
+        """Lanza un análisis contra una respuesta HTTP fabricada y devuelve el resultado."""
+        import aiohttp
+
+        from core import state
+
+        class _Bot:
+            se_key_index = 0
+            se_key_usage = {}
+            se_key_total_requests = {}
+            se_key_daily_usage = {}
+            se_key_monthly_usage = {}
+
+        class _Resp:
+            def __init__(self):
+                self.status = status
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *a):
+                return False
+
+            async def json(self, content_type=None):
+                return cuerpo
+
+        class _Sesion:
+            def post(self, *a, **k):
+                return _Resp()
+
+        original = state.bot
+        state.bot = _Bot()
+        state.bot.session = _Sesion()
+
+        async def _nada(*a, **k):
+            return None
+
+        async def _miss(*a, **k):
+            return None, None, 0
+
+        async def _con_clave():
+            return ("user", "secret")
+
+        monkeypatch.setattr(se, "guardar_analisis_db", _nada)
+        monkeypatch.setattr(se, "obtener_analisis_db", _miss)
+        monkeypatch.setattr(se, "get_from_cache_mem", _miss)
+        monkeypatch.setattr(se, "obtener_siguiente_se_key", _con_clave)
+        monkeypatch.setattr(se, "SE_API_KEYS_PAIRS", [("u", "s")])
+        monkeypatch.setattr(se, "esperar_turno_se", _nada)
+        monkeypatch.setattr(se, "SE_TIMEOUT", aiohttp.ClientTimeout(total=1))
+
+        # Se Deja `reservar_se_key` y `liberar_se_key` REALES, que es lo que se quiere
+        # mirar: que la petición rechazada devuelva lo que reservó.
+        try:
+            return await se.analizar_imagen_multimodelo("hash", b"\x89PNG"), state.bot
+        finally:
+            state.bot = original
+
+    @pytest.mark.asyncio
+    async def test_un_400_devuelve_las_operaciones_reservadas(self, monkeypatch):
+        """El bucle tiene que LLAMAR a liberar, no basta con que la función exista."""
+        from api import sightengine as se
+
+        cuerpo = {"error": {"type": "unsupported_model", "message": "model not available"}}
+        (resultado, bot), _ = (await self._analizar_con_respuesta(monkeypatch, se, 400, cuerpo),)
+
+        # Un 400 de modelo no disponible reintenta hasta agotar la lista; cada intento es
+        # una petición rechazada, así que el contador tiene que volver a cero.
+        assert bot.se_key_daily_usage.get("user", {"count": 0})["count"] == 0, (
+            "las peticiones rechazadas se están cobrando: "
+            f"{bot.se_key_daily_usage.get('user')}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_la_cuota_agotada_se_reporta_como_cuota(self, monkeypatch):
+        """No como fallo de red: el embed de ERROR_HTTP dice "fallo de red"."""
+        from api import sightengine as se
+
+        cuerpo = {"status": "failure",
+                  "error": {"type": "quota_exceeded", "message": "monthly quota used up"}}
+        resultado, _bot = await self._analizar_con_respuesta(monkeypatch, se, 402, cuerpo)
+
+        _ok, _conf, models, _cache = resultado
+        assert models.get("error") == se.ERROR_SIN_CUOTA, models
+        assert "red" not in str(models).lower(), models
+        assert "cuota" in str(models).lower(), models
+
+    @pytest.mark.asyncio
+    async def test_un_500_sigue_siendo_fallo_de_red(self, monkeypatch):
+        """La detección de cuota no debe tragarse los fallos de verdad."""
+        from api import sightengine as se
+
+        cuerpo = {"status": "failure",
+                  "error": {"type": "internal_error", "message": "server exploded"}}
+        resultado, _bot = await self._analizar_con_respuesta(monkeypatch, se, 500, cuerpo)
+
+        _ok, _conf, models, _cache = resultado
+        assert models.get("error") == se.ERROR_HTTP, models
