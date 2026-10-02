@@ -511,18 +511,37 @@ class TestUnaImagenLimpiaNoSeReportaComoError:
     """
 
     def test_respuesta_limpia_se_reconoce(self):
-        from api.sightengine import _llego_alguna_clave
+        from api.sightengine import _modelos_ilegibles
 
         limpia = {
             "nudity": {"raw": 0.0, "partial": 0.0}, "weapon": {"classes": {}},
             "alcohol": {"prob": 0.0}, "gore": {"prob": 0.0}, "offensive": {"prob": 0.0},
         }
-        assert _llego_alguna_clave(limpia) is True
+        pedidos = ["nudity-2.1", "weapon", "alcohol", "gore-2.0", "offensive"]
+        assert _modelos_ilegibles(limpia, pedidos) == []
 
     def test_respuesta_sin_claves_sigue_siendo_fallo(self):
-        from api.sightengine import _llego_alguna_clave
+        from api.sightengine import _modelos_ilegibles
 
-        assert _llego_alguna_clave({"status": "success", "id": "x"}) is False
+        pedidos = ["nudity-2.1", "weapon", "alcohol", "gore-2.0", "offensive"]
+        assert _modelos_ilegibles({"status": "success", "id": "x"}, pedidos) == pedidos
+
+    def test_que_vuelva_uno_no_basta(self):
+        """ALTO: la comprobación era "al menos uno volvió", no "todos los que pedí".
+
+        Con la comprobación laxa, una respuesta a la que le faltaba el modelo de
+        desnudez se aceptaba como análisis completo y el modelo ausente se rellenaba con
+        `0.0`, que es justo lo que dice una imagen limpia. La imagen salía verificada en
+        una dimensión que nadie miró.
+        """
+        from api.sightengine import _modelos_ilegibles
+
+        respuesta = {
+            "weapon": {"classes": {"firearm": 0.0}}, "alcohol": {"prob": 0.0},
+            "gore": {"prob": 0.0}, "offensive": {"prob": 0.0},
+        }
+        pedidos = ["nudity-2.1", "weapon", "alcohol", "gore-2.0", "offensive"]
+        assert _modelos_ilegibles(respuesta, pedidos) == ["nudity-2.1"]
 
     def test_evaluar_contenido_tolera_none(self):
         """La firma acepta Dict pero el guardián `es_error` sugiere que acepta None."""

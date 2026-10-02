@@ -1,6 +1,6 @@
 """SightEngine: parseo de respuestas y veredictos.
 
-Cada test usa una respuesta con la forma real que documenta SightEngine. Tres defectos
+Cada test usa una respuesta con la forma real que documenta SightEngine. Cuatro defectos
 quedan fijados aquí:
 
 - `nudity` se leía solo por `raw` (material tipo X) y se descartaba `partial`, que es
@@ -8,12 +8,155 @@ quedan fijados aquí:
 - `weapon` tomaba el máximo de todas sus clases, incluidas `firearm_toy` y
   `firearm_gesture`: un juguete marcaba contenido restringido.
 - Cualquier fallo devolvía `models = {}`, y un dict vacío se leía como "seguro".
+- `nudity-2.1` se leía con las claves de `nudity-1.x` (`raw`/`partial`), que en el 2.1 no
+  existen. Como `_a_float(None)` da `0.0`, la detección de desnudez llevaba desde la
+  migración al 2.1 puntuando 0.0 en todas las imágenes del mundo. Ver
+  `TestNudity21`.
 """
 
 import pytest
 
 from api import sightengine as se
 from core.veredictos import Veredicto
+
+# Respuesta de `nudity-2.1` tal como la publica SightEngine, campo por campo. Los nombres
+# de este dict son la contrato: si algún día se cambian, este test falla y hay que ir a
+# la documentación, no a adivinar. `suggestive_classes` trae dentro
+# `cleavage_categories` con un `none: 0.99` que es "no hay escote", no "escote al 99%".
+NUDITY_2_1_LIMPIA = {
+    "status": "success",
+    "nudity": {
+        "sexual_activity": 0.01,
+        "sexual_display": 0.01,
+        "erotica": 0.01,
+        "very_suggestive": 0.01,
+        "suggestive": 0.01,
+        "mildly_suggestive": 0.03,
+        "suggestive_classes": {
+            "bikini": 0.01,
+            "cleavage": 0.01,
+            "cleavage_categories": {"very_revealing": 0.01, "revealing": 0.01, "none": 0.99},
+            "male_chest": 0.01,
+            "male_chest_categories": {"very_revealing": 0.01, "revealing": 0.01,
+                                      "slightly_revealing": 0.01, "none": 0.99},
+            "male_underwear": 0.01,
+            "lingerie": 0.01,
+            "miniskirt": 0.01,
+            "minishort": 0.01,
+            "nudity_art": 0.01,
+            "schematic": 0.01,
+            "sextoy": 0.01,
+            "suggestive_focus": 0.01,
+            "suggestive_pose": 0.01,
+            "swimwear_male": 0.01,
+            "swimwear_one_piece": 0.01,
+            "visibly_undressed": 0.01,
+            "other": 0.01,
+        },
+        "none": 0.97,
+        "context": {"sea_lake_pool": 0.02, "outdoor_other": 0.15, "indoor_other": 0.83},
+    },
+    "weapon": {"classes": {"firearm": 0.001, "firearm_gesture": 0.001,
+                           "firearm_toy": 0.001, "knife": 0.001}},
+    "alcohol": {"prob": 0.001},
+    "gore": {"prob": 0.001},
+    "offensive": {"prob": 0.001},
+}
+
+
+def _nudity_2_1(**cambios):
+    """Copia de la respuesta real con los campos de `nudity` modificados."""
+    respuesta = {k: (dict(v) if isinstance(v, dict) else v) for k, v in NUDITY_2_1_LIMPIA.items()}
+    respuesta["nudity"] = dict(NUDITY_2_1_LIMPIA["nudity"])
+    respuesta["nudity"].update(cambios)
+    return respuesta
+
+
+class TestNudity21:
+    """El esquema real de `nudity-2.1`, que no tiene `raw` ni `partial`.
+
+    Estos tests son la razón de que la suite no lo pillara: TODOS los de parseo de
+    nudity usaban respuestas de `nudity-1.x`, así que la suite validaba el esquema viejo y
+    la migración al 2.1 se dio por buena sin comprobar nunca una respuesta del 2.1.
+    """
+
+    def test_una_respuesta_del_2_1_no_tiene_raw_ni_partial(self):
+        """El contrato de entrada. Si esto deja de ser cierto, el esquema cambió."""
+        assert "raw" not in NUDITY_2_1_LIMPIA["nudity"]
+        assert "partial" not in NUDITY_2_1_LIMPIA["nudity"]
+
+    def test_imagen_limpia_no_es_un_cero_artificial(self):
+        """Antes salía 0.0 exacto, la firma de `_a_float(None)` sobre un campo inexistente.
+
+        Con el esquema real, una imagen limpia da el ruido de fondo del detector (0.01),
+        no un cero. La diferencia parece pequeña pero es la diferencia entre "el detector
+        dijo que no" y "no supimos leer al detector".
+        """
+        m = se.parsear_modelos(_nudity_2_1())
+        assert m["nudity_raw"] > 0.0
+        assert m["nudity_partial"] > 0.0
+        assert se.evaluar_contenido(m)[0] is Veredicto.SEGURO
+
+    def test_el_none_de_las_categorias_no_cola_como_desnudez(self):
+        """`cleavage_categories` lleva un `none: 0.99` que significa "no hay escote".
+
+        Leerlo como si fuera una señal de contenido marcaría TODAS las imágenes del mundo
+        como desnudez parcial, y en modo estricto borraría fotos normales.
+        """
+        m = se.parsear_modelos(_nudity_2_1())
+        assert m["nudity_partial"] < 0.5, m["nudity_partial"]
+
+    def test_contenido_explicito_se_detecta(self):
+        """El caso que fallaba en producción: esto salía `seguro`."""
+        m = se.parsear_modelos(_nudity_2_1(sexual_activity=0.95))
+        assert m["nudity_raw"] == 0.95
+        veredicto, _, detalle = se.evaluar_contenido(m)
+        assert veredicto is Veredicto.NSFW
+        assert "Desnudez explícita" in detalle
+
+    def test_contenido_sugerido_se_detecta(self):
+        """Lencería y escote: lo que más llega a un servidor, y lo que más se perdía."""
+        respuesta = _nudity_2_1()
+        clases = dict(respuesta["nudity"]["suggestive_classes"])
+        clases.update({"lingerie": 0.88, "bikini": 0.12})
+        respuesta["nudity"]["suggestive_classes"] = clases
+        m = se.parsear_modelos(respuesta)
+        assert m["nudity_partial"] == 0.88
+        assert se.evaluar_contenido(m)[0] is Veredicto.NSFW
+
+    def test_sigue_siendo_compatible_con_el_1_x(self):
+        """Cuentas viejas y tests existentes: `raw`/`partial` mandan si están."""
+        m = se.parsear_modelos({"nudity": {"raw": 0.9, "partial": 0.1, "safe": 0.0}})
+        assert (m["nudity_raw"], m["nudity_partial"]) == (0.9, 0.1)
+
+    def test_esquema_desconocido_es_ilegible_y_no_un_cero(self):
+        """Un bloque presente con un esquema que no se reconoce es peor que uno ausente:
+        aparenta estar mirado. Tiene que salir como ilegible."""
+        assert se._modelos_ilegibles({"nudity": {"campo_inventado": 0.5}}, ["nudity-2.1"]) == [
+            "nudity-2.1"
+        ]
+
+    def test_respuesta_completa_no_tiene_ilegibles(self):
+        pedidos = ["nudity-2.1", "weapon", "alcohol", "gore-2.0", "offensive"]
+        assert se._modelos_ilegibles(NUDITY_2_1_LIMPIA, pedidos) == []
+
+    def test_modelo_que_no_vuelve_es_ilegible(self):
+        """La comprobación es por modelo, no "al menos uno": antes bastaba con que volviera
+        cualquiera para dar el análisis por bueno y rellenar el resto de ceros."""
+        respuesta = {k: v for k, v in NUDITY_2_1_LIMPIA.items() if k != "nudity"}
+        ilegibles = se._modelos_ilegibles(respuesta, ["nudity-2.1", "weapon"])
+        assert ilegibles == ["nudity-2.1"]
+
+    def test_la_comprobacion_usa_lo_que_se_pidio_de_verdad(self):
+        """Tras reintentar con menos modelos, exigir el `nudity` original daría error
+        siempre en una cuenta que no lo tenga."""
+        respuesta = {k: v for k, v in NUDITY_2_1_LIMPIA.items() if k != "nudity"}
+        assert se._modelos_ilegibles(respuesta, ["weapon", "alcohol", "offensive"]) == []
+
+    def test_alcohol_acepta_objeto_y_numero(self):
+        """La documentación muestra `alcohol` en las dos formas según la página."""
+        assert se.parsear_modelos({"alcohol": {"prob": 0.8}})["alcohol"] == 0.8
+        assert se.parsear_modelos({"alcohol": 0.8})["alcohol"] == 0.8
 
 
 class TestParseoNudity:

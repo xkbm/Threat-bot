@@ -117,18 +117,6 @@ def _clasificar_400(cuerpo: Optional[dict]) -> tuple[str, str]:
     return ERROR_HTTP, f"SightEngine rechazó el análisis: {texto.strip()}"
 
 
-def _llego_alguna_clave(result: dict) -> bool:
-    """¿La respuesta trae alguno de los modelos que pedimos?
-
-    Se mira el nombre de la clave, no su valor: una imagen limpia vale 0.0 en todo, y
-    `any(valores)` daría False con una respuesta perfectamente buena.
-    """
-    for nombre in list(result) + [n.split("-")[0] for n in list(result)]:
-        if nombre in ("nudity", "weapon", "alcohol", "gore", "offensive"):
-            return True
-    return False
-
-
 # Motivos de fallo que se cachean, y con qué caducidad. El resto se devuelven sin
 # cachear a propósito: son gratis (no llegaron a la API) o duran segundos.
 _TIPO_CACHEADO = {
@@ -185,18 +173,90 @@ def es_error(models: Optional[Dict[str, Any]]) -> bool:
     return bool(models) and "error" in models
 
 
+def _bloque_crudo(result: dict, nombre: str):
+    """El bloque del modelo tal cual vino, sin exigir que sea un dict.
+
+    `_dato_modelo` descarta todo lo que no sea un dict y devuelve `{}`, lo que está bien
+    para leer campos con nombre pero mal para los modelos que la documentación también
+    devuelve como número suelto (`alcohol`): un `0.8` se perdía antes de que nadie lo
+    mirara y el modelo salía con `0.0`, o sea "no hay alcohol".
+    """
+    bloque = result.get(nombre)
+    if bloque is not None:
+        return bloque
+    return result.get(nombre.split("-")[0])
+
+
 def _dato_modelo(result: dict, nombre: str) -> dict:
     """Busca el bloque del modelo tolerando el cambio de nombre.
 
     Se pide `nudity-2.1` pero la respuesta llega bajo `nudity`; se mira el nombre pedido
     y, si no está, el nombre base.
     """
-    bloque = result.get(nombre)
-    if isinstance(bloque, dict):
-        return bloque
-    base = nombre.split("-")[0]
-    bloque = result.get(base)
+    bloque = _bloque_crudo(result, nombre)
     return bloque if isinstance(bloque, dict) else {}
+
+# --- nudity: conviven dos esquemas de respuesta ------------------------------------
+#
+# `nudity-1.x` devolvía tres números planos: `raw`, `partial` y `safe`.
+#
+# `nudity-2.1` **no tiene esos campos**. Devuelve clases: `sexual_activity`,
+# `sexual_display`, `erotica`, `sextoy`, `suggestive`, `very_suggestive`,
+# `mildly_suggestive`, un `suggestive_classes` con la ropa y la postura, más `none` y
+# `context`. Es el mismo modelo con otro nombre de campo.
+#
+# Leer el 2.1 con las claves del 1.x es lo que dejó la detección de desnudez **muerta**:
+# `nudity.get("raw")` daba `None`, `_a_float(None)` daba `0.0`, y la imagen salía con el
+# mismo veredicto que una foto de playa. No era un falso negativo puntual: `nudity_raw` y
+# `nudity_partial` salían 0.0 en todas las imágenes del mundo desde que se migró al
+# 2.1, porque el campo no existía. Los otros cuatro modelos (gore, alcohol, weapon,
+# offensive) sí devolvían sus números, y por eso el fallo se veía como "esta imagen
+# concreta se coló" en vez de como "la desnudez no funciona".
+#
+# Los nombres de abajo son los de la respuesta documentada de `nudity-2.1`.
+CLASES_NUDITY_EXPLICITAS: Tuple[str, ...] = ("sexual_activity", "sexual_display")
+CLASES_NUDITY_SUGERIDAS: Tuple[str, ...] = (
+    "erotica", "sextoy", "suggestive", "very_suggestive", "mildly_suggestive",
+)
+
+
+def _escalares(bloque) -> list:
+    """Los valores escalares de un dict, **sin entrar** en los sub-dicts.
+
+    Es justo lo que hace falta para `suggestive_classes`: sus claves directas son todas
+    ropa y postura, pero hay sub-dicts como `cleavage_categories` que llevan dentro un
+    `none` con 0.99. Ese 0.99 quiere decir "no hay escote", no "escote muy marcado": si
+    se leyera, TODA imagen saldría con desnudez parcial al 99% y el bot borraría fotos
+    normales en modo estricto. Por eso se queda en un solo nivel.
+    """
+    if not isinstance(bloque, dict):
+        return []
+    return [_a_float(v) for v in bloque.values() if not isinstance(v, (dict, list))]
+
+
+def _nudity(nudity) -> Optional[tuple]:
+    """(explícito, sugerido) del bloque `nudity`, o `None` si el esquema no se reconoce.
+
+    `None` es "esto no lo sé leer", que es una cosa distinta de "cero": esa diferencia es
+    exactamente la que evita que una imagen que nadie ha comprobado se reporte como limpia.
+    """
+    if not isinstance(nudity, dict) or not nudity:
+        return None
+    # nudity-1.x
+    if "raw" in nudity or "partial" in nudity:
+        return _a_float(nudity.get("raw")), _a_float(nudity.get("partial"))
+    # nudity-2.1
+    if any(c in nudity for c in CLASES_NUDITY_EXPLICITAS) or "suggestive_classes" in nudity:
+        explicito = max(
+            (_a_float(nudity.get(c)) for c in CLASES_NUDITY_EXPLICITAS), default=0.0
+        )
+        sugerido = max(
+            [_a_float(nudity.get(c)) for c in CLASES_NUDITY_SUGERIDAS]
+            + _escalares(nudity.get("suggestive_classes")),
+            default=0.0,
+        )
+        return explicito, sugerido
+    return None
 
 
 def parsear_modelos(result: dict) -> Dict[str, float]:
@@ -206,9 +266,9 @@ def parsear_modelos(result: dict) -> Dict[str, float]:
     """
     modelos: Dict[str, float] = {}
 
-    nudity = _dato_modelo(result, "nudity-2.1")
-    modelos[CLAVE_NUDITY_RAW] = _a_float(nudity.get("raw"))
-    modelos[CLAVE_NUDITY_PARTIAL] = _a_float(nudity.get("partial"))
+    nudity = _nudity(_dato_modelo(result, "nudity-2.1")) or (0.0, 0.0)
+    modelos[CLAVE_NUDITY_RAW] = nudity[0]
+    modelos[CLAVE_NUDITY_PARTIAL] = nudity[1]
 
     gore = _dato_modelo(result, "gore-2.0")
     modelos[CLAVE_GORE] = _a_float(gore.get("prob"))
@@ -221,8 +281,7 @@ def parsear_modelos(result: dict) -> Dict[str, float]:
     }
     modelos[CLAVE_WEAPON] = max((_a_float(v) for v in clases.values()), default=0.0)
 
-    alcohol = _dato_modelo(result, "alcohol")
-    modelos[CLAVE_ALCOHOL] = _a_float(alcohol.get("prob"))
+    modelos[CLAVE_ALCOHOL] = _prob_de(_bloque_crudo(result, "alcohol"))
 
     # `offensive` trae `prob` más el detalle por categoría. Se usa `prob`, no el máximo
     # de todos los valores: `max()` mezclaba el resumen con las partes.
@@ -237,6 +296,45 @@ def _a_float(valor) -> float:
         return float(valor)
     except (TypeError, ValueError):
         return 0.0
+
+
+def _prob_de(bloque) -> float:
+    """La probabilidad de un bloque que puede venir como objeto o como número.
+
+    `alcohol` aparece en la documentación de SightEngine en las dos formas: como objeto
+    con `prob` junto a `weapon` y `drugs`, y como un número plano. Se aceptan las dos en
+    vez de asumir una: leer `.get("prob")` a ciegas sobre un número da `AttributeError`,
+    y con el `.get()` tolerante daba `0.0`, que es "no hay alcohol" dicho sin mirar.
+    """
+    if isinstance(bloque, (int, float)) and not isinstance(bloque, bool):
+        return _a_float(bloque)
+    if isinstance(bloque, dict):
+        return _a_float(bloque.get("prob"))
+    return 0.0
+
+
+def _modelos_ilegibles(result: dict, pedidos) -> list:
+    """De los modelos pedidos, los que la respuesta no trajo en forma utilizable.
+
+    Antes solo se comprobaba que volviera **alguno** (`_llego_alguna_clave`), así que una
+    respuesta a la que le faltaba el modelo de desnudez se aceptaba como análisis
+    completo: los modelos presentes se leían bien y el ausente se rellenaba con `0.0`,
+    que es indistinguible de "no hay nada". Una imagen que nadie miró salía limpia.
+
+    Ahora se pregunta modelo por modelo, contra lo que se pidió de verdad — que tras el
+    reintento con menos modelos puede no ser la lista original. Lo que no se pudo leer se
+    devuelve, y quien llama lo convierte en `error`, nunca en `seguro`.
+    """
+    ilegibles = []
+    for nombre in pedidos:
+        bloque = _bloque_crudo(result, nombre)
+        if bloque is None:
+            ilegibles.append(nombre)
+        elif nombre.startswith("nudity") and _nudity(bloque) is None:
+            # Venía el bloque pero con un esquema que no reconocemos: tanto o peor que si
+            # no hubiera venido, porque aparenta estar mirado.
+            ilegibles.append(nombre)
+    return ilegibles
 
 
 def evaluar_contenido(
@@ -307,7 +405,13 @@ async def analizar_imagen_multimodelo(
     """Analiza una imagen. Ver el contrato en el docstring del módulo."""
     # La clave cambia de versión porque el contenido guardado tiene otra forma: las
     # entradas viejas no se pueden reparsear. Se dejan caducar solas.
-    clave = f"nsfw2:{image_content_hash}"
+    #
+    # De `nsfw2` a `nsfw3` porque los valores guardados están **envenenados**: con
+    # `nudity-2.1` leído como `nudity-1.x`, toda imagen se guardó con `nudity_raw` y
+    # `nudity_partial` a 0.0 y `veredicto` "seguro", y eso caduca a 30 días. Sin subir la
+    # versión, el arreglo parecería que no hace nada justo en las imágenes que ya se
+    # vieron: la caché seguiría devolviendo el "seguro" viejo y nadie lo vería funcionar.
+    clave = f"nsfw3:{image_content_hash}"
     log.debug(f"SE check → hash={image_content_hash[:16]}... clave={clave}")
 
     tipo, _embed_cache, mal = await get_from_cache_mem(clave)
@@ -399,22 +503,40 @@ async def analizar_imagen_multimodelo(
         await _cachear_fallo(clave, ERROR_MODELO_NO_DISPONIBLE, detalle)
         return _fallo(ERROR_MODELO_NO_DISPONIBLE, detalle)
 
-    models = parsear_modelos(result)
-    if not _llego_alguna_clave(result):
-        # La API respondió 200 pero sin ninguno de los modelos pedidos. Eso SÍ es un
-        # fallo, y antes acababa como "seguro".
+    # Se comprueba contra lo que se pidió DE VERDAD en la petición que salió. Con el
+    # reintento a menos modelos, la lista original no es la que vale: si el 2.1 no está
+    # en la cuenta y la petición buena fue `weapon,alcohol,offensive`, exigir `nudity`
+    # daría un error siempre.
+    pedidos = [m.strip() for m in str(modelos).split(",") if m.strip()]
+    ilegibles = _modelos_ilegibles(result, pedidos)
+    if ilegibles:
+        # La API respondió 200 pero algo no vino, o vino con un esquema que no sabemos
+        # leer. Eso SÍ es un fallo, y antes acababa como "seguro".
+        #
+        # Lo importante es que sea un fallo y no un cero: un modelo ausente se rellenaba
+        # con `0.0`, y `0.0` es exactamente lo que dice una imagen limpia. Así se perdía
+        # una dimensión entera —la de desnudez— sin que nada lo delatara.
         #
         # Ojo con la condición: `not any(models.get(c))` era FALSO para una imagen
         # perfectamente limpia en la que todos los valores son 0.0, que es el caso
         # normal. Eso hacía que cada imagen limpia se reportara como error, y como los
         # fallos no se cacheaban, se volvía a subir a SightEngine cada vez que alguien
         # la republicaba: 5 operaciones del plan gratis, indefinidamente.
-        log.warning(f"SE API 200 sin modelos utilizables → claves={sorted(result)}")
-        detalle = "la respuesta no incluye los modelos pedidos"
+        #
+        # Se loguean las claves de verdad de la respuesta. Este log es lo que permite
+        # distinguir "no vino el modelo" de "vino con otro esquema" sin tener que
+        # reproducirlo contra la API de pago.
+        log.warning(
+            f"SE API 200 con modelos ilegibles → pedidos={pedidos} "
+            f"ilegibles={ilegibles} claves={sorted(result)}"
+        )
+        detalle = f"la respuesta no trae datos usables de: {', '.join(ilegibles)}"
         # Un 200 significa que SightEngine YA ha cobrado las operaciones. Sin caché, cada
         # reaparición de esta imagen vuelve a pagar las 5.
         await _cachear_fallo(clave, ERROR_SIN_MODELOS, detalle)
         return _fallo(ERROR_SIN_MODELOS, detalle)
+
+    models = parsear_modelos(result)
 
     # Los umbrales del guild si vienen; si no, los de `core.config`. Antes el panel
     # ofrecía seis umbrales que nadie leía, así que cambiarlos no hacía nada.
