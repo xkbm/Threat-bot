@@ -419,9 +419,31 @@ async def _flush_datos(incluir_guilds: bool = False) -> None:
     """
     async with DATA_LOCK:
         data_to_save: dict = {}
+        # `__global__` entra SIEMPRE, con o sin `incluir_guilds`.
+        #
+        # Aquí se perdían las estadísticas de `/stats`. Las globales viven en
+        # `guilds_data["__global__"]` y en ningún otro sitio: SQLite tiene una fila por
+        # servidor en `guild_config`, así que el global no está respaldado en ninguna parte.
+        #
+        # Y el volcado por defecto (`incluir_guilds=False`, que es lo que usan TODOS los
+        # llamantes salvo un cambio de configuración) escribía solo `__api_usage__` y
+        # `__antispam__`. Como el guardado es atómico y REEMPLAZA el fichero entero, ese
+        # volcado dejaba `__global__` fuera y lo borraba del disco. El cron horario lo
+        # hace cada hora, así que `/stats` volvía a cero por sí solo.
+        #
+        # La contradicción era explícita: `update_stats` documenta que "las persiste el
+        # cron horario", y el cron horario era justo quien las borraba.
+        #
+        # Meter aquí el global no reintroduce el problema que motivó el flag: son unas
+        # pocas claves, no la configuración de todos los servidores.
+        global_stats = state.bot.guilds_data.get("__global__")
+        if isinstance(global_stats, dict):
+            data_to_save["__global__"] = global_stats
         if incluir_guilds:
-            data_to_save = {str(gid): val for gid, val in state.bot.guilds_data.items()
-                            if gid not in ("__api_usage__", "__antispam__")}
+            for gid, val in state.bot.guilds_data.items():
+                if gid == "__global__" or gid in ("__api_usage__", "__antispam__"):
+                    continue
+                data_to_save[str(gid)] = val
         data_to_save["__api_usage__"] = {
             "total_requests": state.bot.vt_key_total_requests,
             "daily_usage": state.bot.vt_key_daily_usage,
