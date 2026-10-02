@@ -375,6 +375,105 @@ class TestDobleExtensionYMime:
         assert "text/html" in campo.value
 
 
+class TestElDetalleLlegaAlLog:
+    """El `detalle` de una imagen se calculaba y se tiraba.
+
+    `evaluar_contenido` devuelve `(veredicto, confianza, detalle)`, y `_procesar_imagen`
+    guardaba el veredicto pero el detalle se quedaba en una variable local: lo que
+    devolvía era el dict de probabilidades, sin clave `detalle`. El log de amenaza leía
+    `models.get("detalle") or "Detectado en análisis múltiple"`, así que **siempre** caía
+    al texto genérico: el mismo para una cerveza que para desnudez explícita, que es
+    justo la diferencia por la que alguien lee ese log.
+
+    Es preexistente, no lo introdujo el arreglo de umbrales: `git log -S 'models["detalle"]'`
+    no encuentra ninguna versión donde la línea existiera.
+
+    Antes de decidirse que es imposible: una imagen limpia no lleva detalle, y no es un
+    fallo que no lo lleve.
+    """
+
+    @pytest.mark.asyncio
+    async def test_una_imagen_marcada_devuelve_el_detalle(self, monkeypatch):
+        import asyncio
+        import hashlib
+        import types as t
+
+        from core import state
+        import ui.message_handler as mh
+
+        # PNG 1x1 válido.
+        png = bytes.fromhex(
+            "89504e470d0a1a0a0000000d4948445200000001000000010806000000"
+            "1f15c4890000000a49444154789c6360000002000100ffff03000006000557bfabd4"
+            "0000000049454e44ae426082"
+        )
+
+        async def _se(content_hash, data, umbrales=None):
+            return False, 0.8, {
+                "nudity_raw": 0.0, "nudity_partial": 0.0, "gore": 0.0,
+                "offensive": 0.0, "alcohol": 0.82, "weapon": 0.0,
+            }, False
+
+        async def _nada(*a, **k):
+            return None
+
+        async def _sin_vt(*a, **k):
+            return "no_consultado", 0, None, None
+
+        class _Sem:
+            async def __aenter__(self): return self
+            async def __aexit__(self, *a): return False
+
+        class _Resp:
+            status = 200
+            headers = {}
+            async def read(self): return png
+            async def __aenter__(self): return self
+            async def __aexit__(self, *a): return False
+
+        class _Ses:
+            def get(self, *a, **k): return _Resp()
+
+        bot = t.SimpleNamespace(
+            session=_Ses(), _download_sem=_Sem(),
+            _reaction_controllers={}, user=None, guilds_data={},
+        )
+        monkeypatch.setattr(mh, "analizar_imagen_multimodelo", _se)
+        monkeypatch.setattr(mh, "_reputacion_de_imagen", _sin_vt)
+        monkeypatch.setattr(mh, "registrar_infraccion", _nada)
+        monkeypatch.setattr(mh, "update_stats", _nada)
+        monkeypatch.setattr(mh, "_cachear_deteccion", lambda *a, **k: None)
+        monkeypatch.setattr(mh, "_deteccion_de", lambda a: mh.F.TipoContenido.IMAGEN and mh.F.Deteccion(mh.F.TipoContenido.IMAGEN, "png", "image/png"))
+        monkeypatch.setattr(mh, "ANALYSIS_SEMAPHORE", _Sem())
+
+        msg = t.SimpleNamespace(id=1, content="", author=t.SimpleNamespace(id=7))
+        adj = t.SimpleNamespace(filename="foto.png", size=len(png),
+                                url="http://x/f.png", content_type="image/png", id=1)
+
+        original = state.bot
+        state.bot = bot
+        try:
+            nombre, tipo, models, chash = await mh._procesar_imagen(bot, msg, adj, 1)
+        finally:
+            state.bot = original
+
+        assert tipo == "restringido", (tipo, models)
+        assert "Alcohol" in models.get("detalle", ""), (
+            f"el detalle no llegó al log, y el log habría puesto su texto genérico: {models}"
+        )
+
+    def test_una_imagen_limpia_no_inventa_detalle(self):
+        """Si no hay nada que decir, no se dice nada. No es un fallo que falte."""
+        from ui.message_handler import _veredicto_de_contenido
+
+        veredicto, confianza, detalle = _veredicto_de_contenido({}, {
+            "nudity_raw": 0.0, "nudity_partial": 0.0, "gore": 0.0,
+            "offensive": 0.0, "alcohol": 0.0, "weapon": 0.0,
+        })
+        assert veredicto.value == "seguro"
+        assert detalle == ""
+
+
 class TestDebeBorrar:
     """El modo estricto leía el slot del MIMEMismatch creyendo que era el de la doble
     extensión, así que borraba por el motivo equivocado y nunca por doble extensión.

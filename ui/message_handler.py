@@ -508,6 +508,14 @@ async def _procesar_imagen(
             )
 
             models = dict(models or {})
+            # El `detalle` que calcula `evaluar_contenido` se quedaba en una variable
+            # local y se devolvía un `models` sin él, así que el log de amenaza caía siempre
+            # en su texto genérico: "Detectado en análisis múltiple". Un moderador recibía
+            # la misma línea para una cerveza y para desnudez explícita, que es
+            # justo la diferencia por la que se lee ese log. Preexistente: `git log -S
+            # 'models["detalle"]'` no encuentra ninguna versión donde existiera.
+            if detalle:
+                models["detalle"] = detalle
             if vt_veredicto in ("malicioso", "sospechoso"):
                 models["vt_mal"] = vt_mal
                 models["vt_link"] = vt_link
@@ -1308,22 +1316,30 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
     # Los sospechosos no llegan aquí: no hay infracción que ignorar, así que un log con
     # botón "Ignorar" respondería "esa infracción ya no existe".
     if log_channel_id:
+        # Enlace al mensaje original. Se omite si el mensaje fue borrado: un enlace a un
+        # mensaje que ya no existe no ayuda a nadie y manda al moderador a una pantalla de
+        # "mensaje no encontrado" justo cuando está mirando el registro de una amenaza.
+        origen = "" if borrado else emb.enlace_mensaje(
+            guild_id, message.channel.id, message.id
+        )
         for r in url_results:
             if r.tipo == "malicioso" and not r.ya_logueado:
                 await enviar_log_guild(
                     guild_id, "URL", r.url, f"{r.mal} detecciones", message.author,
-                    url_vt=r.vt_link, elemento_id=r.elemento_id,
+                    url_vt=r.vt_link, elemento_id=r.elemento_id, veredicto="malicioso",
+                    mensaje=origen,
                 )
         for r in img_url_results:
             if r.tipo in ("nsfw", "restringido"):
-                await enviar_log_guild(guild_id, "Imagen NSFW" if r.tipo == "nsfw" else "Contenido restringido", r.url, r.detalles, message.author, elemento_id=r.elemento_id or None, es_nsfw=(r.tipo == "nsfw"))
+                await enviar_log_guild(guild_id, "Imagen NSFW" if r.tipo == "nsfw" else "Contenido restringido", r.url, r.detalles, message.author, elemento_id=r.elemento_id or None, veredicto=r.tipo, mensaje=origen)
         for filename, tipo, models, content_hash in img_results:
             if tipo in ("nsfw", "restringido") and content_hash:
-                await enviar_log_guild(guild_id, "Imagen NSFW" if tipo == "nsfw" else "Contenido restringido", filename, models.get("detalle") or "Detectado en análisis múltiple", message.author, elemento_id=f"nsfw:{content_hash}", es_nsfw=(tipo == "nsfw"))
+                await enviar_log_guild(guild_id, "Imagen NSFW" if tipo == "nsfw" else "Contenido restringido", filename, models.get("detalle") or "Detectado en análisis múltiple", message.author, elemento_id=f"nsfw:{content_hash}", veredicto=tipo, mensaje=origen)
         for filename, tipo, mal, file_hash, _wm, _doble_ext in arch_results:
             if tipo == "malicioso":
                 # Mismo elemento_id que usa _procesar_archivo al registrar la infracción.
                 await enviar_log_guild(
                     guild_id, "Archivo (múltiples)", filename, f"{mal} detecciones", message.author,
                     elemento_id=f"filehash:{file_hash}" if file_hash else None,
+                    veredicto="malicioso", mensaje=origen,
                 )

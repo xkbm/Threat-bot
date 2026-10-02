@@ -395,6 +395,82 @@ class TestElLogSiempreDiceQuien:
         assert elemento.value.startswith("```") and elemento.value.endswith("```")
 
 
+class TestElLogDiceLoQueRealmentePasa:
+    """El texto del log tiene que salir del veredicto, no de que "no sea NSFW".
+
+    El embed que sale en tu captura decía "**CONTENIDO RESTRINGIDO** resultó
+    **malicioso**", con un botón de banear debajo. `emb.amenaza` escribía "resultó
+    malicioso" en el texto y se usaba para TODO veredicto que no fuera NSFW, así que el
+    contenido restringido —que el bot define como "avisa pero no borra"— salía como
+    malware. Un moderador que se fiara del texto podía banear a alguien por una cerveza.
+
+    Estos tests fijan que el texto siga al veredicto, incluido el color: el rojo de
+    "requiere acción" no es el mismo aviso que un dislike por una foto de arma en un juego.
+    """
+
+    @staticmethod
+    def _usuario():
+        return type("U", (), {"mention": "<@42>", "id": 42})()
+
+    def test_restringido_no_se_dice_malicioso(self):
+        e = emb.amenaza("Contenido restringido", "image.png", "Alcohol 80%", self._usuario(),
+                        veredicto="restringido")
+        assert "malicioso" not in (e.description or "").lower(), e.description
+        assert "restringido" in (e.description or "").lower(), e.description
+
+    def test_malicioso_si_se_dice_malicioso(self):
+        e = emb.amenaza("URL", "http://x", "3 detecciones", self._usuario(),
+                        veredicto="malicioso")
+        assert "malicioso" in (e.description or "").lower(), e.description
+
+    def test_restringido_no_es_el_color_de_malware(self):
+        """El rojo es "requiere acción". Una cerveza no es lo mismo que un malware."""
+        r = emb.amenaza("Contenido restringido", "i.png", "Alcohol", self._usuario(),
+                        veredicto="restringido")
+        m = emb.amenaza("URL", "http://x", "3 detecciones", self._usuario(),
+                        veredicto="malicioso")
+        assert r.color != m.color, "un contenido restringido no puede verse como malware"
+
+    def test_un_veredicto_desconocido_no_destroza_el_embed(self):
+        """Si algún día llega un veredicto nuevo, sale como malware y no revienta."""
+        e = emb.amenaza("X", "y", "z", self._usuario(), veredicto="inventado")
+        assert e is not None and e.description
+
+    def test_el_pie_no_sigue_diciendo_amenaza_a_todo(self):
+        """El pie dice "Amenaza · Contenido restringido", que sí es un poco incoherente,
+        pero cambiarlo rompería el contrato de títulos; lo que no puede pasar es que el
+        cuerpo diga una cosa y el veredicto otra."""
+        e = emb.amenaza("Contenido restringido", "i.png", "Alcohol", self._usuario(),
+                        veredicto="restringido")
+        assert "Amenaza" in (e.footer.text if e.footer else "")
+
+
+class TestEnlaceAlMensaje:
+    """El log de amenaza es un registro, y un registro sin el mensaje al que se refiere
+    obliga a buscarlo a mano."""
+
+    def test_el_enlace_lleva_a_guild_canal_y_mensaje(self):
+        enlace = emb.enlace_mensaje(1, 10, 100)
+        assert "https://discord.com/channels/1/10/100" in enlace
+
+    def test_sin_mensaje_no_hay_enlace(self):
+        """Mensaje borrado, o escaneo manual sin mensaje: nada de enlace roto."""
+        assert emb.enlace_mensaje(1, 10, None) == ""
+        assert emb.enlace_mensaje(None, 10, 100) == ""
+        assert emb.enlace_mensaje(1, None, 100) == ""
+
+    def test_el_embed_lo_incluye_cuando_se_puede(self):
+        u = type("U", (), {"mention": "<@42>", "id": 42})()
+        e = emb.amenaza("URL", "http://x", "d", u, mensaje=emb.enlace_mensaje(1, 10, 100))
+        assert any("Origen" in f.name for f in e.fields), [f.name for f in e.fields]
+
+    def test_el_embed_no_muestra_campo_vacio(self):
+        """Sin mensaje no hay campo: un "Origen" vacío es ruido."""
+        u = type("U", (), {"mention": "<@42>", "id": 42})()
+        e = emb.amenaza("URL", "http://x", "d", u, mensaje="")
+        assert not any("Origen" in f.name for f in e.fields), [f.name for f in e.fields]
+
+
 class TestCampos:
     def test_vocabulario_cerrado_de_campos(self):
         permitidos = {"URL", "Hash", "IP", "Archivo", "Detectado por", "VirusTotal", "Detalle"}

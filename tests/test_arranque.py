@@ -260,7 +260,177 @@ async def bot_analisis(bot_arrancado, tmp_path):
 
 class TestFlujoCompleto:
     @pytest.mark.asyncio
-    async def test_mensaje_con_amenaza(self, bot_analisis):
+    async def test_el_log_lleva_el_enlace_al_mensaje_si_no_se_borro(self):
+        """El log es un registro, y sin el mensaje al que se refiere hay que buscarlo a mano.
+
+        Y el caso inverso es el que importa: si el mensaje se borró, un enlace a él manda
+        al moderador a una pantalla de "mensaje no encontrado" justo cuando está leyendo
+        el registro de una amenaza.
+
+        Se prueba sobre `_on_threat_found` y no sobre `procesar_analisis` porque el log de
+        las URLs lo manda ese sitio: `analizar_url` devuelve `ya_logueado=True` y el
+        handler se queda quieto a propósito para no duplicarlo. El borrado también ocurre
+        allí, y antes de esto el log se mandaba ANTES de borrar, así que el enlace era una
+        apuesta sobre algo que todavía no había pasado.
+        """
+        import api.virustotal as vt
+        from core import state
+
+        enviados = []
+
+        class _Canal:
+            id = 777
+
+            async def send(self, embed=None, view=None, **k):
+                enviados.append(embed)
+                return types.SimpleNamespace(id=1)
+
+        original = state.bot
+        state.bot = types.SimpleNamespace(
+            guilds_data={1: {"log_channel_id": 777, "avisar_amenazas": True,
+                             "strict_mode": False}},
+            get_channel=lambda cid: _Canal(),
+        )
+        try:
+            # Sin modo estricto: el mensaje sobrevive y el log lo enlaza.
+            await vt._on_threat_found(
+                "URL", "http://x", 3, 1,
+                types.SimpleNamespace(
+                    id=555, author=types.SimpleNamespace(id=42, mention="<@42>"),
+                    channel=types.SimpleNamespace(id=10),
+                ),
+            )
+            # Los efectos van en una task suelta: hay que ceder el control.
+            await asyncio.sleep(0.05)
+            assert enviados, "no se envió el log"
+            origen = next((f for f in enviados[0].fields if "Origen" in f.name), None)
+            assert origen is not None, "con el mensaje vivo, el log tiene que traer el enlace"
+            assert "555" in origen.value, origen.value
+
+            # Con modo estricto: el mensaje se borra y NO debe quedar el enlace roto.
+            enviados.clear()
+            state.bot.guilds_data[1]["strict_mode"] = True
+            borrable = types.SimpleNamespace(
+                id=556, author=types.SimpleNamespace(id=43, mention="<@43>"),
+                channel=types.SimpleNamespace(id=10),
+            )
+
+            async def _del():
+                borrable.deleted = True
+            borrable.delete = _del
+
+            await vt._on_threat_found("URL", "http://y", 2, 1, borrable)
+            await asyncio.sleep(0.05)
+            assert getattr(borrable, "deleted", False), "el modo estricto tenía que borrar"
+            assert enviados, "no se envió el log"
+            origen = next((f for f in enviados[0].fields if "Origen" in f.name), None)
+            assert origen is None, f"un mensaje borrado no puede enlazar a nada: {origen}"
+        finally:
+            state.bot = original
+
+    @pytest.mark.asyncio
+    async def test_sin_mensaje_el_log_no_inventa_enlace(self):
+        """Un escaneo manual no tiene mensaje: tampoco hay enlace que poner."""
+        import api.virustotal as vt
+        from core import state
+
+        enviados = []
+
+        class _Canal:
+            id = 777
+
+            async def send(self, embed=None, view=None, **k):
+                enviados.append(embed)
+                return types.SimpleNamespace(id=1)
+
+        original = state.bot
+        state.bot = types.SimpleNamespace(
+            guilds_data={1: {"log_channel_id": 777, "avisar_amenazas": True,
+                             "strict_mode": False}},
+            get_channel=lambda cid: _Canal(),
+        )
+        try:
+            await vt._on_threat_found(
+                "URL", "http://z", 1, 1, None,
+                registrar_para=types.SimpleNamespace(id=99, mention="<@99>"),
+            )
+            await asyncio.sleep(0.05)
+            assert enviados
+            assert not any("Origen" in f.name for f in enviados[0].fields)
+        finally:
+            state.bot = original
+
+    @pytest.mark.asyncio
+    async def test_restringido_no_sale_como_malware_en_el_log(self):
+        """El bug de la captura: "CONTENIDO RESTRINGIDO resultó malicioso" con botón de banear.
+
+        Se prueba contra `enviar_log_guild` y no contra el handler porque un URL nunca es
+        `restringido`: solo lo son las imágenes. Lo que decide mal es el embed, que
+        escribía "resultó malicioso" en el texto y se usaba para todo veredicto que no
+        fuera NSFW.
+        """
+        import api.virustotal as vt
+        from core import state
+
+        enviados = []
+
+        class _Canal:
+            id = 777
+            async def send(self, embed=None, view=None, **k):
+                enviados.append(embed)
+                return types.SimpleNamespace(id=1)
+
+        original = state.bot
+        state.bot = types.SimpleNamespace(
+            guilds_data={1: {"log_channel_id": 777, "avisar_amenazas": True}},
+            get_channel=lambda cid: _Canal(),
+        )
+        try:
+            await vt.enviar_log_guild(
+                1, "Contenido restringido", "image.png", "Alcohol 82%",
+                types.SimpleNamespace(id=42, mention="<@42>"),
+                veredicto="restringido", mensaje="",
+            )
+        finally:
+            state.bot = original
+
+        assert enviados, "no se envió el embed"
+        desc = (enviados[0].description or "").lower()
+        assert "malicioso" not in desc, enviados[0].description
+        assert "restringido" in desc, enviados[0].description
+
+    @pytest.mark.asyncio
+    async def test_el_malicious_sigue_diciendose_malicioso(self):
+        """El camino bueno no se ha roto al cambiar el parámetro."""
+        import api.virustotal as vt
+        from core import state
+
+        enviados = []
+
+        class _Canal:
+            id = 777
+            async def send(self, embed=None, view=None, **k):
+                enviados.append(embed)
+                return types.SimpleNamespace(id=1)
+
+        original = state.bot
+        state.bot = types.SimpleNamespace(
+            guilds_data={1: {"log_channel_id": 777, "avisar_amenazas": True}},
+            get_channel=lambda cid: _Canal(),
+        )
+        try:
+            await vt.enviar_log_guild(
+                1, "URL", "http://x", "3 detecciones",
+                types.SimpleNamespace(id=42, mention="<@42>"), veredicto="malicioso",
+            )
+        finally:
+            state.bot = original
+
+        assert enviados
+        assert "malicioso" in (enviados[0].description or "").lower(), enviados[0].description
+
+    @pytest.mark.asyncio
+    async def test_un_mensaje_con_amenaza(self, bot_analisis):
         from core import cache as cache_mod
         from core.utils import clave_analisis
         import ui.message_handler as mh

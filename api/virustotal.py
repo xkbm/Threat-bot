@@ -260,7 +260,7 @@ async def liberar_se_key(pair: tuple[str, str], operaciones: int) -> None:
             0, state.bot.se_key_total_requests.get(api_key, 0) - operaciones
         )
 
-async def enviar_log_guild(guild_id: int, tipo: str, valor: str, detalles: str, usuario: discord.User, url_vt: Optional[str] = None, elemento_id: Optional[str] = None, es_nsfw: bool = False) -> Optional[discord.Message]:
+async def enviar_log_guild(guild_id: int, tipo: str, valor: str, detalles: str, usuario: discord.User, url_vt: Optional[str] = None, elemento_id: Optional[str] = None, veredicto: str = "malicioso", mensaje: Optional[str] = None) -> Optional[discord.Message]:
     config = await obtener_config_guild(guild_id)
     log_channel_id = config["log_channel_id"]
     if log_channel_id is None:
@@ -274,13 +274,17 @@ async def enviar_log_guild(guild_id: int, tipo: str, valor: str, detalles: str, 
     channel = state.bot.get_channel(log_channel_id)
     if channel is None:
         return None
-    if es_nsfw:
+    if veredicto == "nsfw":
         # El usuario va también aquí. Antes este embed no lo llevaba y los botones de
         # Ban/Kick sí apuntaban a él: un moderador podía banear a alguien que el log no
         # nombraba.
-        embed = emb.nsfw(tipo, valor, detalles, usuario)
+        embed = emb.nsfw(tipo, valor, detalles, usuario, mensaje=mensaje or "")
     else:
-        embed = emb.amenaza(tipo, valor, detalles, usuario, vt_link=url_vt)
+        # `restringido` también acaba aquí, y antes salía como "resultó malicioso" con un
+        # botón de banear. El veredicto viaja explícito para que el texto lo diga, en vez
+        # de suponer que todo lo que no es NSFW es malware.
+        embed = emb.amenaza(tipo, valor, detalles, usuario, vt_link=url_vt,
+                            veredicto=veredicto, mensaje=mensaje or "")
     view = LogActionView(guild_id, usuario.id, elemento_id=elemento_id)
     try:
         msg = await channel.send(embed=embed, view=view)
@@ -789,18 +793,33 @@ async def _post_threat_side_effects(guild_id: int, tipo_str: str, valor: str, ma
     """
     try:
         await update_stats(guild_id, "malicioso")
-        if vt_link:
-            await enviar_log_guild(guild_id, tipo_str, valor, f"{mal} detecciones", autor, vt_link, elemento_id=eid)
-        else:
-            await enviar_log_guild(guild_id, tipo_str, valor, f"{mal} detecciones", autor, elemento_id=eid)
+        # El borrado va ANTES que el log, y por un motivo concreto: el enlace al mensaje
+        # solo puede ponerse si el mensaje sigue existiendo, y el modo estricto puede
+        # quitarlo justo aquí. Mandando el log primero, el enlace era una apuesta sobre un
+        # estado que todavía no se había comprobado.
+        #
+        # El orden anterior era al revés y por eso el log de URL no llevaba enlace: aquí se
+        # manda el log con el mensaje todavía presente, y quien decide el enlace es este
+        # sitio, que es el único que sabe si el borrado funcionó.
+        borrado = False
         if mensaje_original is not None:
             await registrar_infraccion(guild_id, mensaje_original.author.id, eid)
             config = await obtener_config_guild(guild_id)
             if config["strict_mode"]:
                 try:
                     await mensaje_original.delete()
+                    borrado = True
                 except (discord.errors.Forbidden, discord.errors.NotFound):
                     pass
+        origen = ""
+        if mensaje_original is not None and not borrado:
+            origen = emb.enlace_mensaje(
+                guild_id, mensaje_original.channel.id, mensaje_original.id
+            )
+        if vt_link:
+            await enviar_log_guild(guild_id, tipo_str, valor, f"{mal} detecciones", autor, vt_link, elemento_id=eid, mensaje=origen)
+        else:
+            await enviar_log_guild(guild_id, tipo_str, valor, f"{mal} detecciones", autor, elemento_id=eid, mensaje=origen)
     except Exception as e:
         log.error(f"Error en post-threat side effects: {e}")
 

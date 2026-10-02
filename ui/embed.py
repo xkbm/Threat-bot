@@ -288,7 +288,26 @@ def aviso(texto: str, descripcion: str = "", campos: Optional[list[tuple[str, st
     return pie(embed, texto, avatar_url) if con_pie else embed
 
 
-def nsfw(tipo: str, valor: str, detalles: str, usuario: discord.abc.User) -> discord.Embed:
+def enlace_mensaje(guild_id: Optional[int], channel_id: Optional[int],
+                   message_id: Optional[int]) -> str:
+    """Enlace al mensaje original, o "" si no hay mensaje al que ir.
+
+    No es un adorno: el log de amenaza es un registro, y un registro sin el mensaje al
+    que se refiere obliga a buscarlo a mano. Se usa la misma etiqueta fija que el informe
+    de VirusTotal para que quien lee los dos enlaces no tenga que descifrar dos formatos.
+
+    Se devuelve "" cuando falta cualquier parte del identificador, sobre todo cuando el
+    mensaje fue borrado: un enlace a un mensaje que ya no existe no ayuda a nadie, y
+    manda al moderador a una pantalla de "mensaje no encontrado".
+    """
+    if not guild_id or not channel_id or not message_id:
+        return ""
+    return (f"{EMOJI_LINK} "
+            f"[Mensaje](https://discord.com/channels/{guild_id}/{channel_id}/{message_id})")
+
+
+def nsfw(tipo: str, valor: str, detalles: str, usuario: discord.abc.User,
+         mensaje: str = "") -> discord.Embed:
     """Log de contenido NSFW o restringido.
 
     El usuario es obligatorio a propósito: es el canal donde se decide si se banea o
@@ -307,23 +326,48 @@ def nsfw(tipo: str, valor: str, detalles: str, usuario: discord.abc.User) -> dis
     # El ID explícito se perdería al mover el pie al formato de marca, y quien modera lo
     # necesita para herramientas de moderación y para comprobar si es la misma persona.
     embed.add_field(name="ID", value=f"`{usuario.id}`", inline=True)
+    if mensaje:
+        embed.add_field(name="Origen", value=mensaje, inline=False)
     return pie(embed, f"NSFW · {tipo}")
 
 
+# Cómo se describe cada veredicto en el log de amenaza. Antes `emb.amenaza` escribía
+# "resultó malicioso" en el texto y lo clavaba para TODO lo que no fuera NSFW, así que una
+# foto con una cerveza salía como "CONTENIDO RESTRINGIDO resultó malicioso" con un botón
+# de banear. Un moderador que se fiara del texto podía banear a alguien por una cerveza.
+#
+# El veredicto es la verdad y el texto tiene que salir de él, no al revés.
+_HEADLINE = {
+    "malicioso": "resultó **malicioso**",
+    "restringido": "es contenido **restringido**",
+    "sospechoso": "resultó **sospechoso**",
+}
+_COLOR_POR_VEREDICTO = {
+    "malicioso": COLOR_ERROR,
+    "restringido": COLOR_MALICIOSO,
+    "sospechoso": COLOR_SOSPECHOSO,
+}
+
+
 def amenaza(tipo: str, valor: str, detalles: str, usuario: discord.abc.User,
-            vt_link: Optional[str] = None) -> discord.Embed:
+            vt_link: Optional[str] = None, veredicto: str = "malicioso",
+            mensaje: str = "") -> discord.Embed:
     """Log de amenaza enviado al canal del servidor. Es el embed más crítico:
     aquí se toman acciones de moderación, así que el valor va en un code block
     para que un atacante no pueda inyectar markdown ni romper la maquetación."""
-    embed = _nuevo(TITULOS["amenaza"], COLOR_ERROR, f"**{tipo.upper()}** resultó **malicioso**")
+    headline = _HEADLINE.get(veredicto, _HEADLINE["malicioso"])
+    color = _COLOR_POR_VEREDICTO.get(veredicto, COLOR_ERROR)
+    embed = _nuevo(TITULOS["amenaza"], color, f"**{tipo.upper()}** {headline}")
     embed.add_field(name=f"{EMOJI_FINGERPRINT} Valor", value=f"```{valor}```", inline=False)
     embed.add_field(name=f"{EMOJI_GUARDIAN} Usuario", value=usuario.mention, inline=True)
     embed.add_field(name=f"{EMOJI_SHIELD} Detalles", value=detalles, inline=True)
-    # El ID explícito se perdreía al mover el pie al formato de marca, y quien modera
+    # El ID explícito se perdería al mover el pie al formato de marca, y quien modera
     # lo necesita para copiar y pegar en herramientas de moderación.
     embed.add_field(name="ID", value=f"`{usuario.id}`", inline=True)
     if vt_link:
         embed.add_field(name=f"{EMOJI_LINK} VirusTotal", value=enlace_informe(vt_link, con_emoji=False), inline=False)
+    if mensaje:
+        embed.add_field(name="Origen", value=mensaje, inline=False)
     return pie(embed, f"Amenaza · {tipo}")
 
 
