@@ -13,7 +13,7 @@ from discord.ext import commands
 from core.config import (
     MAX_IMAGE_SIZE, MAX_FILE_SIZE, VT_API_KEYS, EMOJI_WHITELIST, EMOJI_LOADING,
     EMOJI_LINK, EMOJI_FILE, EMOJI_COOLDOWN, EMOJI_REPLY, EMOJI_NSFW,
-    EMOJI_NOMBRE_SOSPECHOSO,
+    EMOJI_NOMBRE_SOSPECHOSO, EMOJI_WARNING,
 )
 from core.utils import safe_remove_loading, safe_add_reaction, safe_send, dominio_en_whitelist, url_es_imagen, es_imagen, verificar_nombre, expandir_url, tiene_doble_extension, descargar_url_segura, clave_analisis, vuelo, SIN_RESPUESTA, comprobar_antispam, check_vt_user_limit, PATRON_URL_D, limpiar_url
 from core import filetypes as F
@@ -135,6 +135,7 @@ class ImgUrlResult(NamedTuple):
 async def _construir_embed_unificado(
     message: discord.Message,
     senales: Senales,
+    aviso_no_borrado: bool = False,
 ) -> discord.Embed:
     """Construye UN embed con toda la información disponible.
 
@@ -186,6 +187,16 @@ async def _construir_embed_unificado(
     if senales.whitelist_omitidos:
         desc += (f"{EMOJI_WHITELIST} **{senales.whitelist_omitidos}** enlace(s) en "
                  "whitelist, no analizados")
+
+    # El aviso va en la descripción y no al final porque es lo que hay que leer primero:
+    # el modo estricto no hizo nada y el mensaje sigue en el canal. Si fuera una línea más
+    # al fondo, con cinco elementos y sus contadores, un moderador pasaría por encima.
+    if aviso_no_borrado:
+        desc += (
+            f"\n{EMOJI_WARNING} **No se pudo borrar el mensaje.** Al bot le falta "
+            "`Manage Messages` en este canal, así que el modo estricto no ha podido "
+            "actuar y el contenido sigue visible: bórralo tú."
+        )
 
     embed = emb.aviso(titulo_texto, desc.rstrip("\n"), color=color,
                       icono=emb.EMOJI_SHIELD, con_pie=False)
@@ -1218,10 +1229,50 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
     has_doble_ext = senales.doble_ext
     has_mime_mismatch = senales.mime_mismatch
 
-    embed = await _construir_embed_unificado(message, senales)
+    # Modo estricto, ANTES que el embed y ANTES que la reacción. Las dos cosas dependen de
+    # saber si el borrado funcionó, y antes no se podía saber a tiempo: el embed se mandaba
+    # primero y el `delete` venía después, así que no tenía forma de avisar de que no se
+    # pudo borrar.
+    #
+    # Poner un emoji en un mensaje que se va a borrar es una llamada a la API
+    # garantizadamente inútil: el `delete` se lleva el mensaje y el emoji con él. En un
+    # canal con mucho contenido peligroso son dos peticiones por mensaje donde una
+    # bastaba, y ese es justo el tráfico que hace que Discord devuelva 429.
+    #
+    # Se borra primero y solo se reacciona si el borrado NO funcionó: si al bot le falta
+    # permiso de borrar, el mensaje sigue ahí y la reacción es la única señal de que se
+    # miró. Reaccionar a un mensaje ya borrado sería tirar la llamada.
+    borrado = False
+    fallo_borrado = False
+    if debe_borrar(has_threat, has_doble_ext, has_mime_mismatch, strict_mode):
+        try:
+            await message.delete()
+            borrado = True
+            log.debug(f"Mensaje {message.id} borrado por modo estricto")
+        except (discord.errors.Forbidden, discord.errors.NotFound) as e:
+            # Sin permiso o ya no estaba. El mensaje sigue visible, así que la reacción
+            # sigue haciendo falta y se pone más abajo, y el embed avisa de que el modo
+            # estricto no ha hecho su trabajo.
+            #
+            # Se loguea porque antes pasaba en silencio: un mensaje que sobrevivió por
+            # falta de permiso era indistinguible de un mensaje que nunca fue amenaza.
+            # Falta `Manage Messages` en el canal, que es la causa real aquí.
+            borrado = False
+            fallo_borrado = True
+            log.warning(
+                f"No se pudo borrar el mensaje {message.id} en modo estricto "
+                f"({type(e).__name__}): {e}"
+            )
 
-    # Enviar embed. `debe_enviar_embed` separa los tres interruptores: antes esta
-    # condición era una suma de "algo salió mal" que no se podía desactivar por partes.
+    embed = await _construir_embed_unificado(
+        message, senales, aviso_no_borrado=fallo_borrado
+    )
+
+    # Enviar embed. Va DESPUÉS del borrado a propósito: así puede decir si lo hizo. Y va
+    # aunque el mensaje se haya borrado, que es justo cuando más hace falta el aviso, ya
+    # que el original ha desaparecido del canal.
+    # `debe_enviar_embed` separa los tres interruptores: antes esta condición era una suma
+    # de "algo salió mal" que no se podía desactivar por partes.
     if debe_enviar_embed(senales, config):
         await safe_send(message, embed, reference=message)
 
@@ -1236,36 +1287,6 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
             )
         except Exception as e:
             log.debug(f"No se registró el evento de /history: {type(e).__name__}")
-
-    # Modo estricto, ANTES de la reacción.
-    #
-    # Poner un emoji en un mensaje que se va a borrar es una llamada a la API
-    # garantizadamente inútil: el `delete` de después se lleva el mensaje y el emoji con
-    # él. En un canal con mucho contenido peligroso son dos peticiones por mensaje donde
-    # una bastaba, y ese es justo el tráfico que hace que Discord devuelva 429.
-    #
-    # Se borra primero y solo se reacciona si el borrado NO funcionó: si al bot le falta
-    # permiso de borrar, el mensaje sigue ahí y la reacción es la única señal de que se
-    # miró. Reaccionar a un mensaje ya borrado sería tirar la llamada.
-    borrado = False
-    if debe_borrar(has_threat, has_doble_ext, has_mime_mismatch, strict_mode):
-        try:
-            await message.delete()
-            borrado = True
-            log.debug(f"Mensaje {message.id} borrado por modo estricto")
-        except (discord.errors.Forbidden, discord.errors.NotFound) as e:
-            # Sin permiso o ya no estaba. El mensaje sigue visible, así que la reacción
-            # sigue haciendo falta y se pone más abajo.
-            #
-            # Se loguea porque el modo estricto acaba de no hacer su trabajo, y antes
-            # pasaba en silencio: sin registro, un mensaje que sobrevivió por falta de
-            # permiso era indistinguible de un mensaje que nunca fue una amenaza. Falta
-            # `Manage Messages` en el canal, que es la causa real aquí.
-            borrado = False
-            log.warning(
-                f"No se pudo borrar el mensaje {message.id} en modo estricto "
-                f"({type(e).__name__}): {e}"
-            )
 
     # Una sola reacción por mensaje. El controlador es quien garantiza el invariante:
     # antes los emojis se añadían en cinco sitios y solo se quitaba el loading, así que

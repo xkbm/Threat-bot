@@ -341,6 +341,73 @@ class TestFlujoCompleto:
         )
 
     @pytest.mark.asyncio
+    async def test_el_embed_avisa_si_no_se_pudo_borrar(self, bot_analisis):
+        """Si el modo estricto no pudo actuar, el aviso tiene que decirlo en el canal.
+
+        El log del bot lo dice, pero el log se lo lee quien despliega, no quien modera. Sin
+        esto, el embed de una imagen NSFW se leía como "contenido restringido detectado" y
+        nada más, que es exactamente lo que diría si el mensaje se hubiera borrado bien. El
+        moderador se iba pensando que el canal estaba limpio.
+        """
+        from core.utils import clave_analisis
+        import ui.message_handler as mh
+
+        msg = _Mensaje("https://ejemplo-aviso.test/malo")
+
+        async def _analizar_falso(url, *a, **k):
+            from core import cache as cache_mod
+            await cache_mod.set_cache_mem(
+                clave_analisis("url", url), "malicioso", mal=3,
+                datos={"valor": url, "vt_link": None, "top_text": None,
+                       "veredicto": "malicioso", "susp": 0})
+            return "malicioso", _embed_malicioso(), 3
+
+        async def _borrar_fallido():
+            class _Resp:
+                status = 403
+                reason = "Forbidden"
+                text = "Missing Permissions"
+            raise discord.errors.Forbidden(_Resp(), "Missing Permissions")
+
+        mh.analizar_url = _analizar_falso
+        mh.expandir_url = lambda bot, url: asyncio.sleep(0, result=url)
+        msg.delete = _borrar_fallido
+
+        await mh.procesar_analisis(bot_analisis, msg)
+        await asyncio.sleep(0.05)
+
+        assert msg.enviados, "sin aviso en el canal, el moderador no se entera"
+        texto = msg.enviados[0].description or ""
+        assert "no se pudo borrar" in texto.lower(), texto
+        assert "Manage Messages" in texto, texto
+
+    @pytest.mark.asyncio
+    async def test_el_embed_no_se_queja_cuando_si_se_borro(self, bot_analisis):
+        """El aviso se quite cuando el borrado funcionó, o acaba siendo ruido."""
+        from core.utils import clave_analisis
+        import ui.message_handler as mh
+
+        msg = _Mensaje("https://ejemplo-sinaviso.test/malo")
+
+        async def _analizar_falso(url, *a, **k):
+            from core import cache as cache_mod
+            await cache_mod.set_cache_mem(
+                clave_analisis("url", url), "malicioso", mal=3,
+                datos={"valor": url, "vt_link": None, "top_text": None,
+                       "veredicto": "malicioso", "susp": 0})
+            return "malicioso", _embed_malicioso(), 3
+
+        mh.analizar_url = _analizar_falso
+        mh.expandir_url = lambda bot, url: asyncio.sleep(0, result=url)
+
+        await mh.procesar_analisis(bot_analisis, msg)
+        await asyncio.sleep(0.05)
+
+        assert msg.borrado
+        texto = (msg.enviados[0].description or "").lower()
+        assert "no se pudo borrar" not in texto, texto
+
+    @pytest.mark.asyncio
     async def test_la_cache_hace_acierto_de_verdad(self, bot_analisis):
         """F1 comprobado en el flujo real: la segunda vez el resultado sale de la
         caché y no se vuelve a llamar a la API."""
