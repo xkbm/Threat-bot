@@ -24,6 +24,7 @@ from core.aviso import (
 )
 from core.senales import Elemento, Senales
 from core.veredictos import Veredicto
+from ui.message_handler import _veredicto_de_contenido
 
 
 def _senales(*veredictos, **flags) -> Senales:
@@ -237,6 +238,88 @@ class TestNingunControlDelPanelEstaMuerto:
         los botones del log de amenazas, no un dial por categoría."""
         for clave in ("accion_restringido", "accion_phishing", "accion_malicious"):
             assert clave not in esq.POR_NOMBRE, f"vuelve el control muerto '{clave}'"
+
+
+class TestLosUmbralesDelPanelNoEstanMuertos:
+    """Regresión: los seis umbrales de `/settings` se guardaban y no cambiaban nada.
+
+    `TestNingunControlDelPanelEstaMuerto` de arriba mira si la clave aparece escrita en
+    algún fichero, y aquí aparecía: la leía `aplicar_config` y la pintaba el panel. Eso
+    no es que se usara. Lo que pasaba es que el veredicto de la imagen lo decidía
+    `evaluar_contenido(models)` **sin** el segundo argumento, así que el alcohol al 30%
+    salía `seguro` en un servidor con el umbral puesto a 25%, y `restringido` en otro con
+    el de serie. El control se leía, se escribía, se guardaba y no gobernaba el resultado.
+
+    Estos tests son de comportamiento a propósito: comprueban el veredicto que sale, no
+    que el nombre de la clave aparezca por algún lado.
+    """
+
+    # Una cerveza: alcohol al 30%, que con el umbral de serie (70%) no marca nada.
+    CERVEZA = {
+        "nudity_raw": 0.0, "nudity_partial": 0.0, "gore": 0.0,
+        "offensive": 0.0, "alcohol": 0.30, "weapon": 0.0,
+    }
+
+    def _config(self, **umbrales) -> dict:
+        return {"_umbrales": esq.aplicar_config(umbrales)}
+
+    def test_umbral_bajado_marca_where_el_de_serie_no(self):
+        v_serie, _, _ = _veredicto_de_contenido(self._config(), self.CERVEZA)
+        assert v_serie is Veredicto.SEGURO, "con el umbral de serie (70%) no debe marcar"
+
+        v_bajo, _, _ = _veredicto_de_contenido(
+            self._config(umbral_alcohol=0.25), self.CERVEZA
+        )
+        assert v_bajo is Veredicto.RESTRINGIDO, (
+            "con umbral_alcohol=0.25 y alcohol=0.30 tiene que salir restringido"
+        )
+
+    def test_umbral_subido_deja_de_marcar(self):
+        v, _, _ = _veredicto_de_contenido(
+            self._config(umbral_alcohol=1.0), self.CERVEZA
+        )
+        assert v is Veredicto.SEGURO, (
+            "con umbral_alcohol=1.0 una cerveza al 30% no debe marcar"
+        )
+
+    def test_el_detalle_que_va_al_embed_sigue_las_umbrales(self):
+        """No basta con que el veredicto cambie: el embed nombra lo detectado."""
+        _, _, con_umbral = _veredicto_de_contenido(
+            self._config(umbral_alcohol=0.25), self.CERVEZA
+        )
+        assert "Alcohol" in con_umbral, con_umbral
+
+    def test_sin_umbrales_usa_los_defaults(self):
+        """Una config sin `_umbrales` no puede reventar: cae a `core.config`."""
+        v, _, _ = _veredicto_de_contenido({}, self.CERVEZA)
+        assert v is Veredicto.SEGURO
+
+    def test_un_fallo_sigue_siendo_error_con_umbrales_puestos(self):
+        """Lo que no se pudo comprobar no se vuelve `seguro` por tener umbrales."""
+        for umbral in ({}, self._config(umbral_alcohol=0.0)):
+            v, _, _ = _veredicto_de_contenido(umbral, {"error": "sin_cuota"})
+            assert v is Veredicto.ERROR
+
+    def test_ninguna_rama_se_salta_el_helper(self):
+        """Las tres ramas que deciden el veredicto de una imagen pasan por el helper.
+
+        Es la parte que no se ve leyendo un test: si mañana alguien añade una cuarta rama
+        y llama a `evaluar_contenido` a secas, el control vuelve a estar muerto y ningún
+        otro test de este fichero se entera.
+        """
+        import pathlib
+
+        raiz = pathlib.Path(__file__).resolve().parent.parent
+        texto = (raiz / "ui" / "message_handler.py").read_text(encoding="utf-8")
+        sueltas = [
+            linea.strip()
+            for linea in texto.splitlines()
+            if "= evaluar_contenido(" in linea
+        ]
+        assert not sueltas, (
+            "estas ramas llaman a evaluar_contenido sin los umbrales del guild, "
+            f"así que el veredicto sale de los defaults: {sueltas}"
+        )
 
 
 class TestLaRedaccionSeEntiende:

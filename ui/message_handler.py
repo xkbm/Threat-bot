@@ -287,6 +287,28 @@ async def _construir_embed_unificado(
     return emb.pie(embed, f"Análisis de mensaje · {total} elemento(s)")
 
 
+def _veredicto_de_contenido(config: dict, models: dict) -> tuple[Veredicto, float, str]:
+    """Veredicto de contenido de una imagen, con los umbrales de SU servidor.
+
+    Existe para que ninguna rama pueda dejar de mirar la configuración. Las tres que
+    deciden el veredicto de una imagen (adjunto, URL con acierto de caché y URL
+    descargada) llamaban a `evaluar_contenido(models)` a secas, así que el veredicto
+    salía siempre de `core.config.UMBRALES_CONTENIDO`: los seis umbrales de
+    `/settings` se guardaban, se leían y no cambiaban nada. Peor, no se notaba: la
+    imagen marcaba o no marcaba igual en todos los servidores, y el panel parecía
+    funcionar.
+
+    Los umbrales se pasan además al pedir el análisis a SightEngine, pero eso solo
+    precalcula lo que `analizar_imagen_multimodelo` guarda en su caché; quien
+    devuelve el veredicto es esta función. Los umbrales son del cliente, no de la
+    API: la respuesta trae probabilidades y quién decide dónde está la línea lo es
+    cada servidor. Por eso se reevalúa aquí, y no se confía en el veredicto cacheado:
+    un admin que baja su umbral lo ve aplicar de inmediato, también en un acierto de
+    caché, en vez de tener que esperar a que caduque.
+    """
+    return evaluar_contenido(models, config.get("_umbrales"))
+
+
 def _motivo_de_error(modelos: Optional[dict]) -> str:
     """Texto legible para un elemento que no se pudo comprobar.
 
@@ -464,7 +486,7 @@ async def _procesar_imagen(
             # El veredicto de contenido lo decide `evaluar_contenido`, que distingue
             # tres cosas que antes iban todas a "seguro": no había nada, no se pudo
             # comprobar, y era contenido restringido.
-            veredicto, confianza, detalle = evaluar_contenido(models)
+            veredicto, confianza, detalle = _veredicto_de_contenido(config, models)
 
             # Reputación de malware por hash. Una imagen puede estar limpia para
             # SightEngine y aun así ser un ejecutable con extensión .png: son dos
@@ -937,7 +959,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                                 # existe, con umbrales escritos a mano: el detalle salia siempre como
                                 # "Contenido inapropiado" sin decir que se detecto, y alcohol o armas
                                 # quedaban etiquetados como `nsfw`.
-                                _v, _conf, detalles_str = evaluar_contenido(models)
+                                _v, _conf, detalles_str = _veredicto_de_contenido(config, models)
                                 img_url_results.append(ImgUrlResult(
                                     url, _v.value, detalles_str, f"nsfw:{cached_hash}"))
                                 if _v in (Veredicto.NSFW, Veredicto.RESTRINGIDO) and guild_id:
@@ -984,7 +1006,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                                         # existe, con umbrales a mano: el detalle salía siempre
                                         # como "Contenido inapropiado" y alcohol o armas
                                         # quedaban etiquetados como `nsfw`.
-                                        _v, _conf, detalles_str = evaluar_contenido(models)
+                                        _v, _conf, detalles_str = _veredicto_de_contenido(config, models)
                                         img_url_results.append(ImgUrlResult(
                                             url, _v.value, detalles_str, f"nsfw:{content_hash}"))
                                         if _v in (Veredicto.NSFW, Veredicto.RESTRINGIDO) and guild_id:

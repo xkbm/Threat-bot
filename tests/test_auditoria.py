@@ -200,13 +200,51 @@ class TestLasClavesViejasDeSightEngineNoVuelven:
         )
 
     def test_las_tres_ramas_pasan_por_evaluar_contenido(self):
-        """Acierto de caché, descarga y adjunto: los tres caminos, el mismo veredicto."""
+        """Acierto de caché, descarga y adjunto: los tres caminos, el mismo veredicto.
+
+        Antes esto contaba apariciones de `evaluar_contenido(` y exigía tres o más, lo que
+        daba por bueno que cada rama llamara al evaluador por su cuenta. Fue exactamente
+        por donde se coló el fallo de los umbrales: las tres llamaban a `evaluar_contenido`
+        SIN el segundo argumento, así que contaban tres y el veredicto salía siempre de
+        los defaults de `core.config`. El conteo no distinguía "llama al evaluador" de
+        "llama al evaluador con lo que el servidor pidió".
+
+        Ahora se exige lo contrario y más fuerte: que las tres ramas pasen por
+        `_veredicto_de_contenido`, y que ese sea el ÚNICO sitio que llama al evaluador,
+        pasándole los umbrales. Se cuenta con `ast` y no con subcadenas a propósito: un
+        `texto.count` también cuenta la línea del `def` y la del import, así que una
+        rama que volviera a decidirse por su cuenta pasaba el filtro sin querer.
+        """
         import pathlib
 
         raiz = pathlib.Path(__file__).resolve().parent.parent
-        texto = (raiz / "ui" / "message_handler.py").read_text(encoding="utf-8")
-        assert texto.count("evaluar_contenido(") >= 3, (
-            "cada rama que decide el veredicto de una imagen debe usar evaluar_contenido"
+        arbol = ast.parse((raiz / "ui" / "message_handler.py").read_text(encoding="utf-8"))
+
+        llamadas_helper = []
+        llamadas_evaluador = []
+        for nodo in ast.walk(arbol):
+            if not (isinstance(nodo, ast.Call) and isinstance(nodo.func, ast.Name)):
+                continue
+            if nodo.func.id == "_veredicto_de_contenido":
+                llamadas_helper.append(nodo.lineno)
+            elif nodo.func.id == "evaluar_contenido":
+                llamadas_evaluador.append(nodo)
+
+        assert len(llamadas_helper) >= 3, (
+            "cada rama que decide el veredicto de una imagen debe pasar por "
+            f"_veredicto_de_contenido; solo hay {len(llamadas_helper)} llamadas "
+            f"en las líneas {llamadas_helper}"
+        )
+        assert len(llamadas_evaluador) == 1, (
+            f"evaluar_contenido debería llamarse en un único sitio, no en {len(llamadas_evaluador)}: "
+            "una segunda llamada es una segunda forma de decidir el veredicto, y es por "
+            "ahí donde se perdieron los umbrales"
+        )
+        # Dos argumentos: `models` y los umbrales del guild. Con uno solo, el veredicto
+        # sale de `core.config` y los dials de /settings no hacen nada.
+        assert len(llamadas_evaluador[0].args) == 2, (
+            "la única llamada al evaluador tiene que pasarle los umbrales del guild: "
+            f"linea {llamadas_evaluador[0].lineno}"
         )
 
 
