@@ -352,11 +352,18 @@ class TestQuitarDominioDesdeElPanel:
             _c.update(campos)
             return _c
 
-        async def _quitar(guild_id, _q=None, dominio=None):
-            _q.append(dominio)
+        import core.config_schema as esq
+        self.protegidos = set(esq.DOMINIOS_PROTEGIDOS)
+        self.quitar_rechazados = []
+
+        async def _quitar(guild_id, dominio):
+            self.quitados.append(dominio)
+            if dominio in self.protegidos:
+                self.quitar_rechazados.append(dominio)
+                return False
             self.config["whitelist"] = [
                 d for d in self.config["whitelist"] if d != dominio]
-            return 0
+            return True
 
         monkeypatch.setattr(gc_mod, "obtener_config_guild", _obtener)
         monkeypatch.setattr(pan, "obtener_config_guild", _obtener)
@@ -371,11 +378,41 @@ class TestQuitarDominioDesdeElPanel:
         me = object()
 
     @pytest.mark.asyncio
-    async def test_hay_selector_para_quitar(self):
+    async def test_hay_selector_para_quitar_los_propios(self):
+        """El desplegable ofrece los dominios del admin, y solo esos.
+
+        Con la config de serie no hay ninguno propio, así que no hay desplegable: los
+        protegidos no se pueden quitar y ofrecerlos era ofrecer algo que va a fallar.
+        """
         v = await self.panel.PanelConfig.crear("exclusiones", self._Guild())
-        quitas = [h for h in v.children if type(h).__name__ == "SelectorQuitarWhitelist"]
-        assert quitas, "no hay forma de quitar un dominio desde el panel"
-        assert len(quitas[0].options) >= len(self.config["whitelist"])
+        assert not [h for h in v.children
+                    if type(h).__name__ == "SelectorQuitarWhitelist"]
+
+        self.config["whitelist"] = ["mi-web.es", "discord.gg"]
+        v = await self.panel.PanelConfig.crear("exclusiones", self._Guild())
+        quitas = [h for h in v.children
+                  if type(h).__name__ == "SelectorQuitarWhitelist"]
+        assert quitas, "no hay forma de quitar un dominio propio desde el panel"
+        assert {o.value for o in quitas[0].options} == {"mi-web.es", "discord.gg"}
+
+    @pytest.mark.asyncio
+    async def test_los_protegidos_no_se_ofrecen(self):
+        """Están para ahorrar peticiones. Quitarlos sería gastar, no ahorrar."""
+        # Se AÑADE un dominio propio sin tocar los de serie: si se reemplazara la lista,
+        # no habría protegidos que ofrecer y el test pasaría sin comprobar nada. Ya
+        # pasó una vez.
+        assert self.config["whitelist"], "la config de serie ya no trae los protegidos"
+        self.config["whitelist"] = list(self.config["whitelist"]) + ["mi-web.es"]
+
+        v = await self.panel.PanelConfig.crear("exclusiones", self._Guild())
+        sel = next(h for h in v.children
+                   if type(h).__name__ == "SelectorQuitarWhitelist")
+        ofrecidos = {o.value for o in sel.options}
+        assert self.protegidos, "el test necesita saber cuáles son los protegidos"
+        assert not (ofrecidos & self.protegidos), (
+            f"se están ofreciendo protegidos: {ofrecidos & self.protegidos}"
+        )
+        assert "mi-web.es" in ofrecidos, "el propio sí debe ofrecerse"
 
     @pytest.mark.asyncio
     async def test_sin_dominios_no_hay_selector_vacio(self):
@@ -389,11 +426,32 @@ class TestQuitarDominioDesdeElPanel:
                 if type(h).__name__ == "BotonAnadirWhitelist"]
 
     @pytest.mark.asyncio
-    async def test_los_protegidos_avisan_de_que_vuelven(self):
-        """Vienen de serie, así que no se pueden quitar del todo."""
+    async def test_quitar_un_protegido_no_dice_que_se_quito(self):
+        """`quitar_dominio` es el que decide de verdad, no el desplegable.
+
+        Si dice que no, el panel no puede responder "quitado": el admin creería que ya
+        está pagando por ese tráfico. Antes el desplegable ofrecía los protegidos con un
+        texto que prometía que volverían al reiniciar, y no era verdad.
+        """
+        self.config["whitelist"] = ["mi-web.es"]
         v = await self.panel.PanelConfig.crear("exclusiones", self._Guild())
         sel = next(h for h in v.children
                    if type(h).__name__ == "SelectorQuitarWhitelist")
-        protegido = next((o for o in sel.options if o.value == "youtube.com"), None)
-        assert protegido is not None
-        assert "reiniciar" in protegido.description
+
+        enviados = []
+
+        class _Resp:
+            async def send_message(self, *a, **k):
+                enviados.append(a[0] if a else k.get("content", ""))
+
+        inter = types.SimpleNamespace(guild=self._Guild(), response=_Resp())
+        # `values` es una propiedad de clase que en 2.7 no guarda nada en la instancia,
+        # así que se sustituye la propiedad entera en vez de tocar un atributo interno.
+        from unittest.mock import PropertyMock, patch
+        with patch.object(type(sel), "values", new_callable=PropertyMock,
+                          return_value=["youtube.com"]):
+            await sel.callback(inter)
+
+        assert enviados, "no respondió nada al moderador"
+        assert "protegido" in enviados[0].lower(), enviados[0]
+        assert "quitado" not in enviados[0].lower(), enviados[0]
