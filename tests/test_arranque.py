@@ -510,19 +510,26 @@ class TestFlujoCompleto:
             f"{msg.reacciones}"
         )
 
-    @pytest.mark.asyncio
-    async def test_el_embed_avisa_si_no_se_pudo_borrar(self, bot_analisis):
-        """Si el modo estricto no pudo actuar, el aviso tiene que decirlo en el canal.
+    @staticmethod
+    def _captura_log():
+        """Canal de log falso que guarda los embeds que le mandan."""
+        from core import state as state_mod
 
-        El log del bot lo dice, pero el log se lo lee quien despliega, no quien modera. Sin
-        esto, el embed de una imagen NSFW se leía como "contenido restringido detectado" y
-        nada más, que es exactamente lo que diría si el mensaje se hubiera borrado bien. El
-        moderador se iba pensando que el canal estaba limpio.
-        """
+        enviados = []
+
+        class _CanalLog:
+            name = "registro"
+            async def send(self, embed=None, **k):
+                enviados.append(embed)
+                return types.SimpleNamespace(id=1)
+
+        state_mod.bot.get_channel = lambda cid: _CanalLog()
+        return enviados
+
+    async def _amenaza_sin_borrar(self, bot_analisis, msg):
+        """Deja el análisis listo y hace que borrar falle con Forbidden."""
         from core.utils import clave_analisis
         import ui.message_handler as mh
-
-        msg = _Mensaje("https://ejemplo-aviso.test/malo")
 
         async def _analizar_falso(url, *a, **k):
             from core import cache as cache_mod
@@ -546,10 +553,71 @@ class TestFlujoCompleto:
         await mh.procesar_analisis(bot_analisis, msg)
         await asyncio.sleep(0.05)
 
-        assert msg.enviados, "sin aviso en el canal, el moderador no se entera"
-        texto = msg.enviados[0].description or ""
-        assert "no se pudo borrar" in texto.lower(), texto
-        assert "Manage Messages" in texto, texto
+    @pytest.mark.asyncio
+    async def test_el_fallo_de_borrado_avisa_en_el_log_y_no_en_el_canal(self, bot_analisis):
+        """El aviso va al log de amenazas, no al embed del canal.
+
+        Es un dato de infraestructura —permisos del bot en un canal—, le interesa al que
+        administra el bot y no a quien está en el canal viendo un aviso de contenido. En el
+        embed solo añadía ruido.
+        """
+        from core import guild_config as gc
+        gc._asegurar_guild(1)["log_channel_id"] = 555
+        enviados = self._captura_log()
+
+        msg = _Mensaje("https://ejemplo-aviso.test/malo")
+        await self._amenaza_sin_borrar(bot_analisis, msg)
+
+        texto = (msg.enviados[0].description or "").lower()
+        assert "no se pudo borrar" not in texto, (
+            f"el aviso de permisos es ruido en el canal de contenido: {texto}"
+        )
+        assert enviados, "no se envió nada al log de amenazas"
+        # El título dice qué pasó y la descripción por qué.
+        assert "no ha podido" in (enviados[0].title or "").lower(), enviados[0].title
+        assert (enviados[0].description or "").strip(), "sin motivo no sirve de nada"
+
+    @pytest.mark.asyncio
+    async def test_el_motivo_se_pregunta_no_se_inventa(self, bot_analisis):
+        """Si `Manage Messages` ya está puesto y aun así falla, decirlo.
+
+        Antes el aviso afirmaba siempre que faltaba ese permiso. `Forbidden` también
+        salta por una sobrescritura de permisos, un hilo archivado o un foro, así que un
+        administrador podía cambiar un permiso que ya tenía y seguir viendo lo mismo.
+        """
+        import discord as _d
+        from core import guild_config as gc
+        gc._asegurar_guild(1)["log_channel_id"] = 555
+        enviados = self._captura_log()
+
+        msg = _Mensaje("https://ejemplo-permiso-ok.test/malo")
+        msg.channel.permissions_for = lambda member: _d.Permissions(
+            manage_messages=True, read_message_history=True)
+        await self._amenaza_sin_borrar(bot_analisis, msg)
+
+        assert enviados, "no se envió nada al log"
+        motivo = (enviados[0].description or "").lower()
+        assert "le falta" not in motivo, (
+            f"el bot sí tiene ese permiso, así que no puede ser la causa: {motivo}"
+        )
+        assert "sí tiene" in motivo, motivo
+
+    @pytest.mark.asyncio
+    async def test_sin_permiso_si_se_la_causa_real(self, bot_analisis):
+        """La otra mitad: si de verdad falta, se dice cuál, con nombre y canal."""
+        import discord as _d
+        from core import guild_config as gc
+        gc._asegurar_guild(1)["log_channel_id"] = 555
+        enviados = self._captura_log()
+
+        msg = _Mensaje("https://ejemplo-sin-permiso.test/malo")
+        msg.channel.permissions_for = lambda member: _d.Permissions(
+            manage_messages=False, read_message_history=True)
+        await self._amenaza_sin_borrar(bot_analisis, msg)
+
+        assert enviados, "no se envió nada al log"
+        motivo = (enviados[0].description or "").lower()
+        assert "manage messages" in motivo, motivo
 
     @pytest.mark.asyncio
     async def test_el_embed_no_se_queja_cuando_si_se_borro(self, bot_analisis):

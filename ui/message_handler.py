@@ -16,6 +16,7 @@ from core.config import (
     EMOJI_NOMBRE_SOSPECHOSO, EMOJI_WARNING,
 )
 from core.utils import safe_remove_loading, safe_add_reaction, safe_send, dominio_en_whitelist, url_es_imagen, es_imagen, verificar_nombre, expandir_url, tiene_doble_extension, descargar_url_segura, clave_analisis, vuelo, SIN_RESPUESTA, comprobar_antispam, check_vt_user_limit, PATRON_URL_D, limpiar_url
+from core import state
 from core import filetypes as F
 from core import veredictos
 from core.filetypes import CABECERA_BYTES
@@ -132,10 +133,47 @@ class ImgUrlResult(NamedTuple):
     elemento_id: str = ""
 
 
+def _motivo_de_borrado_fallido(message: discord.Message) -> str:
+    """Por qué no se pudo borrar, según lo que el propio Discord dice de sus permisos.
+
+    Antes el aviso afirmaba que faltaba `Manage Messages`. Eso es **suponer**, y el
+    resultado era un diagnóstico falso en cuanto la causa era otra: `Forbidden` también
+    salta si el bot no tiene permisos en ese canal por una sobrescritura, si el mensaje es
+    el primero de un foro, o si es un hilo archivado. Un administrador que leyera
+    "falta Manage Messages" iba a cambiar un permiso que ya tenía y seguiría sin ver
+    nada.
+
+    Así que se pregunta. Y si el bot sí tiene el permiso y aún así no puede, se dice eso,
+    que es más útil: significa que el problema no es de permisos y buscarlo en el panel
+    de roles es perder el tiempo.
+    """
+    guild = message.guild
+    me = getattr(guild, "me", None)
+    perms = None
+    try:
+        perms = message.channel.permissions_for(me) if me is not None else None
+    except Exception:
+        perms = None
+
+    if perms is not None and not perms.manage_messages:
+        return (f"al bot le falta `Manage Messages` en #{message.channel} "
+                f"(canal #{message.channel.id})")
+    if perms is not None and not perms.read_message_history:
+        return (f"al bot le falta `Read Message History` en #{message.channel} "
+                f"(canal #{message.channel.id})")
+
+    if isinstance(message.channel, discord.Thread):
+        return (f"el mensaje está en el hilo #{message.channel} y no se puede borrar "
+                "(archivado, sin permiso en el canal padre, o primer mensaje de un foro)")
+
+    return ("el bot sí tiene `Manage Messages` en ese canal, así que el rechazo es otro: "
+            "mensaje no borrable por Discord, o una sobrescritura de permisos. El detalle "
+            "exacto está en el log")
+
+
 async def _construir_embed_unificado(
     message: discord.Message,
     senales: Senales,
-    aviso_no_borrado: bool = False,
 ) -> discord.Embed:
     """Construye UN embed con toda la información disponible.
 
@@ -188,18 +226,8 @@ async def _construir_embed_unificado(
         desc += (f"{EMOJI_WHITELIST} **{senales.whitelist_omitidos}** enlace(s) en "
                  "whitelist, no analizados")
 
-    # El aviso va en la descripción y no al final porque es lo que hay que leer primero:
-    # el modo estricto no hizo nada y el mensaje sigue en el canal. Si fuera una línea más
-    # al fondo, con cinco elementos y sus contadores, un moderador pasaría por encima.
-    if aviso_no_borrado:
-        desc += (
-            f"\n{EMOJI_WARNING} **No se pudo borrar el mensaje.** Al bot le falta "
-            "`Manage Messages` en este canal, así que el modo estricto no ha podido "
-            "actuar y el contenido sigue visible: bórralo tú."
-        )
-
     embed = emb.aviso(titulo_texto, desc.rstrip("\n"), color=color,
-                      icono=emb.EMOJI_SHIELD, con_pie=False)
+                  icono=emb.EMOJI_SHIELD, con_pie=False)
 
     def _linea(elemento: Elemento, extra: str = "") -> str:
         linea = f"{elemento.veredicto.emoji} `{elemento.nombre}`"
@@ -1251,36 +1279,37 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
     # permiso de borrar, el mensaje sigue ahí y la reacción es la única señal de que se
     # miró. Reaccionar a un mensaje ya borrado sería tirar la llamada.
     borrado = False
-    fallo_borrado = False
+    motivo_borrado = ""
     if debe_borrar(has_threat, has_doble_ext, has_mime_mismatch, strict_mode):
         try:
             await message.delete()
             borrado = True
             log.debug(f"Mensaje {message.id} borrado por modo estricto")
-        except (discord.errors.Forbidden, discord.errors.NotFound) as e:
-            # Sin permiso o ya no estaba. El mensaje sigue visible, así que la reacción
-            # sigue haciendo falta y se pone más abajo, y el embed avisa de que el modo
-            # estricto no ha hecho su trabajo.
-            #
-            # Se loguea porque antes pasaba en silencio: un mensaje que sobrevivió por
-            # falta de permiso era indistinguible de un mensaje que nunca fue amenaza.
-            # Falta `Manage Messages` en el canal, que es la causa real aquí.
+        except discord.errors.NotFound:
             borrado = False
-            fallo_borrado = True
+        except discord.errors.Forbidden as e:
+            # Sin permiso. El mensaje sigue visible, así que la reacción sigue haciendo
+            # falta y se pone más abajo.
+            #
+            # El motivo NO se afirma: se pregunta. Antes el embed decía "al bot le falta
+            # Manage Messages" y eso era una suposición —`Forbidden` también salta por
+            # una sobrescritura de permisos, por un hilo archivado o por un foro—, así que
+            # un admin podía cambiar un permiso que ya tenía y seguir viendo lo mismo.
+            borrado = False
+            motivo_borrado = _motivo_de_borrado_fallido(message)
             log.warning(
-                f"No se pudo borrar el mensaje {message.id} en modo estricto "
-                f"({type(e).__name__}): {e}"
+                f"No se pudo borrar el mensaje {message.id} en modo estricto: "
+                f"{motivo_borrado} ({type(e).__name__}: {e})"
             )
 
-    embed = await _construir_embed_unificado(
-        message, senales, aviso_no_borrado=fallo_borrado
-    )
+    embed = await _construir_embed_unificado(message, senales)
 
-    # Enviar embed. Va DESPUÉS del borrado a propósito: así puede decir si lo hizo. Y va
-    # aunque el mensaje se haya borrado, que es justo cuando más hace falta el aviso, ya
-    # que el original ha desaparecido del canal.
-    # `debe_enviar_embed` separa los tres interruptores: antes esta condición era una suma
-    # de "algo salió mal" que no se podía desactivar por partes.
+    # Enviar embed. `debe_enviar_embed` separa los tres interruptores: antes esta condición
+    # era una suma de "algo salió mal" que no se podía desactivar por partes.
+    #
+    # El aviso de "no se pudo borrar" NO va aquí. Va al log de amenazas, y no por otra razón: es
+    # un dato de infraestructura —permisos del bot en un canal— y no le interesa a quien
+    # está leyendo el canal. En el embed solo añadía ruido sobre el contenido.
     if debe_enviar_embed(senales, config):
         await safe_send(message, embed, reference=message)
 
@@ -1322,6 +1351,32 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
         origen = "" if borrado else emb.enlace_mensaje(
             guild_id, message.channel.id, message.id
         )
+        # El fallo de borrado va al log y solo al log. Es un dato de infraestructura: le
+        # dice al que administra el bot que no puede cumplir el modo estricto, y no le
+        # interesa a quien está en el canal viendo un aviso de contenido. En el embed solo
+        # añadía ruido, y encima afirmaba una causa que no se comprobaba.
+        #
+        # Va con su propio envío y NO por `enviar_log_guild`: ese embed es de amenaza, con
+        # botones de banear y expulsar. Reutilizarlo para decir "al bot le falta un
+        # permiso" sería volver a mentir con el formato, que es el mismo error de antes
+        # con otro traje.
+        if motivo_borrado:
+            canal_log = state.bot.get_channel(log_channel_id) if state.bot else None
+            if canal_log is not None:
+                aviso = emb.aviso(
+                    "El bot no ha podido cumplir el modo estricto",
+                    motivo_borrado,
+                    icono=EMOJI_WARNING,
+                    con_pie=False,
+                )
+                if origen:
+                    aviso.add_field(name="Origen", value=origen, inline=False)
+                try:
+                    await canal_log.send(embed=aviso)
+                except discord.errors.Forbidden:
+                    # No puede ni escribir en su propio canal de log. El `log.warning`
+                    # de arriba ya deja constancia, que es lo que importa.
+                    pass
         for r in url_results:
             if r.tipo == "malicioso" and not r.ya_logueado:
                 await enviar_log_guild(
