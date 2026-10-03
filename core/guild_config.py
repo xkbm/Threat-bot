@@ -3,6 +3,7 @@ from typing import Optional, Any
 import logging
 from core import state
 from core.config import DOMINIOS_PROTEGIDOS
+from core.config import stats_vacias as _stats_vacias
 from core.aviso import config_aviso_por_defecto, migrar_aviso
 from core.config_schema import validar
 from core.database import (
@@ -170,6 +171,22 @@ async def _persistir_config(guild_id: int, config: dict[str, Any], inmediato: bo
         await guardar_datos(inmediato=True, incluir_guilds=True)
 
 
+def _es_protegido(dominio: str) -> bool:
+    """Si el dominio viene de serie y no se puede quitar de la whitelist.
+
+    La comparación va normalizada porque quien llega aquí puede haber escrito
+    `https://YouTube.com/` y lo que hay en la whitelist es `youtube.com`. Sin esto,
+    `quitar_dominio` compararía una cosa con otra y dejaría pasar el protegido.
+    """
+    try:
+        from core.utils import normalizar_dominio
+        return normalizar_dominio(dominio) in set(DOMINIOS_PROTEGIDOS)
+    except Exception:
+        # Si la normalización falla, se compara en crudo: es peor dejar pasar un protegido
+        # que bloquear un dominio que sí se podía quitar.
+        return str(dominio).lower() in set(DOMINIOS_PROTEGIDOS)
+
+
 async def agregar_dominio(guild_id: int, dominio: str) -> bool:
     """Añade un dominio a la whitelist del guild. Devuelve True si se añadió."""
     async with await _get_guild_lock(guild_id):
@@ -183,7 +200,21 @@ async def agregar_dominio(guild_id: int, dominio: str) -> bool:
 
 
 async def quitar_dominio(guild_id: int, dominio: str) -> bool:
-    """Quita un dominio de la whitelist del guild. Devuelve True si se quitó."""
+    """Quita un dominio de la whitelist del guild. Devuelve True si se quitó.
+
+    Los dominios protegidos **no** se pueden quitar, y aquí es donde se garantiza, no en
+    el panel. El panel puedeEvolucionar; esta función es la que decide.
+
+    Antes no había ninguna comprobación: un admin podía quitar `youtube.com` de un golpe y
+    a partir de ahí cada enlace de YouTube del servidor pasaba a analysizarse, que es
+    justo lo contrario de lo que dice la whitelist. Con la cuota del plan gratuito
+    compartida, eso se come el presupuesto del guild entero sin que nada avise de nada.
+    """
+    if _es_protegido(dominio):
+        log.info(
+            f"WHITELIST REMOVE RECHAZADO (protegido) → guild={guild_id} dominio={dominio}"
+        )
+        return False
     async with await _get_guild_lock(guild_id):
         config = _asegurar_guild(guild_id)
         if dominio not in config["whitelist"]:
@@ -192,13 +223,6 @@ async def quitar_dominio(guild_id: int, dominio: str) -> bool:
     await _persistir_config(guild_id, config, True)
     log.debug(f"WHITELIST REMOVE → guild={guild_id} dominio={dominio}")
     return True
-
-def _stats_vacias() -> dict[str, int]:
-    return {
-        "total_analisis": 0, "seguros": 0, "sospechosos": 0, "maliciosos": 0,
-        "nsfw": 0, "restringidos": 0, "phishing": 0, "ignorados": 0, "errores": 0,
-    }
-
 
 def obtener_stats_globales() -> dict[str, int]:
     if "__global__" not in state.bot.guilds_data:

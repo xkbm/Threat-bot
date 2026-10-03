@@ -67,9 +67,15 @@ def resolver_reaccion(senales: Senales) -> str:
     if senales.hay_senal_de_nombre:
         # Emoji propio, no el de malware: esto es un aviso, no una detección.
         return config.EMOJI_NOMBRE_SOSPECHOSO
-    # La whitelist es lo último: solo decide cuando no hay nada más que contar. Con
-    # elementos de por medio, manda su veredicto y la whitelist va al embed.
-    if senales.whitelist_omitidos:
+    # La whitelist es lo último, y además solo si no se miró NADA. Antes bastaba con que
+    # hubiera enlaces exentos, y eso convertía la whitelist en camuflaje: un atacante
+    # ponía `youtube.com` junto a un enlace recién creado que VirusTotal todavía no
+    # conocía, el dominio salía "limpio", ganaba el sello de whitelist y el moderador
+    # pasaba de largo. Lo que la whitelist significa es "esto NO se ha comprobado", así
+    # que solo puede ser el veredicto del mensaje cuando no se comprobó nada. Si hubo
+    # elementos y todos salieron limpios, el mensaje es "analizado y limpio", que es lo
+    # que dice el check verde.
+    if senales.whitelist_omitidos and not senales.elementos:
         return config.EMOJI_WHITELIST
     return config.EMOJI_CORRECTO
 

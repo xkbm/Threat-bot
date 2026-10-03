@@ -77,11 +77,36 @@ class EstadisticasCog(commands.Cog):
             embed.add_field(name=f"{self.bot.EMOJI_GUARDIAN} Sospechosos", value=f"**{stats.get('sospechosos', 0)}**", inline=True)
             embed.add_field(name=f"{self.bot.EMOJI_WARNING} Maliciosos", value=f"**{stats['maliciosos']}**", inline=True)
             embed.add_field(name=f"{self.bot.EMOJI_NSFW} NSFW", value=f"**{stats.get('nsfw', 0)}**", inline=True)
+            # Estas tres NO se enseñaban. El bot las contaba desde hace tiempo, pero el
+            # embed no las pintaba: en una base con 11 phishing y 3 restringidos, `/stats`
+            # salía como si eso no hubiera pasado. Tres categorías de las nueve
+            # invisibles, y dos de ellas (phishing y restringido) son justo las que
+            # justifican tener el bot puesto.
+            embed.add_field(name=f"{self.bot.EMOJI_RESTRINGIDO} Restringidos", value=f"**{stats.get('restringidos', 0)}**", inline=True)
+            embed.add_field(name=f"{self.bot.EMOJI_PHISHING} Phishing", value=f"**{stats.get('phishing', 0)}**", inline=True)
             embed.add_field(name=f"{self.bot.EMOJI_INCORRECTO} Errores", value=f"**{stats['errores']}**", inline=True)
+
+            # Ignorados va aparte porque no es una categoría de amenaza: son los elementos
+            # que un moderador descartó con "Ignorar". Sumarlo a las amenazas sería
+            # mentir, y no sumarlo a nada lo dejaría invisible.
+            embed.add_field(name=f"{self.bot.EMOJI_WHITELIST} Ignorados por moderación", value=f"**{stats.get('ignorados', 0)}**", inline=True)
+
+            # La barra miraba solo los maliciosos. Con 700 análisis y 60 strings de
+            # phishing, el único porcentaje que salía era el de malware, y seemed decir
+            # que el bot apenas encontraba nada cuando estaba viendo una de cada diez.
+            amenazas = (stats["maliciosos"] + stats.get("sospechosos", 0)
+                        + stats.get("nsfw", 0) + stats.get("restringidos", 0)
+                        + stats.get("phishing", 0))
+            porcentaje_amenazas = (amenazas / total * 100) if total > 0 else 0
             embed.add_field(
-                name=f"{self.bot.EMOJI_STATS} Detecciones (%)",
-                value=f"`{self.bot.barra_porcentaje(porcentaje_maliciosos)}` **{porcentaje_maliciosos:.1f}%**",
+                name=f"{self.bot.EMOJI_STATS} Detecciones totales (%)",
+                value=f"`{self.bot.barra_porcentaje(porcentaje_amenazas)}` **{porcentaje_amenazas:.1f}%** de los análisis",
                 inline=False
+            )
+            embed.add_field(
+                name=f"{self.bot.EMOJI_WARNING} Solo malware (%)",
+                value=f"`{self.bot.barra_porcentaje(porcentaje_maliciosos)}` **{porcentaje_maliciosos:.1f}%**",
+                inline=True
             )
 
             vt_minuto = self.get_vt_combined_minute()

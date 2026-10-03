@@ -178,3 +178,39 @@ class TestRegistrarInfraccion:
     async def test_crea_guild_con_todas_las_claves(self, fake_bot):
         await registrar_infraccion(7, 55, "url:a")
         assert "auto_scan_enabled" in fake_bot.guilds_data[7]
+
+
+class TestLosProtegidosNoSeQuitan:
+    """La whitelist puede quitarse por comando, así que el veto tiene que estar en la
+    función que decide, no solo en el desplegable del panel.
+
+    `quitar_dominio` no comprobaba nada. Un admin podía quitar `youtube.com` de un golpe
+    y a partir de ahí cada enlace de YouTube del servidor pasaba a analizarse: exactamente
+    lo contrario de lo que dice una whitelist, y con la cuota del plan gratuito compartida
+    eso se come el presupuesto del guild entero sin que nada avise.
+    """
+
+    @pytest.mark.asyncio
+    async def test_no_quita_un_protegido(self, fake_bot):
+        from core.config import DOMINIOS_PROTEGIDOS
+
+        for dominio in ("youtube.com", "discord.com", "google.com"):
+            assert await quitar_dominio(1, dominio) is False, dominio
+        config = await obtener_config_guild(1)
+        assert all(d in config["whitelist"] for d in DOMINIOS_PROTEGIDOS)
+
+    @pytest.mark.asyncio
+    async def test_el_veto_no_se_esquiva_con_mayusculas_ni_ruta(self, fake_bot):
+        """Sin normalizar, `https://YouTube.com/` no sería el protegido y pasaría."""
+        assert await quitar_dominio(1, "https://YouTube.com/") is False
+        assert await quitar_dominio(1, "YOUTUBE.COM") is False
+        config = await obtener_config_guild(1)
+        assert "youtube.com" in config["whitelist"]
+
+    @pytest.mark.asyncio
+    async def test_un_propio_se_quita_sigue(self, fake_bot):
+        """El veto es para los protegidos, no una whitelist de todo."""
+        await agregar_dominio(1, "mi-web.es")
+        assert await quitar_dominio(1, "mi-web.es") is True
+        config = await obtener_config_guild(1)
+        assert "mi-web.es" not in config["whitelist"]

@@ -21,6 +21,8 @@ def senales_de(*veredictos, **flags) -> Senales:
     s = Senales()
     for v in veredictos:
         s.anadir(Elemento(nombre=f"e-{v.value}", tipo="file", veredicto=v))
+    if flags.get("sin_elementos"):
+        s.elementos.clear()
     s.cooldown = flags.get("cooldown", False)
     s.omitidos = flags.get("omitidos", 0)
     s.whitelist_omitidos = flags.get("whitelist_omitidos", 0)
@@ -124,16 +126,23 @@ class TestResolverReaccion:
         s.anadir(Elemento(nombre="u", tipo="url", veredicto=Veredicto.SOSPECHOSO))
         assert resolver_reaccion(s) == config.EMOJI_GUARDIAN
 
-    def test_la_whitelist_solo_decide_si_no_hay_nada_mas(self):
-        """Antes la whitelist no tenía reacción propia, ni siquiera siendo lo único.
+    def test_la_whitelist_solo_decide_si_no_se_miro_nada(self):
+        """La whitelist solo puede ser el veredicto del mensaje cuando no se comprobó nada.
 
-        Eso hacía que un mensaje con enlaces exentos quedara indistinguible de uno que el
-        bot pasó por alto, o marcado con un verde que miente ("analizado y limpio"
-        cuando no se miró nada). Ahora decide solo cuando no hay ningún otro veredicto;
-        con algo que contar, manda ese y la whitelist va al embed.
+        Antes bastaba con que hubiera enlaces exentos, y eso convertía la whitelist en
+        camuflaje: un atacante ponía `youtube.com` junto a un enlace recién creado que
+        VirusTotal aún no conocía, ese salía "limpio", ganaba el sello de whitelist y el
+        moderador pasaba de largo. La whitelist significa "esto NO se ha comprobado", así
+        que si hubo elementos y todos salieron limpios, el mensaje es "analizado y limpio",
+        que es lo que dice el check verde.
         """
-        s = senales_de(Veredicto.SEGURO, whitelist_omitidos=2)
-        assert resolver_reaccion(s) == config.EMOJI_WHITELIST
+        solo_whitelist = senales_de(Veredicto.SEGURO, whitelist_omitidos=2, sin_elementos=True)
+        assert resolver_reaccion(solo_whitelist) == config.EMOJI_WHITELIST
+
+        con_elemento_limpio = senales_de(Veredicto.SEGURO, whitelist_omitidos=1)
+        assert resolver_reaccion(con_elemento_limpio) == config.EMOJI_CORRECTO, (
+            "con un elemento ya analizado, el sello de whitelist miente: sí se miró"
+        )
 
     def test_whitelist_no_contradice_una_amenaza(self):
         """El bug D16: antes salía con whitelist Y malicioso a la vez."""
@@ -259,3 +268,38 @@ class TestReactionController:
         assert ctrl.veredicto_actual is None
 
 
+
+
+class TestElPanelUsaEmojiQueExisten:
+    """`ui.embed` no reexporta todos los emojis: solo los seis que usa para sus embeds.
+
+    El modal de la whitelist y `_guardar` usaban `emb.EMOJI_ERROR` y `emb.EMOJI_CORRECTO`,
+    que no existen. Cada rama de `on_submit` reventaba con `AttributeError`: el modal
+    abría, escribías el dominio, le dabas a enviar y **no pasaba nada**. Y no era solo el
+    modal: `_guardar` es lo que llama cada desplegable y cada botón del panel, así que
+    tampoco se guardaba ningún ajuste.
+
+    El síntoma —"no funciona" sin error visible— es justo el que hace que esto sea difícil
+    de encontrar: Discord se come la excepción del callback y el usuario solo ve que no
+    ocurre nada.
+    """
+
+    def test_ningun_emoji_de_panel_esta_roto(self):
+        """Guarda contra volver a escribir `emb.EMOJI_*` para algo que no está ahí."""
+        import pathlib
+        import re
+        import sys
+
+        from ui import embed as emb_mod
+
+        raiz = pathlib.Path(__file__).resolve().parent.parent
+        fuente = (raiz / "ui" / "panel.py").read_text(encoding="utf-8")
+
+        rotos = set()
+        for nombre in set(re.findall(r"emb\.(EMOJI_[A-Z_]+)", fuente)):
+            if not hasattr(emb_mod, nombre):
+                rotos.add(nombre)
+        assert not rotos, (
+            f"panel.py usa emb.{sorted(rotos)[0]}... y ui.embed no lo expone. "
+            "Los emojis viven en core.config."
+        )

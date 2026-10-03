@@ -26,10 +26,21 @@ package-lock.json
 .env.*.local
 
 # DB
+# CRÍTICO: `analisis.db` y `data.json` están ignorados porque el despliegue hace
+# `git reset --hard && git clean -fd`, y `git clean` borra lo no trackeado. Si alguno de
+# estos dos deja de estar ignorado, el siguiente despliegue se los lleva.
+#
+# `-wal` y `-shm` también tienen que estarlo. El despliegue corre `git clean -fd` con el
+# bot EN MARCHA, y el WAL de SQLite guarda las transacciones confirmadas que aún no se
+# han volcado al fichero principal. Borrarlo por debajo deja la base a medias: se pierden
+# escrituras y, en el peor caso, la base queda corrupta. Y no los cubre `*.db`, porque
+# `analisis.db-wal` no termina en `.db`.
 analisis.db
 data.json
 new.py
 *.db
+*.db-wal
+*.db-shm
 *.log
 
 # Build

@@ -191,3 +191,24 @@ SE_MAX_REQUESTS_PER_MINUTE: int = 4
 IMAGE_EXTENSIONS: list[str] = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.ico', '.heic', '.heif']
 
 OWNER_ID: Optional[str] = os.getenv("OWNER_ID")
+
+
+def stats_vacias() -> dict[str, int]:
+    """La forma de las estadísticas globales, con todas las claves a cero.
+
+    Vive aquí, y no en `guild_config`, porque la necesitan DOS módulos y
+    `guild_config` importa de `database`: si la definición estuviera ahí, `database` no
+    podría importarla sin ciclo, y acabaría con su propia copia.
+
+    Y tener dos copias era exactamente el bug: `database` hardcodeaba una versión de 6
+    claves y `guild_config` usaba una de 9. Las que faltaban eran `restringidos`,
+    `phishing` e `ignorados`, así que un arranque limpioCreaba unas estadísticas sin esas
+    tres categorías y `/stats` no las enseñaba: el bot estaba contando phishing y
+    contenido restringido, y el panel no lo mencionaba.
+
+    Una sola definición. Quien añada una categoría la añade aquí y no en dos sitios.
+    """
+    return {
+        "total_analisis": 0, "seguros": 0, "sospechosos": 0, "maliciosos": 0,
+        "nsfw": 0, "restringidos": 0, "phishing": 0, "ignorados": 0, "errores": 0,
+    }

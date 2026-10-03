@@ -9,7 +9,7 @@ import asyncio
 import logging
 from core import state
 from core.cache import set_cache_mem
-from core.config import DB_FILE, DATA_FILE, EXPIRACION, DOMINIOS_PROTEGIDOS
+from core.config import DB_FILE, DATA_FILE, EXPIRACION, DOMINIOS_PROTEGIDOS, stats_vacias
 
 log = logging.getLogger("db")
 
@@ -63,6 +63,19 @@ class DatabasePool:
             )''')
             await conn.execute('''CREATE TABLE IF NOT EXISTS runtime (
                 key TEXT PRIMARY KEY, value TEXT
+            )''')
+            # Las estadísticas globales de `/stats`.
+            #
+            # Estaban SOLO en `data.json`, y eso las hacía irrecuperables: no hay de dónde
+            # recalcular un contador, así que perder ese fichero las perdía para siempre.
+            # Aquí tienen copia propia en la base, que es transaccional y sobrevive a que
+            # el JSON se borre, se corrompa o se pierda un despliegue.
+            #
+            # Se guardan como un único valor JSON bajo la clave `stats` y no como una fila
+            # por contador: siempre se leen y escriben juntas, y una fila por clave
+            # obligaría a transacciones para que nadie lea un contador a medias.
+            await conn.execute('''CREATE TABLE IF NOT EXISTS global_stats (
+                key TEXT PRIMARY KEY, value TEXT, updated_at REAL
             )''')
             await conn.execute('''CREATE TABLE IF NOT EXISTS eventos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -419,9 +432,31 @@ async def _flush_datos(incluir_guilds: bool = False) -> None:
     """
     async with DATA_LOCK:
         data_to_save: dict = {}
+        # `__global__` entra SIEMPRE, con o sin `incluir_guilds`.
+        #
+        # Aquí se perdían las estadísticas de `/stats`. Las globales viven en
+        # `guilds_data["__global__"]` y en ningún otro sitio: SQLite tiene una fila por
+        # servidor en `guild_config`, así que el global no está respaldado en ninguna parte.
+        #
+        # Y el volcado por defecto (`incluir_guilds=False`, que es lo que usan TODOS los
+        # llamantes salvo un cambio de configuración) escribía solo `__api_usage__` y
+        # `__antispam__`. Como el guardado es atómico y REEMPLAZA el fichero entero, ese
+        # volcado dejaba `__global__` fuera y lo borraba del disco. El cron horario lo
+        # hace cada hora, así que `/stats` volvía a cero por sí solo.
+        #
+        # La contradicción era explícita: `update_stats` documenta que "las persiste el
+        # cron horario", y el cron horario era justo quien las borraba.
+        #
+        # Meter aquí el global no reintroduce el problema que motivó el flag: son unas
+        # pocas claves, no la configuración de todos los servidores.
+        global_stats = state.bot.guilds_data.get("__global__")
+        if isinstance(global_stats, dict):
+            data_to_save["__global__"] = global_stats
         if incluir_guilds:
-            data_to_save = {str(gid): val for gid, val in state.bot.guilds_data.items()
-                            if gid not in ("__api_usage__", "__antispam__")}
+            for gid, val in state.bot.guilds_data.items():
+                if gid == "__global__" or gid in ("__api_usage__", "__antispam__"):
+                    continue
+                data_to_save[str(gid)] = val
         data_to_save["__api_usage__"] = {
             "total_requests": state.bot.vt_key_total_requests,
             "daily_usage": state.bot.vt_key_daily_usage,
@@ -458,6 +493,13 @@ async def _flush_datos(incluir_guilds: bool = False) -> None:
             except OSError:
                 pass
             log.error(f"Error al guardar datos: {e}")
+
+        # Las estadísticas van también a SQLite, que es donde tienen una copia que no
+        # depende de este fichero. Se escribe AL FINAL, con el JSON ya en disco: si la
+        # base falla, las cifras siguen a salvo en el JSON y solo se pierde la copia, no
+        # los datos. Al revés sería al revés de lo que importa.
+        if global_stats is not None:
+            await _escribir_stats_sqlite(global_stats)
 
 async def guardar_datos(inmediato: bool = False, incluir_guilds: bool = False) -> None:
     global _guardar_datos_pendiente, _guardar_datos_task
@@ -569,8 +611,39 @@ async def cargar_datos() -> None:
         state.bot.user_scan_history = _restaurar_claves_antispam(antispam_data.get("user_scan_history", {}))
         antispam_scan = _restaurar_claves_antispam(antispam_data.get("antispam_scan", {}))
         state.bot.antispam_scan = antispam_scan
-        if "__global__" not in state.bot.guilds_data:
-            state.bot.guilds_data["__global__"] = {"total_analisis": 0, "seguros": 0, "sospechosos": 0, "maliciosos": 0, "nsfw": 0, "errores": 0}
+
+        # Las estadísticas vienen de SQLite, que es donde tienen copia propia. El JSON se
+        # mira solo si la base no tiene nada: es el respaldo, no la fuente. Así, perder el
+        # fichero ya no significa perder los contadores, que era justo lo que pasaba.
+        #
+        # Y si no hay datos en ninguno de los dos sitios, se avisa. Antes se creaban unas
+        # estadísticas vacías en silencio y `/stats` salía a cero como si fuera normal,
+        # que es la peor forma de perder datos: parece que todo funciona.
+        stats_sqlite = await _leer_stats_sqlite()
+        if stats_sqlite is not None:
+            state.bot.guilds_data["__global__"] = stats_sqlite
+            if "__global__" not in data:
+                log.info("Estadísticas recuperadas de SQLite (data.json no las tenía).")
+        elif "__global__" not in state.bot.guilds_data:
+            hay_json = "__global__" in data
+            if hay_json:
+                log.info("Estadísticas tomadas de data.json; SQLite aún no tiene copia.")
+            else:
+                log.warning(
+                    "No se encontraron estadísticas en SQLite ni en data.json: se empiezan "
+                    "en cero. Si esperabas datos, revisa que `core/analisis.db` y "
+                    "`core/data.json` sigan ahí y que estén en el .gitignore, porque el "
+                    "despliegue ejecuta `git clean -fd`."
+                )
+            # Antes esta línea traía su propio dict de 6 claves, mientras `guild_config`
+            # usaba uno de 9. Las que faltaban eran `restringidos`, `phishing` e
+            # `ignorados`, así que un arranque limpio producía unas estadísticas sin
+            # esas tres categorías: el bot las contaba y `/stats` no las enseñaba nunca.
+            #
+            # Dos definiciones de lo mismo en dos sitios, y el ciclo de imports impide
+            # importarlas entre sí (`guild_config` importa a este módulo). La fuente
+            # única vive en `core.config`.
+            state.bot.guilds_data["__global__"] = stats_vacias()
             await guardar_datos(inmediato=True)
         # Si la configuración vino del JSON, se vuelca a SQLite para que la siguiente
         # arranque ya lea de la tabla. Si vino de SQLite no hay nada que hacer.
@@ -839,3 +912,54 @@ async def _cargar_guilds_desde_sqlite() -> int:
             state.bot.guilds_data[guild_id] = val
             cargados += 1
     return cargados
+
+
+async def _leer_stats_sqlite() -> Optional[dict]:
+    """Las estadísticas globales desde SQLite, o None si no hay o no se puede leer.
+
+    Devuelve None en vez de un dict vacío a propósito: None significa "aquí no había
+    nada" y quien llama puede seguir buscando en el JSON; un `{}` significa "estaba
+    vacío" y haría que un fallo de lectura pareciera unos contadores a cero.
+    """
+    try:
+        async with POOL._read_conn().execute(
+            "SELECT value FROM global_stats WHERE key = 'stats'"
+        ) as cur:
+            fila = await cur.fetchone()
+    except Exception as e:
+        log.warning(
+            f"No se pudieron leer las estadísticas de SQLite ({type(e).__name__}: {e}). "
+            "Se usará data.json como respaldo."
+        )
+        return None
+    if not fila or not fila[0]:
+        return None
+    try:
+        val = json.loads(fila[0])
+    except (TypeError, ValueError):
+        log.error("Estadísticas ilegibles en SQLite; se usará data.json como respaldo.")
+        return None
+    return val if isinstance(val, dict) else None
+
+
+async def _escribir_stats_sqlite(stats: dict) -> bool:
+    """Copia las estadísticas globales a SQLite. Devuelve si se pudo.
+
+    Se escribe DESPUÉS de volcar el JSON a propósito. Si la base falla, el JSON sigue
+    siendo válido y el bot no se queda sin nada: la base es la copia, no el original.
+    """
+    try:
+        async with POOL._write_lock:
+            await POOL._conns[0].execute(
+                "INSERT OR REPLACE INTO global_stats (key, value, updated_at) VALUES (?, ?, ?)",
+                ("stats", json.dumps(stats, ensure_ascii=False), time.time()),
+            )
+            await POOL._conns[0].commit()
+        return True
+    except Exception as e:
+        # No es crítico: el JSON acaba de escribirse bien y ya tiene las mismas cifras.
+        log.warning(
+            f"No se pudieron guardar las estadísticas en SQLite ({type(e).__name__}: {e}). "
+            "Siguen a salvo en data.json."
+        )
+        return False
