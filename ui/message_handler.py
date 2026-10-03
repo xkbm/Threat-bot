@@ -87,6 +87,40 @@ def _marcar_procesado(message: discord.Message) -> bool:
     return previo is None or previo[1] != huella or ahora - previo[0] >= _HUELLA_TTL
 
 
+# Contador de generaciones por mensaje. Sube en cada análisis que arranca.
+#
+# `_marcar_procesado` solo evita el re-análisis cuando el contenido NO ha cambiado. Si el
+# usuario edita el mensaje mientras el primer análisis sigue corriendo —que tarda
+# segundos—, la huella cambia, el guard deja pasar el segundo y los dosAnalizan a la vez.
+#
+# Consecuencia observada: los dos llegaban al borrado, el primero lo hacía bien y el
+# segundo recibía `NotFound`. Antes ese `NotFound` compartía `except` con `Forbidden` y
+# salía en el canal como "al bot le falta `Manage Messages`", que era mentira y llevaba a
+# un administrador a tocar un permiso que ya tenía.
+#
+# Con la generación, un análisis que ya no es el más reciente del mensaje no borra, no
+# notifica y no manda log: solo lo hace el último, que es el que tiene el veredicto del
+# contenido que el usuario ve ahora mismo.
+_generaciones: dict[int, int] = {}
+
+
+def _abrir_generacion(message_id: int) -> int:
+    """Registra que empieza un análisis de este mensaje y devuelve su número."""
+    n = _generaciones.get(message_id, 0) + 1
+    _generaciones[message_id] = n
+    if len(_generaciones) > _HUELLA_MAX:
+        # Orden de inserción: lo más viejo es lo primero. No es un `popitem(last=False)`
+        # porque el dict no es ordenado por antigüedad, se ordena aquí explícitamente.
+        for viejo in sorted(_generaciones)[: len(_generaciones) - _HUELLA_MAX]:
+            _generaciones.pop(viejo, None)
+    return n
+
+
+def _sigue_siendo_el_actual(message_id: int, generacion: int) -> bool:
+    """Si ningún análisis más reciente del mismo mensaje ha empezado mientras este."""
+    return _generaciones.get(message_id) == generacion
+
+
 def limpiar_cache_procesados() -> int:
     """Purga las huellas expiradas. Devuelve cuántas quitó."""
     ahora = time.time()
@@ -869,6 +903,11 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
         log.debug(f"Mensaje {message.id} sin cambios, se omite el re-análisis")
         return
 
+    # Se abre la generación ANTES de analizar. Si mientras tanto el usuario edita el
+    # mensaje y entra otro análisis, este deja de ser el actual y no debe borrar ni
+    # notificar: su veredicto es del contenido que el usuario ya no tiene delante.
+    generacion = _abrir_generacion(message.id)
+
     if len(message.content) > 5000:
         message.content = message.content[:5000]
 
@@ -1280,12 +1319,25 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
     # miró. Reaccionar a un mensaje ya borrado sería tirar la llamada.
     borrado = False
     motivo_borrado = ""
+    # Si mientras se analizaba el usuario editó el mensaje y entró otro análisis, este ya no
+    # manda: su veredicto es del contenido viejo y borraría o avisaría con información
+    # que ya no se ve en pantalla. Se sale antes de tocar nada.
+    if not _sigue_siendo_el_actual(message.id, generacion):
+        log.debug(
+            f"Mensaje {message.id}: hubo un análisis más reciente mientras este, "
+            f"se descartan sus acciones"
+        )
+        _liberar_controlador(bot, message)
+        return
+
     if debe_borrar(has_threat, has_doble_ext, has_mime_mismatch, strict_mode):
         try:
             await message.delete()
             borrado = True
             log.debug(f"Mensaje {message.id} borrado por modo estricto")
         except discord.errors.NotFound:
+            # No es un fallo: otro flujo ya lo borró, o el usuario lo quitó. No genera
+            # aviso, porque decirlo sería inventar un problema que no existe.
             borrado = False
         except discord.errors.Forbidden as e:
             # Sin permiso. El mensaje sigue visible, así que la reacción sigue haciendo

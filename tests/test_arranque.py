@@ -737,3 +737,90 @@ class TestFlujoCompleto:
         assert len(infracciones) == 1
         # La infracción es del autor del SEGUNDO mensaje, no del que escaneó primero.
         assert infracciones[0][1] == 43
+
+
+class TestUnMensajeSoloTieneUnAnalisisEnVuelo:
+    """Editar un mensaje mientras se analiza lanzaba un segundo análisis en paralelo.
+
+    `_marcar_procesado` solo bloquea el re-análisis si el contenido NO cambió. Al editar,
+    la huella cambia, el guard deja pasar el segundo, y los dos analizan a la vez —el
+    primero tarda segundos—. Los dos llegaban al borrado del modo estricto: el primero lo
+    hacía bien y el segundo recibía `NotFound`.
+
+    Con eso, un `NotFound` acabó报告中 como "al bot le falta `Manage Messages`" en el
+    canal del contenido, que era mentira y mandaba a un administrador a tocar un permiso
+    que ya tenía. Es el aviso que se veía, y la causa era esto y no los permisos.
+    """
+
+    @pytest.mark.asyncio
+    async def test_el_guard_deja_pasar_una_edicion(self):
+        """Precondición del fallo: si esto no pasara, la carrera no podría ocurrir."""
+        import ui.message_handler as mh
+        mh._procesados.clear()
+
+        def _msg(texto):
+            return types.SimpleNamespace(
+                id=999999, content=texto, attachments=[],
+                guild=types.SimpleNamespace(id=1), author="u")
+
+        assert mh._marcar_procesado(_msg("https://a.test")) is True
+        assert mh._marcar_procesado(_msg("https://a.test")) is False
+        # Editar: la huella cambia y vuelve a pasar, aunque el primero siga corriendo.
+        assert mh._marcar_procesado(_msg("https://a.test https://b.test")) is True
+
+    def test_la_generacion_invalida_al_anterior(self):
+        import ui.message_handler as mh
+        mh._generaciones.clear()
+
+        primera = mh._abrir_generacion(500)
+        assert mh._sigue_siendo_el_actual(500, primera) is True
+
+        segunda = mh._abrir_generacion(500)
+        assert segunda > primera
+        assert mh._sigue_siendo_el_actual(500, primera) is False, (
+            "el análisis viejo tiene que saber que ya no manda"
+        )
+        assert mh._sigue_siendo_el_actual(500, segunda) is True
+
+    def test_mensajes_distintos_no_se_pisan(self):
+        import ui.message_handler as mh
+        mh._generaciones.clear()
+        a = mh._abrir_generacion(1)
+        b = mh._abrir_generacion(2)
+        assert mh._sigue_siendo_el_actual(1, a) is True
+        assert mh._sigue_siendo_el_actual(2, b) is True
+
+    @pytest.mark.asyncio
+    async def test_un_analisis_desfasado_no_borra(self, bot_analisis):
+        """El flujo viejo no toca el mensaje: solo lo hace el más reciente."""
+        from core.utils import clave_analisis
+        import ui.message_handler as mh
+
+        msg = _Mensaje("https://ejemplo-carrera.test/malo", id=7001)
+        borrados = []
+
+        async def _delete():
+            borrados.append(msg.id)
+        msg.delete = _delete
+
+        async def _analizar_falso(url, *a, **k):
+            from core import cache as cache_mod
+            await cache_mod.set_cache_mem(
+                clave_analisis("url", url), "malicioso", mal=3,
+                datos={"valor": url, "vt_link": None, "top_text": None,
+                       "veredicto": "malicioso", "susp": 0})
+            # Justo mientras este análisis pide el veredicto, entra el del contenido
+            # editado. Es la carrera: `on_message_edit` arranca su propio análisis del
+            # mismo mensaje mientras el primero sigue esperando a la API.
+            mh._abrir_generacion(msg.id)
+            return "malicioso", _embed_malicioso(), 3
+
+        mh.analizar_url = _analizar_falso
+        mh.expandir_url = lambda bot, url: asyncio.sleep(0, result=url)
+
+        await mh.procesar_analisis(bot_analisis, msg)
+        await asyncio.sleep(0.05)
+
+        assert not borrados, (
+            f"un análisis ya superado no debe borrar: {borrados}"
+        )
