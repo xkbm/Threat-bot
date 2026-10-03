@@ -260,73 +260,70 @@ async def bot_analisis(bot_arrancado, tmp_path):
 
 class TestFlujoCompleto:
     @pytest.mark.asyncio
-    async def test_el_log_lleva_el_enlace_al_mensaje_si_no_se_borro(self):
-        """El log es un registro, y sin el mensaje al que se refiere hay que buscarlo a mano.
+    async def test_el_log_lleva_el_enlace_al_mensaje_si_no_se_borro(self, bot_analisis):
+        """El log lleva el enlace al mensaje mientras siga existiendo, y no si no.
 
-        Y el caso inverso es el que importa: si el mensaje se borró, un enlace a él manda
-        al moderador a una pantalla de "mensaje no encontrado" justo cuando está leyendo
-        el registro de una amenaza.
+        El enlace es lo que convierte el log en un registro: sin él hay que buscar el
+        mensaje a mano. Y si el mensaje ya se borró, un enlace a él manda al moderador a
+        una pantalla de "mensaje no encontrado" justo cuando está leyendo una amenaza.
 
-        Se prueba sobre `_on_threat_found` y no sobre `procesar_analisis` porque el log de
-        las URLs lo manda ese sitio: `analizar_url` devuelve `ya_logueado=True` y el
-        handler se queda quieto a propósito para no duplicarlo. El borrado también ocurre
-        allí, y antes de esto el log se mandaba ANTES de borrar, así que el enlace era una
-        apuesta sobre algo que todavía no había pasado.
+        Antes esto lo decidía `_on_threat_found`, en plena carrera con el borrado del
+        handler: una ruta ganaba el `delete` y la otra recibía `NotFound`, así que con dos
+        URLs en un mensaje solo uno de los dos logs llevaba el enlace. Ahora lo decide un
+        único sitio, después de borrar, y sale igual en todos.
         """
-        import api.virustotal as vt
-        from core import state
+        from core import guild_config as gc
+        await gc.actualizar_config(1, log_channel_id=555)
+        enviados = self._captura_log()
 
-        enviados = []
+        msg = _Mensaje("https://ejemplo-enlace-vivo.test/malo", id=9101)
+        await self._amenaza_sin_borrar(bot_analisis, msg)
 
-        class _Canal:
-            id = 777
+        amenazas = [e for e in enviados
+                    if "detecc" in (e.title or "").lower() or "Origen" in [f.name for f in e.fields]]
+        assert amenazas, f"no llegó el log de amenaza: {[e.title for e in enviados]}"
+        origen = next((f for f in amenazas[0].fields if "Origen" in f.name), None)
+        assert origen is not None, "con el mensaje vivo, el log tiene que traer el enlace"
+        assert "9101" in origen.value, origen.value
 
-            async def send(self, embed=None, view=None, **k):
-                enviados.append(embed)
-                return types.SimpleNamespace(id=1)
+    @pytest.mark.asyncio
+    async def test_el_log_no_enlaza_a_un_mensaje_borrado(self, bot_analisis):
+        """Si el modo estricto lo borró, el enlace apuntaría a la nada."""
+        import discord as _d
+        from core import guild_config as gc
+        await gc.actualizar_config(1, log_channel_id=555)
+        await gc.actualizar_config(1, strict_mode=True)
+        enviados = self._captura_log()
 
-        original = state.bot
-        state.bot = types.SimpleNamespace(
-            guilds_data={1: {"log_channel_id": 777, "avisar_amenazas": True,
-                             "strict_mode": False}},
-            get_channel=lambda cid: _Canal(),
-        )
-        try:
-            # Sin modo estricto: el mensaje sobrevive y el log lo enlaza.
-            await vt._on_threat_found(
-                "URL", "http://x", 3, 1,
-                types.SimpleNamespace(
-                    id=555, author=types.SimpleNamespace(id=42, mention="<@42>"),
-                    channel=types.SimpleNamespace(id=10),
-                ),
-            )
-            # Los efectos van en una task suelta: hay que ceder el control.
-            await asyncio.sleep(0.05)
-            assert enviados, "no se envió el log"
-            origen = next((f for f in enviados[0].fields if "Origen" in f.name), None)
-            assert origen is not None, "con el mensaje vivo, el log tiene que traer el enlace"
-            assert "555" in origen.value, origen.value
+        from core.utils import clave_analisis
+        import ui.message_handler as mh
 
-            # Con modo estricto: el mensaje se borra y NO debe quedar el enlace roto.
-            enviados.clear()
-            state.bot.guilds_data[1]["strict_mode"] = True
-            borrable = types.SimpleNamespace(
-                id=556, author=types.SimpleNamespace(id=43, mention="<@43>"),
-                channel=types.SimpleNamespace(id=10),
-            )
+        msg = _Mensaje("https://ejemplo-enlace-borrado.test/malo", id=9102)
+        borrado = {"ok": False}
 
-            async def _del():
-                borrable.deleted = True
-            borrable.delete = _del
+        async def _delete():
+            borrado["ok"] = True
+        msg.delete = _delete
+        msg.channel.permissions_for = lambda m: _d.Permissions(
+            manage_messages=True, read_message_history=True)
 
-            await vt._on_threat_found("URL", "http://y", 2, 1, borrable)
-            await asyncio.sleep(0.05)
-            assert getattr(borrable, "deleted", False), "el modo estricto tenía que borrar"
-            assert enviados, "no se envió el log"
-            origen = next((f for f in enviados[0].fields if "Origen" in f.name), None)
-            assert origen is None, f"un mensaje borrado no puede enlazar a nada: {origen}"
-        finally:
-            state.bot = original
+        async def _analizar_falso(url, *a, **k):
+            from core import cache as cache_mod
+            await cache_mod.set_cache_mem(
+                clave_analisis("url", url), "malicioso", mal=3,
+                datos={"valor": url, "vt_link": None, "top_text": None,
+                       "veredicto": "malicioso", "susp": 0})
+            return "malicioso", _embed_malicioso(), 3
+
+        mh.analizar_url = _analizar_falso
+        mh.expandir_url = lambda bot, url: asyncio.sleep(0, result=url)
+
+        await mh.procesar_analisis(bot_analisis, msg)
+        await asyncio.sleep(0.05)
+
+        assert borrado["ok"], "el mensaje tenía que borrarse"
+        amenazas = [e for e in enviados if "Origen" in [f.name for f in e.fields]]
+        assert not amenazas, "un mensaje borrado no puede enlazar a nada"
 
     @pytest.mark.asyncio
     async def test_sin_mensaje_el_log_no_inventa_enlace(self):
@@ -562,7 +559,7 @@ class TestFlujoCompleto:
         embed solo añadía ruido.
         """
         from core import guild_config as gc
-        gc._asegurar_guild(1)["log_channel_id"] = 555
+        await gc.actualizar_config(1, log_channel_id=555)
         enviados = self._captura_log()
 
         msg = _Mensaje("https://ejemplo-aviso.test/malo")
@@ -587,7 +584,7 @@ class TestFlujoCompleto:
         """
         import discord as _d
         from core import guild_config as gc
-        gc._asegurar_guild(1)["log_channel_id"] = 555
+        await gc.actualizar_config(1, log_channel_id=555)
         enviados = self._captura_log()
 
         msg = _Mensaje("https://ejemplo-permiso-ok.test/malo")
@@ -607,7 +604,7 @@ class TestFlujoCompleto:
         """La otra mitad: si de verdad falta, se dice cuál, con nombre y canal."""
         import discord as _d
         from core import guild_config as gc
-        gc._asegurar_guild(1)["log_channel_id"] = 555
+        await gc.actualizar_config(1, log_channel_id=555)
         enviados = self._captura_log()
 
         msg = _Mensaje("https://ejemplo-sin-permiso.test/malo")
@@ -706,7 +703,7 @@ class TestFlujoCompleto:
 
         logs = []
         infracciones = []
-        gc._asegurar_guild(1)["log_channel_id"] = 555
+        await gc.actualizar_config(1, log_channel_id=555)
 
         async def _analizar_falso(url, *a, **k):
             await cache_mod.set_cache_mem(
@@ -824,3 +821,193 @@ class TestUnMensajeSoloTieneUnAnalisisEnVuelo:
         assert not borrados, (
             f"un análisis ya superado no debe borrar: {borrados}"
         )
+
+
+class TestUnSoloLogPorMensaje:
+    """Todas las detecciones de un mismo mensaje van en UN solo aviso.
+
+    Antes cada detección mandaba su propio embed, y además lo mandaban dos sitios que
+    competían: `analizar_url` por su cuenta y el handler para el resto. Con dos URLs
+    maliciosas en un mensaje, el canal de logs recibía dos avisos casi idénticos que se
+    leen como mensajes de dos personas distintas, y solo uno llevaba el enlace al
+    original —la carrera del borrado decidía cuál se lo ganaba—.
+
+    Y el borrado en modo estricto estaba duplicado en los mismos dos sitios: uno lo
+    borraba y el otro recibía `NotFound` mientras el handler seguía analizando.
+
+    Se captura en `enviar_log_agrupado`, no en el canal. Capturar el canal dependía de
+    `state.bot`, que es un objeto compartido que otros tests rehacen, y el test pasaba
+    solo o fallaba solo según lo que se hubiera ejecutado antes. Eso no es un test.
+    """
+
+    @staticmethod
+    def _captura_agrupado(monkeypatch):
+        import ui.message_handler as mh
+        llamadas = []
+
+        async def _fake(guild_id, detecciones, usuario, origen=""):
+            llamadas.append({"detecciones": list(detecciones), "origen": origen})
+            return None
+
+        monkeypatch.setattr(mh, "enviar_log_agrupado", _fake)
+        return llamadas
+
+    @pytest.mark.asyncio
+    async def test_dos_urls_maliciosas_dan_un_solo_log(self, monkeypatch, bot_analisis):
+        from core import guild_config as gc
+        from core.utils import clave_analisis
+        import ui.message_handler as mh
+
+        await gc.actualizar_config(1, log_channel_id=555, strict_mode=False)
+        llamadas = self._captura_agrupado(monkeypatch)
+
+        async def _analizar(url, *a, **k):
+            from core import cache as cache_mod
+            await cache_mod.set_cache_mem(
+                clave_analisis("url", url), "malicioso", mal=3,
+                datos={"valor": url, "vt_link": None, "top_text": None,
+                       "veredicto": "malicioso", "susp": 0})
+            return "malicioso", _embed_malicioso(), 3
+
+        mh.analizar_url = _analizar
+        mh.expandir_url = lambda bot, url: asyncio.sleep(0, result=url)
+
+        msg = _Mensaje("https://malo-uno.test/a https://malo-dos.test/b", id=9200)
+        await mh.procesar_analisis(bot_analisis, msg)
+        await asyncio.sleep(0.1)
+
+        assert len(llamadas) == 1, (
+            f"dos URLs maliciosas deberían dar un aviso, no {len(llamadas)}"
+        )
+        cuerpo = " ".join(v for _t, v, _d, _e in llamadas[0]["detecciones"])
+        assert "malo-uno.test" in cuerpo and "malo-dos.test" in cuerpo, (
+            f"el aviso tiene que listar las dos detecciones: {cuerpo}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_el_log_lleva_el_enlace_al_mensaje(self, monkeypatch, bot_analisis):
+        """Sin el enlace al mensaje, el log es un aviso suelto y hay que buscarlo a mano."""
+        from core import guild_config as gc
+        from core.utils import clave_analisis
+        import ui.message_handler as mh
+
+        await gc.actualizar_config(1, log_channel_id=555, strict_mode=False)
+        llamadas = self._captura_agrupado(monkeypatch)
+
+        async def _analizar(url, *a, **k):
+            from core import cache as cache_mod
+            await cache_mod.set_cache_mem(
+                clave_analisis("url", url), "malicioso", mal=3,
+                datos={"valor": url, "vt_link": None, "top_text": None,
+                       "veredicto": "malicioso", "susp": 0})
+            return "malicioso", _embed_malicioso(), 3
+
+        mh.analizar_url = _analizar
+        mh.expandir_url = lambda bot, url: asyncio.sleep(0, result=url)
+
+        msg = _Mensaje("https://enlace-vivo.test/a", id=9201)
+        await mh.procesar_analisis(bot_analisis, msg)
+        await asyncio.sleep(0.1)
+
+        assert llamadas and "9201" in llamadas[0]["origen"], llamadas
+
+    @pytest.mark.asyncio
+    async def test_el_log_no_enlaza_a_un_mensaje_borrado(self, monkeypatch, bot_analisis):
+        """Si el modo estricto lo borró, el enlace apuntaría a la nada."""
+        import discord as _d
+        from core import guild_config as gc
+        from core.utils import clave_analisis
+        import ui.message_handler as mh
+
+        await gc.actualizar_config(1, log_channel_id=555, strict_mode=True)
+        llamadas = self._captura_agrupado(monkeypatch)
+
+        async def _analizar(url, *a, **k):
+            from core import cache as cache_mod
+            await cache_mod.set_cache_mem(
+                clave_analisis("url", url), "malicioso", mal=3,
+                datos={"valor": url, "vt_link": None, "top_text": None,
+                       "veredicto": "malicioso", "susp": 0})
+            return "malicioso", _embed_malicioso(), 3
+
+        mh.analizar_url = _analizar
+        mh.expandir_url = lambda bot, url: asyncio.sleep(0, result=url)
+
+        msg = _Mensaje("https://enlace-borrado.test/a", id=9202)
+        borrado = {"ok": False}
+
+        async def _delete():
+            borrado["ok"] = True
+        msg.delete = _delete
+        msg.channel.permissions_for = lambda m: _d.Permissions(
+            manage_messages=True, read_message_history=True)
+
+        await mh.procesar_analisis(bot_analisis, msg)
+        await asyncio.sleep(0.1)
+
+        assert borrado["ok"], "el mensaje tenía que borrarse"
+        assert llamadas and not llamadas[0]["origen"], (
+            f"un mensaje borrado no puede enlazar a nada: {llamadas}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_ignorar_quita_todas_las_infracciones_del_mensaje(self):
+        """Un log agrupado con tres detecciones tiene tres infracciones.
+
+        Si el botón solo descontara la primera, el log seguiría mintiendo sobre las
+        otras dos, que es justo lo que se quería evitar al agrupar.
+        """
+        import ui.views as views
+
+        vista = views.LogActionView(
+            1, 7, elementos_id=["url:https://a.test/1", "url:https://a.test/2"])
+        assert len(vista.elementos_id) == 2, vista.elementos_id
+        assert vista.ignorar_btn in vista.children, (
+            "con dos infracciones el botón de ignorar tiene que estar"
+        )
+
+    @pytest.mark.asyncio
+    async def test_sin_infracciones_no_hay_boton_ignorar(self):
+        import ui.views as views
+
+        vista = views.LogActionView(1, 7)
+        assert vista.ignorar_btn not in vista.children
+
+
+class TestIgnorarDescuentaTodasLasInfracciones:
+    """El "Ignorar" de un log agrupado tiene que quitar todas, no solo la primera.
+
+    Un aviso con tres detecciones tiene tres infracciones. Si el botón solo descontara la
+    primera, el log seguiría mintiendo sobre las otras dos, que es justo lo que se quería
+    evitar al agruparlos en uno.
+    """
+
+    @pytest.mark.asyncio
+    async def test_el_boton_recorre_todas(self, monkeypatch):
+        import ui.views as views
+
+        quitadas = []
+
+        async def _ignorar(guild_id, user_id, elemento):
+            quitadas.append((guild_id, user_id, elemento))
+
+        monkeypatch.setattr("core.guild_config.ignorar_infraccion", _ignorar)
+
+        vista = views.LogActionView(1, 7, elementos_id=["url:https://a.test/1",
+                                                          "url:https://a.test/2"])
+        modal = views.RazonModal("ignore", vista, None)
+        modal.razon._value = "falsa alarma"
+
+        enviados = []
+
+        class _Resp:
+            async def send_message(self, *a, **k):
+                enviados.append(a[0] if a else k.get("content", ""))
+
+        inter = types.SimpleNamespace(response=_Resp(), user=types.SimpleNamespace(id=3))
+        await modal.on_submit(inter)
+
+        assert len(quitadas) == 2, (
+            f"tenía que quitar las dos infracciones, quitó {len(quitadas)}: {quitadas}"
+        )
+        assert {q[2] for q in quitadas} == {"url:https://a.test/1", "url:https://a.test/2"}

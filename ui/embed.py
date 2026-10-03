@@ -409,8 +409,15 @@ def amenaza_agrupada(detecciones: list[tuple[str, str, str, Optional[str]]],
     por elemento: es texto de atacante y sin eso puede inyectar markdown.
     """
     total = len(detecciones)
-    embed = _nuevo(TITULOS["amenaza"], COLOR_ERROR,
-                   f"**{total}** detecci{'ón' if total == 1 else 'ones'} en un mensaje")
+    # El número va en el TÍTULO, no en la descripción: el título es lo único que se lee
+    # de un vistazo en el canal de logs, y "Amenaza detectada" a secas no dice si es una
+    # cosa o seis.
+    plural = "detección" if total == 1 else "detecciones"
+    embed = discord.Embed(
+        title=f"{TITULOS['amenaza']} · {total} {plural}",
+        description="Todo lo encontrado en **un mismo mensaje**.",
+        color=discord.Color(COLOR_ERROR),
+    )
 
     # Un campo por detección, pero sin pasarse: Discord da 25 y un mensaje puede traer
     # cinco URLs más cinco adjuntos. Lo que no cabe se cuenta en una línea final, que es
