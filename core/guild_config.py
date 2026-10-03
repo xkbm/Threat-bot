@@ -3,6 +3,7 @@ from typing import Optional, Any
 import logging
 from core import state
 from core.config import DOMINIOS_PROTEGIDOS
+from core.config import stats_vacias as _stats_vacias
 from core.aviso import config_aviso_por_defecto, migrar_aviso
 from core.config_schema import validar
 from core.database import (
@@ -192,13 +193,6 @@ async def quitar_dominio(guild_id: int, dominio: str) -> bool:
     await _persistir_config(guild_id, config, True)
     log.debug(f"WHITELIST REMOVE → guild={guild_id} dominio={dominio}")
     return True
-
-def _stats_vacias() -> dict[str, int]:
-    return {
-        "total_analisis": 0, "seguros": 0, "sospechosos": 0, "maliciosos": 0,
-        "nsfw": 0, "restringidos": 0, "phishing": 0, "ignorados": 0, "errores": 0,
-    }
-
 
 def obtener_stats_globales() -> dict[str, int]:
     if "__global__" not in state.bot.guilds_data:

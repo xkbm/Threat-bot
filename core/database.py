@@ -9,7 +9,7 @@ import asyncio
 import logging
 from core import state
 from core.cache import set_cache_mem
-from core.config import DB_FILE, DATA_FILE, EXPIRACION, DOMINIOS_PROTEGIDOS
+from core.config import DB_FILE, DATA_FILE, EXPIRACION, DOMINIOS_PROTEGIDOS, stats_vacias
 
 log = logging.getLogger("db")
 
@@ -570,7 +570,15 @@ async def cargar_datos() -> None:
         antispam_scan = _restaurar_claves_antispam(antispam_data.get("antispam_scan", {}))
         state.bot.antispam_scan = antispam_scan
         if "__global__" not in state.bot.guilds_data:
-            state.bot.guilds_data["__global__"] = {"total_analisis": 0, "seguros": 0, "sospechosos": 0, "maliciosos": 0, "nsfw": 0, "errores": 0}
+            # Antes esta línea traía su propio dict de 6 claves, mientras `guild_config`
+            # usaba uno de 9. Las que faltaban eran `restringidos`, `phishing` e
+            # `ignorados`, así que un arranque limpio producía unas estadísticas sin
+            # esas tres categorías: el bot las contaba y `/stats` no las enseñaba nunca.
+            #
+            # Dos definiciones de lo mismo en dos sitios, y el ciclo de imports impide
+            # importarlas entre sí (`guild_config` importa a este módulo). La fuente
+            # única vive en `core.config`.
+            state.bot.guilds_data["__global__"] = stats_vacias()
             await guardar_datos(inmediato=True)
         # Si la configuración vino del JSON, se vuelca a SQLite para que la siguiente
         # arranque ya lea de la tabla. Si vino de SQLite no hay nada que hacer.
