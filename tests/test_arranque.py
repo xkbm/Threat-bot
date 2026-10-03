@@ -719,7 +719,7 @@ class TestFlujoCompleto:
         # así que cambiar el módulo de origen no surte efecto aquí.
         mh.analizar_url = _analizar_falso
         mh.expandir_url = lambda bot, url: asyncio.sleep(0, result=url)
-        mh.enviar_log_guild = lambda *a, **k: asyncio.sleep(0, result=logs.append(a))
+        mh.enviar_log_agrupado = lambda *a, **k: asyncio.sleep(0, result=logs.append(a))
         mh.registrar_infraccion = lambda *a, **k: asyncio.sleep(0, result=infracciones.append(a))
 
         primero = _Mensaje("https://ejemplo.com/malo", id=2000, autor_id=42)

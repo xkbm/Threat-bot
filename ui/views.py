@@ -53,15 +53,18 @@ class RazonModal(discord.ui.Modal, title="Razón de la acción"):
             # contador se recalcula después, así que el número y la lista ya no pueden
             # quedar desincronizados, que era lo que pasaba antes.
             from core.guild_config import ignorar_infraccion
-            elemento = self.parent_view.elemento_id
-            if not elemento:
+            elementos = self.parent_view.elementos_id
+            if not elementos:
                 await interaction.response.send_message(
                     "No se pudo identificar la infracción.", ephemeral=True)
                 return
             try:
-                await ignorar_infraccion(
-                    self.parent_view.guild_id, self.parent_view.user_id, elemento
-                )
+                # Todas las del mensaje. Un log agrupado con tres detecciones tiene tres
+                # infracciones, y descartar solo una dejaría el log mintiendo.
+                for elemento in elementos:
+                    await ignorar_infraccion(
+                        self.parent_view.guild_id, self.parent_view.user_id, elemento
+                    )
             except Exception as e:
                 # Antes respondía "Infracción eliminada" aunque no se hubiera borrado
                 # nada. Un moderador creyendo que aplicó una regla que no se aplicó es
@@ -79,15 +82,22 @@ class RazonModal(discord.ui.Modal, title="Razón de la acción"):
 
 
 class LogActionView(discord.ui.View):
-    def __init__(self, guild_id: int, user_id: int, elemento_id: Optional[str] = None) -> None:
+    def __init__(self, guild_id: int, user_id: int, elemento_id: Optional[str] = None,
+                 elementos_id: Optional[list[str]] = None) -> None:
         super().__init__(timeout=None)
         self.guild_id = guild_id
         self.user_id = user_id
         self.elemento_id = elemento_id
+        # Un log agrupado trae varias detecciones del mismo mensaje, y cada una tiene su
+        # propia infracción. "Ignorar" quita todas: lo que un moderador quiere decir es
+        # "este mensaje no es un problema", no "esta de sus tres URLs no lo es".
+        self.elementos_id: list[str] = list(elementos_id or [])
+        if elemento_id and elemento_id not in self.elementos_id:
+            self.elementos_id.insert(0, elemento_id)
         self.message: Optional[discord.Message] = None
         self.guild: Optional[discord.Guild] = None
         self._target_user: Optional[discord.Member] = None
-        if not elemento_id:
+        if not self.elementos_id:
             self.remove_item(self.ignorar_btn)
 
     async def _finalizar_accion(self, interaction: discord.Interaction, accion: str, razon: str) -> None:
@@ -150,13 +160,14 @@ class LogActionView(discord.ui.View):
         if not interaction.user.guild_permissions.administrator:
             await interaction.response.send_message("Solo administradores pueden ignorar infracciones.", ephemeral=True)
             return
-        if not self.elemento_id:
+        if not self.elementos_id:
             await interaction.response.send_message("No se pudo identificar la infracción.", ephemeral=True)
             return
-        # Se comprueba ESTE elemento, no el total del usuario. Con otras infracciones
+        # Se comprueban ESTOS elementos, no el total del usuario. Con otras infracciones
         # registradas, la comprobación anterior daba por buena una que no existía.
         from core.guild_config import tiene_infraccion
-        if not await tiene_infraccion(self.guild_id, self.user_id, self.elemento_id):
+        if not any(await tiene_infraccion(self.guild_id, self.user_id, eid)
+                   for eid in self.elementos_id):
             await interaction.response.send_message("Esa infracción ya no existe.", ephemeral=True)
             return
         modal = RazonModal("ignore", self, interaction)

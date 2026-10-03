@@ -28,7 +28,7 @@ from core.database import (
     obtener_hash_desde_metadatos, registrar_evento,
 )
 from api.virustotal import (
-    analizar_url, analizar_archivo, enviar_log_guild, reputacion_hash,
+    analizar_url, analizar_archivo, reputacion_hash, enviar_log_agrupado,
 )
 from api.sightengine import analizar_imagen_multimodelo, evaluar_contenido
 from core.veredictos import ORDEN_CONTADORES, Veredicto
@@ -1174,9 +1174,11 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                                 ))
                             else:
                                 tipo, embed, mal, ya_logueado = resolucion
+                                # La infracción NO se registra aquí. Lo hace el bucle de
+                                # logs, una vez para todas las URLs maliciosas del
+                                # mensaje; aquí se hacía por la ruta de caché y otra vez
+                                # allí, y la misma URL acababa con dos infracciones.
                                 elemento_id = f"url:{url}"
-                                if tipo == "malicioso":
-                                    await registrar_infraccion(guild_id, message.author.id, elemento_id)
                                 url_id = base64.urlsafe_b64encode(url.encode()).decode().rstrip("=")
                                 # El enlace también para los sospechosos: es justo cuando
                                 # el moderador necesita ir a mirar el informe a ver quién
@@ -1232,9 +1234,9 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                         for url_orig, url_exp, tipo, embed, mal, fue_exp in expandidos:
                             redireccion = url_exp if fue_exp else None
                             if embed is not None:
+                                # Igual que en la otra ruta de caché: la infracción la
+                                # registra el bucle de logs, una sola vez por URL.
                                 elemento_id = f"url:{url_exp}"
-                                if tipo == "malicioso":
-                                    await registrar_infraccion(guild_id, message.author.id, elemento_id)
                                 url_id = base64.urlsafe_b64encode(url_exp.encode()).decode().rstrip("=")
                                 vt_link = f"https://www.virustotal.com/gui/url/{url_id}" if tipo in ("malicioso", "sospechoso") else None
                                 url_results.append(UrlResult(
@@ -1429,24 +1431,50 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                     # No puede ni escribir en su propio canal de log. El `log.warning`
                     # de arriba ya deja constancia, que es lo que importa.
                     pass
+        # Un SOLO log con todas las detecciones del mensaje.
+        #
+        # Antes había uno por detección, y además lo mandaban dos sitios distintos que
+        # competían: `analizar_url` lo hacía por su cuenta y el handler para el resto. Un
+        # mensaje con dos URLs maliciosas llenaba el canal con dos embeds que se leían
+        # como mensajes de dos personas, y solo uno llevaba el enlace al original porque la
+        # carrera del borrado decidía cuál se lo ganaba. Ahora solo decide este sitio, una
+        # vez, y el enlace es el mismo para todos.
+        #
+        # `elemento_id` tiene que ser el MISMO que se usó al registrar la infracción (la
+        # URL expandida), o el botón "Ignorar" no encontraría la infracción que
+        # intentaría descontar.
+        #
+        # Los sospechosos no llegan aquí: no hay infracción que ignorar, así que un log con
+        # botón "Ignorar" respondería "esa infracción ya no existe".
+        detecciones: list[tuple[str, str, str, str]] = []
         for r in url_results:
-            if r.tipo == "malicioso" and not r.ya_logueado:
-                await enviar_log_guild(
-                    guild_id, "URL", r.url, f"{r.mal} detecciones", message.author,
-                    url_vt=r.vt_link, elemento_id=r.elemento_id, veredicto="malicioso",
-                    mensaje=origen,
-                )
+            if r.tipo == "malicioso":
+                if r.elemento_id:
+                    await registrar_infraccion(guild_id, message.author.id, r.elemento_id)
+                detalle = f"{r.mal} detecciones"
+                if r.vt_link:
+                    detalle += f"\n{emb.enlace_informe(r.vt_link, con_emoji=False)}"
+                detecciones.append(("URL", r.url, detalle, r.elemento_id or ""))
         for r in img_url_results:
             if r.tipo in ("nsfw", "restringido"):
-                await enviar_log_guild(guild_id, "Imagen NSFW" if r.tipo == "nsfw" else "Contenido restringido", r.url, r.detalles, message.author, elemento_id=r.elemento_id or None, veredicto=r.tipo, mensaje=origen)
+                detecciones.append((
+                    "Imagen NSFW" if r.tipo == "nsfw" else "Contenido restringido",
+                    r.url, r.detalles, r.elemento_id or "",
+                ))
         for filename, tipo, models, content_hash in img_results:
             if tipo in ("nsfw", "restringido") and content_hash:
-                await enviar_log_guild(guild_id, "Imagen NSFW" if tipo == "nsfw" else "Contenido restringido", filename, models.get("detalle") or "Detectado en análisis múltiple", message.author, elemento_id=f"nsfw:{content_hash}", veredicto=tipo, mensaje=origen)
+                detecciones.append((
+                    "Imagen NSFW" if tipo == "nsfw" else "Contenido restringido",
+                    filename, models.get("detalle") or "Detectado en análisis múltiple",
+                    f"nsfw:{content_hash}",
+                ))
         for filename, tipo, mal, file_hash, _wm, _doble_ext in arch_results:
             if tipo == "malicioso":
                 # Mismo elemento_id que usa _procesar_archivo al registrar la infracción.
-                await enviar_log_guild(
-                    guild_id, "Archivo (múltiples)", filename, f"{mal} detecciones", message.author,
-                    elemento_id=f"filehash:{file_hash}" if file_hash else None,
-                    veredicto="malicioso", mensaje=origen,
-                )
+                detecciones.append((
+                    "Archivo (múltiples)", filename, f"{mal} detecciones",
+                    f"filehash:{file_hash}" if file_hash else "",
+                ))
+
+        if detecciones:
+            await enviar_log_agrupado(guild_id, detecciones, message.author, origen)

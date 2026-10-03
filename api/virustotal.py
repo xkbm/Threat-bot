@@ -18,7 +18,7 @@ from core.database import guardar_analisis_db
 from core.utils import obtener_top_antivirus, es_hash_valido, clave_analisis
 from ui.views import LogActionView
 from ui import embed as emb
-from core.guild_config import obtener_config_guild, update_stats, registrar_infraccion
+from core.guild_config import obtener_config_guild, update_stats
 
 log = logging.getLogger("virustotal")
 
@@ -259,6 +259,40 @@ async def liberar_se_key(pair: tuple[str, str], operaciones: int) -> None:
         state.bot.se_key_total_requests[api_key] = max(
             0, state.bot.se_key_total_requests.get(api_key, 0) - operaciones
         )
+
+async def enviar_log_agrupado(guild_id: int, detecciones: list[tuple[str, str, str, str]],
+                              usuario: discord.User, origen: str = "") -> Optional[discord.Message]:
+    """Un único log con todas las detecciones de un mismo mensaje.
+
+    Reemplaza al envío uno por detección. Antes un mensaje con tres URLs maliciosas
+    producía tres embeds en el canal de logs: se leían como tres mensajes de tres
+    personas, y el enlace al mensaje original no aparecía más que en algunos según qué
+    ruta de borrado hubiera ganado la carrera.
+    """
+    if not detecciones:
+        return None
+    config = await obtener_config_guild(guild_id)
+    log_channel_id = config["log_channel_id"]
+    if log_channel_id is None or not config.get("avisar_amenazas", True):
+        return None
+    channel = state.bot.get_channel(log_channel_id)
+    if channel is None:
+        return None
+
+    embed = emb.amenaza_agrupada(detecciones, usuario, mensaje=origen)
+    view = LogActionView(guild_id, usuario.id,
+                         elementos_id=[eid for _, _, _, eid in detecciones if eid])
+    try:
+        msg = await channel.send(embed=embed, view=view)
+        view.message = msg
+        return msg
+    except discord.errors.Forbidden:
+        log.error(f"enviar_log_agrupado: sin permisos en #{channel} (guild {guild_id})")
+        return None
+    except Exception as e:
+        log.error(f"enviar_log_agrupado falló: {type(e).__name__}: {e}")
+        return None
+
 
 async def enviar_log_guild(guild_id: int, tipo: str, valor: str, detalles: str, usuario: discord.User, url_vt: Optional[str] = None, elemento_id: Optional[str] = None, veredicto: str = "malicioso", mensaje: Optional[str] = None) -> Optional[discord.Message]:
     config = await obtener_config_guild(guild_id)
@@ -793,33 +827,29 @@ async def _post_threat_side_effects(guild_id: int, tipo_str: str, valor: str, ma
     """
     try:
         await update_stats(guild_id, "malicioso")
-        # El borrado va ANTES que el log, y por un motivo concreto: el enlace al mensaje
-        # solo puede ponerse si el mensaje sigue existiendo, y el modo estricto puede
-        # quitarlo justo aquí. Mandando el log primero, el enlace era una apuesta sobre un
-        # estado que todavía no se había comprobado.
+        if mensaje_original is None:
+            # Escaneo manual (`/scan` o menú contextual): no hay un análisis de mensaje
+            # al que groupingselo, así que este sitio manda su propio log.
+            #
+            # Y NO borra: el modo estricto solo borra desde el handler, una vez por
+            # mensaje. Antes se borraba aquí también, una vez por cada URL, y las dos
+            # rutas compiten: la primera en borrar y la segunda recibe `NotFound`. De ahí
+            # salía el síntoma de que un log llevaba el enlace al mensaje y el otro no,
+            # y de que el mensaje desapareciera mientras el análisis seguía corriendo.
+            if vt_link:
+                await enviar_log_guild(guild_id, tipo_str, valor, f"{mal} detecciones",
+                                       autor, vt_link, elemento_id=eid)
+            else:
+                await enviar_log_guild(guild_id, tipo_str, valor, f"{mal} detecciones",
+                                       autor, elemento_id=eid)
+            return
+
+        # Autoescaneo: aquí no se manda log ni se borra. De las dos cosas se encarga el
+        # handler, una sola vez y con todas las detecciones del mensaje juntas.
         #
-        # El orden anterior era al revés y por eso el log de URL no llevaba enlace: aquí se
-        # manda el log con el mensaje todavía presente, y quien decide el enlace es este
-        # sitio, que es el único que sabe si el borrado funcionó.
-        borrado = False
-        if mensaje_original is not None:
-            await registrar_infraccion(guild_id, mensaje_original.author.id, eid)
-            config = await obtener_config_guild(guild_id)
-            if config["strict_mode"]:
-                try:
-                    await mensaje_original.delete()
-                    borrado = True
-                except (discord.errors.Forbidden, discord.errors.NotFound):
-                    pass
-        origen = ""
-        if mensaje_original is not None and not borrado:
-            origen = emb.enlace_mensaje(
-                guild_id, mensaje_original.channel.id, mensaje_original.id
-            )
-        if vt_link:
-            await enviar_log_guild(guild_id, tipo_str, valor, f"{mal} detecciones", autor, vt_link, elemento_id=eid, mensaje=origen)
-        else:
-            await enviar_log_guild(guild_id, tipo_str, valor, f"{mal} detecciones", autor, elemento_id=eid, mensaje=origen)
+        # La infracción tampoco se registra aquí. Registrarla en los dos sitios la
+        # contaba dos veces, porque el handler la registra para todas las URLs
+        # maliciosas del mensaje y esta función también.
     except Exception as e:
         log.error(f"Error en post-threat side effects: {e}")
 

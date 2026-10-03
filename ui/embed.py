@@ -389,3 +389,49 @@ __all__ = [
     "COLOR_NEUTRAL", "COLOR_SEGURO", "COLOR_MALICIOSO", "COLOR_SOSPECHOSO", "COLOR_ERROR", "COLOR_NSFW",
     "COLOR_TOPGG", "SEVERIDAD_COLOR",
 ]
+
+
+def amenaza_agrupada(detecciones: list[tuple[str, str, str, Optional[str]]],
+                     usuario: discord.abc.User,
+                     mensaje: str = "") -> discord.Embed:
+    """Un solo log con TODAS las detecciones de un mismo mensaje.
+
+    Antes cada detección mandaba su propio embed, así que un mensaje con tres enlaces
+    maliciosos llenaba el canal de logs con tres avisos casi idénticos, distinguished
+    solo por una URL. Un moderador los lee como tres mensajes distintos de tres personas
+    distintas, y el mensaje original no aparece en ninguno de los tres.
+
+    Ahora van juntos: un aviso, un autor, un enlace al mensaje y una lista de lo que se
+    encontró. El autor se mantiene de los tres modos porque quien decide banning no tiene
+    por qué mirar tres veces lo mismo.
+
+    `detecciones` son tuplas `(tipo, valor, detalle, veredicto)`. `valor` va en code block
+    por elemento: es texto de atacante y sin eso puede inyectar markdown.
+    """
+    total = len(detecciones)
+    embed = _nuevo(TITULOS["amenaza"], COLOR_ERROR,
+                   f"**{total}** detecci{'ón' if total == 1 else 'ones'} en un mensaje")
+
+    # Un campo por detección, pero sin pasarse: Discord da 25 y un mensaje puede traer
+    # cinco URLs más cinco adjuntos. Lo que no cabe se cuenta en una línea final, que es
+    # preferible a callarlo.
+    MAX_CAMPOS = 10
+    for tipo, valor, detalle, veredicto in detecciones[:MAX_CAMPOS]:
+        etiqueta = veredicto.capitalize() if veredicto else tipo
+        embed.add_field(
+            name=f"{etiqueta} · {tipo}",
+            value=f"```{valor}```" + (f"\n{detalle}" if detalle else ""),
+            inline=False,
+        )
+    if total > MAX_CAMPOS:
+        embed.add_field(
+            name=f"y {total - MAX_CAMPOS} más",
+            value="El mensaje traía más detecciones de las que caben aquí.",
+            inline=False,
+        )
+
+    embed.add_field(name=f"{EMOJI_GUARDIAN} Usuario", value=usuario.mention, inline=True)
+    embed.add_field(name="ID", value=f"`{usuario.id}`", inline=True)
+    if mensaje:
+        embed.add_field(name="Origen", value=mensaje, inline=False)
+    return pie(embed, f"Amenaza · {total} detecci{'ón' if total == 1 else 'ones'}")

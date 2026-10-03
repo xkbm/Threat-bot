@@ -94,10 +94,20 @@ async def bot_temporal(tmp_path, monkeypatch):
 def sin_efectos(monkeypatch):
     """Captura los efectos de amenaza sin tocar Discord ni la red."""
     from api import virustotal as vt
+    from ui import message_handler as mh
 
     logs, infracciones, stats = [], [], []
+    # En el namespace de `message_handler`, no en el de origen: hizo
+    # `from api.virustotal import enviar_log_agrupado`, así que parchear `vt` no surte
+    # efecto. Es la razón por la que estos parches están aquí y no en el módulo.
+    monkeypatch.setattr(mh, "enviar_log_agrupado", lambda *a, **k: _append(logs, a))
+    # El escaneo manual (`/scan`, menú contextual) no pasa por el handler, así que
+    # manda su propio log y sigue usando la función de un solo elemento. Las dos rutas
+    # se capturan aquí; si no, el escaneo manual dejaría de contar en los tests.
     monkeypatch.setattr(vt, "enviar_log_guild", lambda *a, **k: _append(logs, a))
-    monkeypatch.setattr(vt, "registrar_infraccion", lambda *a, **k: _append(infracciones, a))
+    # La infracción la registra el handler, no `virustotal`: es el único sitio
+    # que agrupa todas las detecciones del mensaje.
+    monkeypatch.setattr(mh, "registrar_infraccion", lambda *a, **k: _append(infracciones, a))
     monkeypatch.setattr(vt, "update_stats", lambda *a, **k: _append(stats, a))
     return logs, infracciones, stats
 
@@ -170,19 +180,49 @@ class TestVeredictoSospechoso:
         assert infracciones == []
 
     @pytest.mark.asyncio
-    async def test_malicioso_sigue_infraccionando(self, bot_temporal, sin_efectos):
-        """El camino del autoescaneo no puede haber cambiado por añadir el sospechoso."""
+    async def test_el_autoescaneo_no_manda_ni_log_ni_infraccion(self, bot_temporal, sin_efectos):
+        """Dentro de este camino no queda ni log ni infracción: los dos son del handler.
+
+        Este sitio soltaba un log por URL desde una tarea suelta y borraba el mensaje por
+        su cuenta. Con varias URLs en un mensaje eso llenaba el canal con un aviso por
+        cada una —que se leen como mensajes de personas distintas— y las dos rutas de
+        borrado se peleaban por el mensaje: una ganaba y la otra recibía `NotFound`, y por
+        eso solo uno de los logs llevaba el enlace al original.
+
+        Ahora el handler registra la infracción de cada URL maliciosa y manda un único log
+        con todas. Aquí solo queda la estadística, que sí es por elemento.
+        """
         from api.virustotal import _procesar_resultado_vt
-        logs, infracciones, _ = sin_efectos
+        logs, infracciones, stats = sin_efectos
         mensaje = _Mensaje(autor_id=99)
         tipo, _, mal = await _procesar_resultado_vt(
             _respuesta(_stats(mal=2, susp=5)), "url", "https://malo.example", 1, mensaje, True)
         await asyncio.sleep(0.05)
 
         assert (tipo, mal) == ("malicioso", 2)
-        assert len(logs) == 1
-        # La infracción es del autor del mensaje, no del bot ni de quien escaneó.
-        assert infracciones[0][1] == 99
+        assert logs == [], "el autoescaneo no debe mandar su propio log"
+        assert infracciones == [], "la infracción la registra el handler, una vez"
+        assert stats, "la estadística del veredicto no puede perderse"
+
+    @pytest.mark.asyncio
+    async def test_el_escaneo_manual_si_manda_log(self, bot_temporal, sin_efectos):
+        """Sin mensaje al que agruparlo, este sitio manda su propio log.
+
+        Es lo que pasa con `/scan` y con el menú contextual: no hay un análisis de mensaje
+        detrás, así que si nadie manda el log, un escaneo manual de una URL maliciosa no
+        dejaba rastro.
+        """
+        from api.virustotal import _procesar_resultado_vt
+        logs, infracciones, _ = sin_efectos
+        await _procesar_resultado_vt(
+            _respuesta(_stats(mal=2)), "url", "https://malo.example", 1,
+            None, True,
+            registrar_para=types.SimpleNamespace(id=7, mention="<@7>"),
+        )
+        await asyncio.sleep(0.05)
+
+        assert len(logs) == 1, "el escaneo manual se quedó sin log"
+        assert infracciones == [], "el escaneo manual no debe infraccionar a nadie"
 
     @pytest.mark.asyncio
     async def test_el_sospechoso_cacheado_no_se_rea_como_seguro(self, bot_temporal):
