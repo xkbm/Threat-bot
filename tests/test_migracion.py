@@ -447,3 +447,103 @@ class TestSQLiteEsLaFuenteDeVerdad:
             f"update_stats sigue guardando en la linea {[c.lineno for c in llamadas]}: "
             f"eso reescribía el fichero entero por cada mensaje analizado"
         )
+
+
+class TestAlArrancarLasEstadisticasSalenDeSqlite:
+    """La lectura, que es la mitad del cambio y que es donde más fácil se cuela una regresión.
+
+    Probar `_leer_stats_sqlite` en aislamiento no dice nada: el fallo que importa es que
+    `cargar_datos` la llame. Con `stats_sqlite = None` forzado en el arranque, la suite
+    pasaba entera — se leía el JSON como si nada, que es exactamente el comportamiento
+    viejo. Estos tests recorren el arranque entero.
+    """
+
+    @staticmethod
+    def _bot():
+        return types.SimpleNamespace(
+            guilds_data={}, vt_key_total_requests={}, vt_key_daily_usage={},
+            se_key_total_requests={}, se_key_daily_usage={}, se_key_monthly_usage={},
+            user_scan_history={}, antispam_scan={}, vt_key_usage={}, se_key_usage={},
+        )
+
+    @pytest.mark.asyncio
+    async def test_prefiere_sqlite_al_json(self, entorno):
+        data_file, pool = entorno
+        await pool.start()
+        anterior_bot = db.state.bot
+        bot = self._bot()
+        db.state.bot = bot
+        try:
+            # Las dos fuentes existen y NO coinciden. Si el arranque elige bien, gana la
+            # base; si lee el JSON como antes, sale el número viejo.
+            data_file.write_text(json.dumps({
+                "__global__": {"total_analisis": 1, "maliciosos": 0},
+            }), encoding="utf-8")
+            async with pool._write_lock:
+                await pool._conns[0].execute(
+                    "INSERT OR REPLACE INTO global_stats (key, value, updated_at) VALUES (?,?,?)",
+                    ("stats", json.dumps({"total_analisis": 777, "maliciosos": 61}), 0.0),
+                )
+                await pool._conns[0].commit()
+
+            await db.cargar_datos()
+
+            assert bot.guilds_data["__global__"]["total_analisis"] == 777, (
+                "el arranque está leyendo el JSON en vez de SQLite: "
+                f"{bot.guilds_data['__global__']}"
+            )
+        finally:
+            db.state.bot = anterior_bot
+            for c in pool._conns:
+                try:
+                    await c.close()
+                except Exception:
+                    pass
+
+    @pytest.mark.asyncio
+    async def test_el_json_sirve_de_respaldo(self, entorno):
+        """Si la base no tiene stats, el JSON se usa. Sin eso, un despliegue nuevo
+        perdería las cifras hasta que la tabla se rellenara."""
+        data_file, pool = entorno
+        await pool.start()
+        anterior_bot = db.state.bot
+        bot = self._bot()
+        db.state.bot = bot
+        try:
+            data_file.write_text(json.dumps({
+                "__global__": {"total_analisis": 42, "maliciosos": 3},
+            }), encoding="utf-8")
+            await db.cargar_datos()
+            assert bot.guilds_data["__global__"]["total_analisis"] == 42
+        finally:
+            db.state.bot = anterior_bot
+            for c in pool._conns:
+                try:
+                    await c.close()
+                except Exception:
+                    pass
+
+    @pytest.mark.asyncio
+    async def test_sin_datos_en_ningun_sitio_avisa(self, entorno, caplog):
+        """Perder los datos tiene que verse en el log.
+
+        Antes se creaban estadísticas vacías en silencio y `/stats` salía a cero como si
+        fuera normal. Eso es la peor forma de perder datos: parece que todo funciona.
+        """
+        data_file, pool = entorno
+        await pool.start()
+        anterior_bot = db.state.bot
+        bot = self._bot()
+        db.state.bot = bot
+        try:
+            with caplog.at_level("WARNING", logger="db"):
+                await db.cargar_datos()
+            assert any("No se encontraron estadísticas" in r.message
+                       for r in caplog.records), [r.message for r in caplog.records]
+        finally:
+            db.state.bot = anterior_bot
+            for c in pool._conns:
+                try:
+                    await c.close()
+                except Exception:
+                    pass

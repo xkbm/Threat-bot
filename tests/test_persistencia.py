@@ -20,6 +20,7 @@ import pathlib
 import types
 
 import pytest
+import pytest_asyncio
 
 from core import database as db
 from core import state
@@ -250,3 +251,106 @@ class TestElVolcadoEsCompleto:
         # No debe quedar ningún temporal por el camino.
         sobrantes = [n for n in os.listdir(tmpdir_of(data_file)) if n != "data.json"]
         assert sobrantes == [], f"temporales sin limpiar: {sobrantes}"
+
+@pytest_asyncio.fixture
+async def pool_real(tmp_path):
+    """Un `DatabasePool` de verdad sobre una base temporal, con la tabla ya creada."""
+    db.POOL = db.DatabasePool(str(tmp_path / "stats.db"))
+    await db.POOL.start()
+    yield db.POOL
+    for conn in db.POOL._conns:
+        try:
+            await conn.close()
+        except Exception:
+            pass
+
+
+class TestLasEstadisticasTambienEnSqlite:
+    """Las estadísticas tenían un único sitio: el JSON.
+
+    Unlike los otros dos bloques del `data.json` —la cuota de API y el antispam, que se
+    recalculan desde cero o solo pierden unos días— un contador de `/stats` **no tiene de
+    dónde recuperar**. Perder el fichero los perdía para siempre, y ya pasó: se perdieron
+    700 análisis de golpe.
+
+    Así que van también a SQLite. La base es transaccional, sobrevive a que el JSON se
+    borre y queda fuera del `git clean` del despliegue por ser un `.db`.
+
+    Se conservan las dos copias. SQLite es la fuente, el JSON el respaldo: si la base
+    falla, el volcado del JSON acaba de hacerse bien y no se pierde nada.
+    """
+
+    @pytest.mark.asyncio
+    async def test_se_guarda_en_la_base(self, pool_real, bot_de_prueba):
+        bot, _ = bot_de_prueba
+        bot.guilds_data["__global__"] = {"total_analisis": 1234, "phishing": 9}
+        await db.guardar_datos(inmediato=True)
+
+        assert await db._leer_stats_sqlite() == {"total_analisis": 1234, "phishing": 9}
+
+    @pytest.mark.asyncio
+    async def test_no_hay_stats_devuelve_none_y_no_ceros(self, pool_real):
+        """None es "no hay nada"; `{}` sería "está en cero", que son cosas distintas."""
+        assert await db._leer_stats_sqlite() is None
+
+    @pytest.mark.asyncio
+    async def test_sobrevive_a_perderse_el_json(self, pool_real, bot_de_prueba):
+        """El caso que motiva todo: el fichero desaparece y las cifras siguen ahí."""
+        bot, data_file = bot_de_prueba
+        bot.guilds_data["__global__"] = {"total_analisis": 999, "maliciosos": 61}
+        await db.guardar_datos(inmediato=True)
+
+        # El fichero se va: el despliegue hace `git clean`, o se borra a mano.
+        data_file.unlink()
+
+        assert await db._leer_stats_sqlite() == {"total_analisis": 999, "maliciosos": 61}
+
+    @pytest.mark.asyncio
+    async def test_el_json_sigue_escribiendose(self, pool_real, bot_de_prueba):
+        """Las dos copias. La base no sustituye al JSON: lo cubre."""
+        bot, data_file = bot_de_prueba
+        bot.guilds_data["__global__"] = {"total_analisis": 7}
+        await db.guardar_datos(inmediato=True)
+
+        guardado = json.loads(data_file.read_text(encoding="utf-8"))
+        assert guardado["__global__"]["total_analisis"] == 7
+
+    @pytest.mark.asyncio
+    async def test_la_escritura_a_la_base_es_lo_ultimo(self):
+        """Si la base falla, el JSON ya está escrito. Nunca al revés."""
+        import inspect
+
+        fuente = inspect.getsource(db._flush_datos)
+        assert fuente.index("json.dump") < fuente.index("_escribir_stats_sqlite"), (
+            "la copia en SQLite tiene que escribirse DESPUÉS del volcado del JSON, para "
+            "que un fallo de la base no deje al bot sin nada"
+        )
+
+    @pytest.mark.asyncio
+    async def test_si_la_base_falla_el_json_sigue_saliendo(self, pool_real, bot_de_prueba):
+        """Un fallo de SQLite no puede tumbar el guardado: el JSON ya está a salvo.
+
+        Se rompe el pool de verdad (dejando la lista de conexiones vacía) en vez de
+        parchear `_escribir_stats_sqlite`, que es justo la función que hay que probar.
+        """
+        bot, data_file = bot_de_prueba
+        bot.guilds_data["__global__"] = {"total_analisis": 5}
+
+        conexiones = list(pool_real._conns)
+        pool_real._conns.clear()          # la base ya no responde
+        try:
+            await db.guardar_datos(inmediato=True)
+        finally:
+            pool_real._conns.extend(conexiones)
+
+        assert json.loads(data_file.read_text(encoding="utf-8"))["__global__"]["total_analisis"] == 5
+
+    @pytest.mark.asyncio
+    async def test_escribir_devuelve_false_si_falla(self, pool_real):
+        """Que el que escribe sepa si le ha ido bien, para poder avisar."""
+        conexiones = list(pool_real._conns)
+        pool_real._conns.clear()
+        try:
+            assert await db._escribir_stats_sqlite({"total_analisis": 1}) is False
+        finally:
+            pool_real._conns.extend(conexiones)
