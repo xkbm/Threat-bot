@@ -423,10 +423,12 @@ def amenaza_agrupada(detecciones: list[tuple[str, str, str, Optional[str]]],
     # cinco URLs más cinco adjuntos. Lo que no cabe se cuenta en una línea final, que es
     # preferible a callarlo.
     MAX_CAMPOS = 10
-    for tipo, valor, detalle, veredicto in detecciones[:MAX_CAMPOS]:
-        etiqueta = veredicto.capitalize() if veredicto else tipo
+    # Las tuplas son `(etiqueta, valor, detalle, elemento_id)`. La etiqueta la pone quien
+    # detecta, no se deduce aquí: antes esta funciónReceiveía en `veredicto` lo que era
+    # el `elemento_id` y el campo salía como "Urlhttps://www.erome.com/ · URL".
+    for etiqueta, valor, detalle, _eid in detecciones[:MAX_CAMPOS]:
         embed.add_field(
-            name=f"{etiqueta} · {tipo}",
+            name=etiqueta,
             value=f"```{valor}```" + (f"\n{detalle}" if detalle else ""),
             inline=False,
         )

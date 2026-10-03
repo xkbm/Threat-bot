@@ -568,3 +568,81 @@ class TestBarra:
 
     def test_barra_acota_por_encima_de_100(self):
         assert emb.resultado_barra(150, 15, 10).count("░") == 0
+
+
+class TestAmenazaAgrupada:
+    """El log agrupado se veía mal en producción: el campo salía
+    `Urlhttps://www.erome.com/ · URL`.
+
+    La causa era un desajuste de contrato entre quien construye la lista y quien la
+    dibuja: el handler mete `(tipo, valor, detalle, elemento_id)` y esta función lo
+    desempaquetaba como `(tipo, valor, detalle, veredicto)`. Así que `veredicto` recibía
+    `url:https://www.erome.com/`, y de `veredicto.capitalize()` salía el texto entero
+    pegado al nombre del campo.
+    """
+
+    @staticmethod
+    def _usuario():
+        return type("U", (), {"mention": "<@42>", "id": 42})()
+
+    def _embed(self, detecciones):
+        return emb.amenaza_agrupada(detecciones, self._usuario())
+
+    def test_el_nombre_del_campo_no_contiene_la_url(self):
+        """El contrato: la cuarta posición es el `elemento_id`, no un veredicto."""
+        e = self._embed([("URL", "https://www.erome.com/", "1 detecciones",
+                          "url:https://www.erome.com/")])
+        nombres = [f.name for f in e.fields]
+        assert "URL" in nombres, nombres
+        for nombre in nombres:
+            assert "erome.com" not in nombre, (
+                f"el nombre del campo lleva la URL: {nombre!r}. "
+                "Se está desempacando el elemento_id como si fuera el veredicto."
+            )
+
+    def test_el_elemento_id_no_se_pinta_como_etiqueta(self):
+        e = self._embed([("URL", "https://www.eicar.org/", "4 detecciones",
+                          "url:https://www.eicar.org/")])
+        texto = " ".join(f"{f.name} {f.value}" for f in e.fields)
+        assert "url:" not in texto, texto
+
+    def test_las_detecciones_aparecen_en_el_cuerpo(self):
+        e = self._embed([
+            ("URL", "https://a.test/1", "3 detecciones", "url:https://a.test/1"),
+            ("Contenido restringido", "foto.png", "Alcohol 80%", "nsfw:abc123"),
+        ])
+        cuerpo = " ".join(f.value for f in e.fields)
+        assert "https://a.test/1" in cuerpo
+        assert "foto.png" in cuerpo
+        assert "Alcohol 80%" in cuerpo
+
+    def test_el_titulo_dice_cuantas(self):
+        """El canal de logs se lee de un vistazo: el título tiene que decir cuántas."""
+        e = self._embed([
+            ("URL", "https://a.test/1", "3 detecciones", "url:1"),
+            ("URL", "https://a.test/2", "4 detecciones", "url:2"),
+        ])
+        assert "2 detecciones" in (e.title or ""), e.title
+        e1 = self._embed([("URL", "https://a.test/1", "3 detecciones", "url:1")])
+        assert "1 detección" in (e1.title or ""), e1.title
+
+    def test_el_autor_aparece_una_sola_vez_para_todas(self):
+        """Con tres detecciones no tiene que salir el mismo nombre tres veces."""
+        e = self._embed([("URL", f"https://a.test/{i}", "3 detecciones", f"url:{i}")
+                         for i in range(3)])
+        usuarios = [f for f in e.fields if "Usuario" in f.name]
+        assert len(usuarios) == 1, [f.name for f in e.fields]
+
+    def test_no_supera_el_limite_de_campos_de_discord(self):
+        """Discord da 25 campos por embed y un mensaje puede traer más detecciones.
+
+        Lo que no cabe se cuenta en un campo propio. Callárselo sería peor que
+        recortarlo: el moderador vería un aviso con seis detecciones de un mensaje que
+        tenía catorce y no tendría forma de saberlo.
+        """
+        e = self._embed([("URL", f"https://a.test/{i}", "3 detecciones", f"url:{i}")
+                         for i in range(20)])
+        assert len(e.fields) <= 25, len(e.fields)
+        restante = next((f for f in e.fields if "más" in f.name), None)
+        assert restante is not None, [f.name for f in e.fields]
+        assert "10" in restante.name, restante.name

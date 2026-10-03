@@ -1105,6 +1105,14 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                     else:
                         # --- URL normal → VirusTotal ---
                         url_original_str = url
+                        # Aquí NO hay camino rápido antes de expandir, a diferencia de la
+                        # ruta de varias URLs. Decidir si una URL es una imagen sin mirar
+                        # la red no es posible: `url_es_imagen` con bot hace DNS y una
+                        # petición, y sin él solo mira la extensión. Un acierto de caché
+                        # aquí, saltándose esa comprobación, dejaría sin pasar por
+                        # SightEngine las imágenes cuya URL no acaba en .png/.jpg, que es
+                        # justo lo que esa comprobación existe para detectar. Prefiero el
+                        # segundo de latencia a perder un análisis.
                         url = await expandir_url(bot, url)
                         url_fue_expandida = url != url_original_str
                         url_saltar_por_whitelist = False
@@ -1200,6 +1208,25 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
 
                         async def _expandir_y_cache(url: str) -> Optional[tuple[str, str, str, discord.Embed, int, bool]]:
                             url_original = url
+
+                            # Camino rápido: si esta URL **tal cual la escribió el
+                            # usuario** ya se miró, se devuelve sin tocar la red.
+                            #
+                            # Antes se expandía primero y la caché se miraba después.
+                            # `expandir_url` hace DNS y un HEAD contra la IP real, así
+                            # que un acierto de memoria —que debería ser instantáneo—
+                            # costaba un segundo por URL. Medido en producción con dos
+                            # enlaces ya en caché: 04:02:13 → 04:02:16, un `MEM HIT` por
+                            # URL y tres segundos para no mirar nada.
+                            clave_directa = clave_analisis("url", url_original)
+                            tipo_d, embed_d, mal_d = await get_from_cache_mem(clave_directa)
+                            if embed_d is None:
+                                tipo_d, embed_d, mal_d = await obtener_analisis_db(clave_directa)
+                                if embed_d is not None:
+                                    await set_cache_mem(clave_directa, tipo_d, embed_d, mal_d)
+                            if embed_d is not None:
+                                return (url_original, url_original, tipo_d, embed_d, mal_d, False)
+
                             url_exp = await expandir_url(bot, url)
                             fue_exp = url_exp != url_original
                             if fue_exp:
@@ -1223,6 +1250,14 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                                 return tipo, e, m
 
                             tipo, embed, mal = await vuelo(clave, _leer_cache)
+                            # Se guarda también bajo la URL **tal como la escribió el
+                            # usuario**. Antes solo existía la clave de la expandida, así
+                            # que `erome.com` (sin www) no encontraba nunca lo de
+                            # `www.erome.com` y pagaba la expansión una y otra vez: el log
+                            # mostraba un `MEM MISS` y un `SQLITE MISS` por cada
+                            # reaparición de la misma URL.
+                            if embed is not None and fue_exp:
+                                await set_cache_mem(clave_directa, tipo, embed, mal)
                             return (url_original, url_exp, tipo, embed, mal, fue_exp)
 
                         expandidos = await asyncio.gather(*[_expandir_y_cache(url) for url in todas_urls], return_exceptions=True)

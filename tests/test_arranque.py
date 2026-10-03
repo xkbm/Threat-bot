@@ -1011,3 +1011,103 @@ class TestIgnorarDescuentaTodasLasInfracciones:
             f"tenía que quitar las dos infracciones, quitó {len(quitadas)}: {quitadas}"
         )
         assert {q[2] for q in quitadas} == {"url:https://a.test/1", "url:https://a.test/2"}
+
+
+class TestCacheHitNoTocaLaRed:
+    """Un acierto de caché no debería costar un segundo.
+
+    `expandir_url` hace DNS y un HEAD contra la IP real, y se llamaba ANTES de mirar la
+    caché. Con lo que hasta se vio en producción: dos enlaces ya en memoria tardaban dos
+    segundos en "no mirar nada" — 04:02:13 → 04:02:16, con un `MEM HIT` por URL.
+
+    Y el `erome.com` sin `www` no encontraba nunca lo de `www.erome.com`, porque solo se
+    guardaba la clave de la URL expandida: se veía un `MEM MISS` y un `SQLITE MISS` en cada
+    reaparición de la misma URL, y se volvía a pagar la expansión.
+
+    Aquí se mide con la red simulada como lenta, que es lo que pasa de verdad.
+    """
+
+    @pytest.mark.asyncio
+    async def test_dos_urls_en_cache_no_llaman_a_expandir(self, monkeypatch, bot_analisis):
+        from core import cache as cache_mod
+        from core import guild_config as gc
+        from core.utils import clave_analisis
+        import ui.message_handler as mh
+
+        await gc.actualizar_config(1, log_channel_id=555, strict_mode=False)
+
+        # Se siembra la caché como si ya se hubieran analizado.
+        embed = _embed_malicioso()
+        for url in ("https://erome.com/", "https://www.erome.com/"):
+            await cache_mod.set_cache_mem(clave_analisis("url", url), "malicioso", embed, 1)
+
+        llamadas = []
+
+        async def _expandir_lenta(bot, url):
+            # 1 segundo por URL, como el HEAD real.
+            await asyncio.sleep(1)
+            llamadas.append(url)
+            return url
+
+        monkeypatch.setattr(mh, "expandir_url", _expandir_lenta)
+
+        msg = _Mensaje("https://erome.com/ https://www.erome.com/", id=9300)
+        import time as _t
+        inicio = _t.monotonic()
+        await mh.procesar_analisis(bot_analisis, msg)
+        await asyncio.sleep(0.05)
+        elapsed = _t.monotonic() - inicio
+
+        assert not llamadas, (
+            f"no debería tocar la red con las dos en caché, pero llamó a expandir {llamadas}"
+        )
+        assert elapsed < 0.5, f"tardó {elapsed:.1f}s con las dos en caché"
+
+    @pytest.mark.asyncio
+    async def test_la_url_sin_www_deja_alias_para_la_siguiente_vez(self, monkeypatch, bot_analisis):
+        """`erome.com` tiene que encontrar lo de `www.erome.com` sin volver a expandir.
+
+        Antes solo se guardaba la clave de la URL expandida —`normalizar_url` NO quita el
+        `www`, así que son claves distintas— y la forma sin `www` pagaba la resolución en
+        cada mensaje. El log de producción lo delataba: un `MEM MISS` y un `SQLITE MISS`
+        por cada reaparición de la misma URL.
+
+        Se comprueba la clave directamente en vez de medir tiempos: un test que depende de
+        la red es un test que falla cuando la red va mal y no cuando el código va mal.
+
+        Usa dos URLs porque el alias se escribe en la ruta de varias. En la de una sola no
+        se puede: decidir si la URL es una imagen sin mirar la red no es posible.
+        """
+        from core import cache as cache_mod
+        from core import guild_config as gc
+        from core.utils import clave_analisis
+        import ui.message_handler as mh
+
+        await gc.actualizar_config(1, log_channel_id=555, strict_mode=False)
+
+        for _u in ("https://erome.com/", "https://www.erome.com/", "https://otro.test/x"):
+            cache_mod._cache.pop(clave_analisis("url", _u), None)
+
+        await cache_mod.set_cache_mem(
+            clave_analisis("url", "https://www.erome.com/"), "malicioso",
+            _embed_malicioso(), 1)
+
+        async def _expandir(bot, url):
+            await asyncio.sleep(0.05)
+            return "https://www.erome.com/"
+
+        async def _analizar(url, *a, **k):
+            return "malicioso", _embed_malicioso(), 1
+
+        monkeypatch.setattr(mh, "expandir_url", _expandir)
+        monkeypatch.setattr(mh, "analizar_url", _analizar)
+
+        msg = _Mensaje("https://erome.com/ https://otro.test/x", id=9310)
+        await mh.procesar_analisis(bot_analisis, msg)
+        await asyncio.sleep(0.05)
+
+        _t, alias, _m = await cache_mod.get_from_cache_mem(clave_analisis("url", "https://erome.com/"))
+        assert alias is not None, (
+            "la URL tal cual la escribió el usuario no quedó cacheada, así que la "
+            "siguiente vuelve a pagar la resolución"
+        )
