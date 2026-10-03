@@ -150,7 +150,12 @@ DOMINIOS_PROTEGIDOS: list[str] = [
     "youtube.com", "youtu.be", "google.com", "wikipedia.org",
     "github.com", "stackoverflow.com", "reddit.com", "twitter.com",
     "x.com", "twitch.tv", "spotify.com", "microsoft.com",
-    "apple.com", "amazon.com", "discord.com"
+    "apple.com", "amazon.com", "discord.com",
+    # Steam y su tienda. Un enlace a la ficha de un juego es de las cosas más repetidas
+    # que se comparten en un canal de comunidad, y cada una costaba un análisis entero.
+    # `dominio_en_whitelist` compara por sufijo, así que con el dominio base quedan
+    # cubiertas `store.steampowered.com` y `steamcommunity.com` sin nombrarlos.
+    "steampowered.com", "steamcommunity.com",
 ]
 
 ANTISPAM_ANALYSIS_PER_HOUR: int = 30

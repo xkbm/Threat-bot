@@ -827,9 +827,31 @@ async def _analizar_adjuntos(
         # fuga que crece con cada mensaje problemático.
         _liberar_detecciones(adjuntos)
 
-    resultados_img = [r for r in resultados_img if isinstance(r, tuple)]
-    resultados_arch = [r for r in resultados_arch if isinstance(r, tuple)]
+    resultados_img = _separar_adjuntos(resultados_img, "una imagen")
+    resultados_arch = _separar_adjuntos(resultados_arch, "un archivo")
     return resultados_img, resultados_arch, omitidos
+
+
+def _separar_adjuntos(resultados, que: str) -> list:
+    """Deja solo los adjuntos que se analizaron bien, y **loguea** los que reventaron.
+
+    Antes el filtro era `if isinstance(r, tuple)`: con `return_exceptions=True` una
+    excepción llega en la lista como objeto excepción y el filtro la tiraba sin mirar. El
+    usuario veía un error en Discord y la consola no decía nada, que es la peor
+    combinación posible: el fallo existe pero nadie puede saber cuál.
+
+    El error se registra con su traceback y se devuelve igualmente el resto, para que un
+    adjunto problemático no se lleve por delante a los demás del mensaje.
+    """
+    bien = []
+    for r in resultados:
+        if isinstance(r, tuple):
+            bien.append(r)
+        elif isinstance(r, BaseException):
+            log.exception(f"Fallo analizando {que}: {type(r).__name__}: {r}", exc_info=r)
+        else:
+            log.error(f"Fallo analizando {que}: devolvió {type(r).__name__}, que no es un resultado")
+    return bien
 
 
 async def _analizar_adjuntos_si_hay(

@@ -585,3 +585,34 @@ class TestElEsquemaYLaConfigNoSeSeparan:
             == "Avisar de todo: activado"
         assert BotonBool("avisar_todo", clave.etiqueta, False, positivo=clave.afirmativa).label \
             == "Avisar de todo: desactivado"
+
+
+class TestSteamEnLaWhitelistProtegida:
+    """Un enlace a la ficha de un juego es de las cosas más repetidas en un canal de
+    comunidad, y cada una costaba un análisis entero. Con la cuota del plan gratuito
+    compartida, eso se nota.
+    """
+
+    def test_los_dominios_de_steam_estan_protegidos(self):
+        from core.config import DOMINIOS_PROTEGIDOS
+
+        assert "steampowered.com" in DOMINIOS_PROTEGIDOS
+        assert "steamcommunity.com" in DOMINIOS_PROTEGIDOS
+
+    def test_cubre_los_subdominios_de_la_tienda(self):
+        from core.config import DOMINIOS_PROTEGIDOS
+        from core.utils import dominio_en_whitelist
+
+        for d in ("store.steampowered.com", "steamcommunity.com",
+                  "store.steampowered.com/app/3164500"):
+            dominio = d.split("/")[0]
+            assert dominio_en_whitelist(dominio, DOMINIOS_PROTEGIDOS), d
+
+    def test_no_protecta_a_who_se_finge_steam(self):
+        """La comparación es por sufijo con punto delante: `steampowered.com.evil.test`
+        termina en `.steampowered.com`... no, y ese es justo el punto del test."""
+        from core.config import DOMINIOS_PROTEGIDOS
+        from core.utils import dominio_en_whitelist
+
+        assert not dominio_en_whitelist("steampowered.com.evil.test", DOMINIOS_PROTEGIDOS)
+        assert not dominio_en_whitelist("notsteampowered.com", DOMINIOS_PROTEGIDOS)

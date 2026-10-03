@@ -494,3 +494,126 @@ class TestDebeBorrar:
     ])
     def test_todas_las_combinaciones(self, amenaza, doble_ext, mime, estricto, esperado):
         assert debe_borrar(amenaza, doble_ext, mime, estricto) is esperado
+
+
+class TestLosAdjuntosQueFallanSeVen:
+    """Un adjunto que revienta no puede desaparecer en silencio.
+
+    `asyncio.gather(..., return_exceptions=True)` mete la excepción en la lista como
+    objeto, y el filtro `if isinstance(r, tuple)` la tiraba sin mirar. El usuario veía un
+    error en Discord y la consola no decía nada: el fallo existía pero nadie podía saber
+    cuál. En producción era una imagen de 3 MB que no llegaba a analizarse y no aparecía ni
+    un error.
+    """
+
+    def test_lo_que_no_es_tupla_se_loguea(self, caplog):
+        import logging
+
+        import ui.message_handler as mh
+
+        fallo = RuntimeError("la imagen no se pudo descargar")
+        with caplog.at_level(logging.ERROR, logger="handler"):
+            bien = mh._separar_adjuntos([("ok.png", "seguro", {}, "h1"), fallo], "una imagen")
+
+        assert bien == [("ok.png", "seguro", {}, "h1")], bien
+        assert any("la imagen no se pudo descargar" in r.message for r in caplog.records), (
+            [r.message for r in caplog.records]
+        )
+
+    def test_un_fallo_no_se_lleva_al_resto_del_mensaje(self, caplog):
+        """Un adjunto problemático no puede tumbar a los demás del mensaje."""
+        import logging
+
+        import ui.message_handler as mh
+
+        with caplog.at_level(logging.ERROR, logger="handler"):
+            bien = mh._separar_adjuntos(
+                [RuntimeError("a"), ("b.png", "seguro", {}, "h2"), ValueError("c")],
+                "una imagen",
+            )
+        assert len(bien) == 1 and bien[0][0] == "b.png"
+
+    def test_un_devolve_none_tambien_se_loguea(self, caplog):
+        """Que devuelva `None` en vez de una tupla también es un fallo, no un silencio."""
+        import logging
+
+        import ui.message_handler as mh
+
+        with caplog.at_level(logging.ERROR, logger="handler"):
+            bien = mh._separar_adjuntos([None], "una imagen")
+        assert bien == []
+        assert any("NoneType" in r.message for r in caplog.records), [
+            r.message for r in caplog.records
+        ]
+
+
+class _AdjuntoHashable:
+    """Un adjunto tiene que ser hashable: `_detecciones` los usa como claves de un dict."""
+
+    id = 9
+    filename = "grande.png"
+    size = 3_266_277
+    url = "http://x/g.png"
+    content_type = "image/png"
+
+
+class TestElFalloDeUnAdjuntoLlegaAlLog:
+    """El cableado, no la función suelta.
+
+    Los tests de `_separar_adjuntos` pasaban aunque nadie la llamara: el fallo estaba en
+    los call sites, que filtraban en silencio. Este va por `_analizar_adjuntos`, que es
+    donde estaba el agujero.
+
+    Es el caso que se vio en producción: una imagen de 3 MB que no llegaba a analizarse y
+    no dejaba ni una línea en la consola.
+    """
+
+    @pytest.mark.asyncio
+    async def test_un_adjunto_que_reventa_aparece_en_el_log(self, monkeypatch, caplog):
+        import logging
+        import types as t
+
+        import core.state as state_mod
+        import ui.message_handler as mh
+
+        original = state_mod.bot
+        state_mod.bot = t.SimpleNamespace(guilds_data={}, _reaction_controllers={}, user=None)
+        caplog.set_level(logging.ERROR, logger="handler")
+
+        async def _petir(*a, **k):
+            raise RuntimeError("la imagen no se pudo descargar")
+
+        async def _sniff(bot, a):
+            return t.SimpleNamespace(es_imagen=True,
+                                     tipo=t.SimpleNamespace(value="imagen"),
+                                     con_doble_extension=False)
+
+        class _Ctrl:
+            async def loading(self): return None
+            async def set(self, e): return None
+            def clear(self): return None
+
+        monkeypatch.setattr(mh, "_procesar_imagen", _petir)
+        monkeypatch.setattr(mh, "_detectar_adjunto", _sniff)
+        monkeypatch.setattr(mh, "_controlador_para", lambda b, m: _Ctrl())
+        async def _nada(*a, **k):
+            return None
+
+        monkeypatch.setattr(mh, "safe_remove_loading", _nada)
+
+        msg = t.SimpleNamespace(
+            id=1, content="", guild=t.SimpleNamespace(id=1),
+            channel=t.SimpleNamespace(id=2, name="general"),
+            author=t.SimpleNamespace(id=3), attachments=[_AdjuntoHashable()],
+        )
+
+        try:
+            imgs, archs, _omit = await mh._analizar_adjuntos(state_mod.bot, msg, 1)
+        finally:
+            state_mod.bot = original
+
+        assert imgs == [] and archs == [], (imgs, archs)
+        assert any("la imagen no se pudo descargar" in r.message for r in caplog.records), (
+            "el adjunto reventó y no quedó rastro en el log: "
+            f"{[r.message for r in caplog.records]}"
+        )
