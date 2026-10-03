@@ -409,28 +409,37 @@ def amenaza_agrupada(detecciones: list[tuple[str, str, str, Optional[str]]],
     por elemento: es texto de atacante y sin eso puede inyectar markdown.
     """
     total = len(detecciones)
-    # El número va en el TÍTULO, no en la descripción: el título es lo único que se lee
-    # de un vistazo en el canal de logs, y "Amenaza detectada" a secas no dice si es una
-    # cosa o seis.
+    # El número va en el TÍTULO, que es lo único que se lee de un vistazo en un canal de
+    # logs lleno. Y en plural siempre: "1 detecciones" es ruido, pero sobre todo hace dudar
+    # de si el contador es real.
     plural = "detección" if total == 1 else "detecciones"
     embed = discord.Embed(
         title=f"{TITULOS['amenaza']} · {total} {plural}",
-        description="Todo lo encontrado en **un mismo mensaje**.",
+        description=("Todo lo encontrado en **un mismo mensaje**." if total > 1
+                     else "Encontrado en un mismo mensaje."),
         color=discord.Color(COLOR_ERROR),
     )
 
-    # Un campo por detección, pero sin pasarse: Discord da 25 y un mensaje puede traer
-    # cinco URLs más cinco adjuntos. Lo que no cabe se cuenta en una línea final, que es
-    # preferible a callarlo.
+    # Un campo por detección, sin pasarse: Discord da 25 campos y un mensaje puede traer
+    # cinco URLs más cinco adjuntos. Lo que no cabe se cuenta, que es preferible a callarlo.
     MAX_CAMPOS = 10
+
     # Las tuplas son `(etiqueta, valor, detalle, elemento_id)`. La etiqueta la pone quien
-    # detecta, no se deduce aquí: antes esta funciónReceiveía en `veredicto` lo que era
+    # detecta y no se deduce aquí: antes esta función recibía en `veredicto` lo que era
     # el `elemento_id` y el campo salía como "Urlhttps://www.erome.com/ · URL".
+    #
+    # Cada campo lleva SOLO el valor, en code block porque es texto que escribe un
+    # atacante y sin el bloque puede inyectar markdown. El detalle va aparte, en un campo
+    # propio: pegado detrás del ``` Discord lo sacaba del recuadro y se leía como texto
+    # suelto debajo del campo en vez de como parte de él.
+    detalles = []
     for etiqueta, valor, detalle, _eid in detecciones[:MAX_CAMPOS]:
+        embed.add_field(name=etiqueta, value=f"```{valor}```", inline=False)
+        if detalle:
+            detalles.append(f"**{etiqueta}** — {detalle}")
+    if detalles:
         embed.add_field(
-            name=etiqueta,
-            value=f"```{valor}```" + (f"\n{detalle}" if detalle else ""),
-            inline=False,
+            name=f"{EMOJI_SHIELD} Detalles", value="\n".join(detalles)[:1024], inline=False
         )
     if total > MAX_CAMPOS:
         embed.add_field(
@@ -443,4 +452,4 @@ def amenaza_agrupada(detecciones: list[tuple[str, str, str, Optional[str]]],
     embed.add_field(name="ID", value=f"`{usuario.id}`", inline=True)
     if mensaje:
         embed.add_field(name="Origen", value=mensaje, inline=False)
-    return pie(embed, f"Amenaza · {total} detecci{'ón' if total == 1 else 'ones'}")
+    return pie(embed, f"Amenaza · {total} {plural}")

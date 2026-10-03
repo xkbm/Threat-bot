@@ -1111,3 +1111,50 @@ class TestCacheHitNoTocaLaRed:
             "la URL tal cual la escribió el usuario no quedó cacheada, así que la "
             "siguiente vuelve a pagar la resolución"
         )
+
+
+class TestLosContadoresNoDicenDeteccionesDeMas:
+    """"1 detecciones" es ruido, y sobre todo hace dudar de si el contador es real.
+
+    En un panel o en un log de amenazas, un número mal concordado no se lee como un
+    descuido de texto: se lee como un bug del contador, que es justo lo que hace que un
+    moderador deje de fiarse de la cifra.
+    """
+
+    @pytest.mark.asyncio
+    async def test_una_deteccion_en_el_log_agrupado(self, monkeypatch, bot_analisis):
+        from core import guild_config as gc
+        from core.utils import clave_analisis
+        import ui.message_handler as mh
+
+        await gc.actualizar_config(1, log_channel_id=555, strict_mode=False)
+        llamadas = []
+
+        async def _fake(guild_id, detecciones, usuario, origen=""):
+            llamadas.append(list(detecciones))
+            return None
+
+        monkeypatch.setattr(mh, "enviar_log_agrupado", _fake)
+
+        async def _analizar(url, *a, **k):
+            from core import cache as cache_mod
+            await cache_mod.set_cache_mem(
+                clave_analisis("url", url), "malicioso", mal=1,
+                datos={"valor": url, "vt_link": None, "top_text": None,
+                       "veredicto": "malicioso", "susp": 0})
+            return "malicioso", _embed_malicioso(), 1
+
+        monkeypatch.setattr(mh, "analizar_url", _analizar)
+        monkeypatch.setattr(mh, "expandir_url", lambda bot, url: asyncio.sleep(0, result=url))
+
+        msg = _Mensaje("https://una-sola.test/x", id=9400)
+        await mh.procesar_analisis(bot_analisis, msg)
+        await asyncio.sleep(0.1)
+
+        assert llamadas, "no se mandó el log agrupado"
+        detalles = [d for _t, _v, d, _e in llamadas[0]]
+        for d in detalles:
+            assert "detecciones" not in d, (
+                f"una sola detección no se escribe en plural: {d!r}"
+            )
+            assert "1 detección" in d, d

@@ -646,3 +646,61 @@ class TestAmenazaAgrupada:
         restante = next((f for f in e.fields if "más" in f.name), None)
         assert restante is not None, [f.name for f in e.fields]
         assert "10" in restante.name, restante.name
+
+
+class TestElLogAgrupadoSeLeeBien:
+    """Layout y pluralización del aviso agrupado.
+
+    Lo que se veía en producción: el detalle ("1 detecciones") colgaba debajo del recuadro
+    del code block, como si estuviese fuera del campo, y con una sola detección el texto
+    decía "1 detecciones", que hace dudar de si el contador es real.
+    """
+
+    @staticmethod
+    def _usuario():
+        return type("U", (), {"mention": "<@42>", "id": 42})()
+
+    def _embed(self, detecciones):
+        return emb.amenaza_agrupada(detecciones, self._usuario())
+
+    def test_el_campo_no_mezcla_valor_y_detalle(self):
+        """Cada campo lleva solo el valor. El detalle va en un campo propio."""
+        e = self._embed([("URL", "https://a.test/1", "3 detecciones", "url:1")])
+        campo = next(f for f in e.fields if f.name == "URL")
+        assert campo.value == "```https://a.test/1```", repr(campo.value)
+        assert "detecciones" not in campo.value, (
+            f"el detalle dentro del campo se sale del recuadro: {campo.value!r}"
+        )
+
+    def test_los_detalles_vienen_en_su_propio_campo(self):
+        e = self._embed([
+            ("URL", "https://a.test/1", "3 detecciones", "url:1"),
+            ("URL", "https://a.test/2", "4 detecciones", "url:2"),
+        ])
+        detalles = next((f for f in e.fields if "Detalles" in f.name), None)
+        assert detalles is not None, [f.name for f in e.fields]
+        assert "https://a.test/1" in detalles.value or "3 detecciones" in detalles.value
+        assert "4 detecciones" in detalles.value, detalles.value
+
+    def test_sin_detalles_no_hay_campo_vacio(self):
+        """Un campo "Detalles" vacío se lee como que falta información."""
+        e = self._embed([("URL", "https://a.test/1", "", "url:1")])
+        assert not any("Detalles" in f.name for f in e.fields), [f.name for f in e.fields]
+
+    def test_una_sola_deteccion_no_dice_detecciones(self):
+        e = self._embed([("URL", "https://a.test/1", "1 detección", "url:1")])
+        assert "1 detección" in (e.title or ""), e.title
+        assert "1 detecciones" not in (e.title or ""), e.title
+        assert e.footer is None or "1 detección" in e.footer.text, e.footer
+
+    def test_el_titulo_no_dice_varias_con_una_sola(self):
+        """El aviso de una detección no puede hablar en plural: hace dudar del contador."""
+        e = self._embed([("URL", "https://a.test/1", "1 detección", "url:1")])
+        texto = f"{e.title} {e.description or ''}"
+        assert "varias" not in texto.lower(), texto
+        assert "1 detección" in (e.title or ""), e.title
+
+    def test_el_autor_no_se_repite_por_deteccion(self):
+        e = self._embed([("URL", f"https://a.test/{i}", "1 detección", f"url:{i}")
+                         for i in range(3)])
+        assert len([f for f in e.fields if "Usuario" in f.name]) == 1

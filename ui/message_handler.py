@@ -271,7 +271,7 @@ async def _construir_embed_unificado(
 
     def _extra_url(e: Elemento) -> str:
         if e.veredicto is Veredicto.MALICIOSO:
-            return f"{e.mal} detecciones"
+            return f"{e.mal} detecci{'ón' if e.mal == 1 else 'ones'}"
         if e.veredicto is Veredicto.SOSPECHOSO:
             return "sospechoso"
         if e.veredicto is Veredicto.PHISHING:
@@ -304,7 +304,7 @@ async def _construir_embed_unificado(
             if e.veredicto in (Veredicto.NSFW, Veredicto.RESTRINGIDO):
                 extra = e.detalle_contenido or e.veredicto.titulo
             elif e.veredicto is Veredicto.MALICIOSO:
-                extra = f"{e.mal} detecciones de malware"
+                extra = f"{e.mal} detecci{'ón' if e.mal == 1 else 'ones'} de malware"
             elif e.veredicto is Veredicto.SOSPECHOSO:
                 extra = "sospechoso"
             elif e.veredicto is Veredicto.ERROR:
@@ -335,7 +335,7 @@ async def _construir_embed_unificado(
         lineas = []
         for e in archivos:
             if e.veredicto is Veredicto.MALICIOSO:
-                extra = f"{e.mal} detecciones"
+                extra = f"{e.mal} detecci{'ón' if e.mal == 1 else 'ones'}"
             elif e.veredicto is Veredicto.SOSPECHOSO:
                 extra = "sospechoso"
             elif e.veredicto is Veredicto.ERROR:
@@ -1486,7 +1486,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
             if r.tipo == "malicioso":
                 if r.elemento_id:
                     await registrar_infraccion(guild_id, message.author.id, r.elemento_id)
-                detalle = f"{r.mal} detecciones"
+                detalle = f"{r.mal} detecci{'ón' if r.mal == 1 else 'ones'}"
                 if r.vt_link:
                     detalle += f"\n{emb.enlace_informe(r.vt_link, con_emoji=False)}"
                 detecciones.append(("URL", r.url, detalle, r.elemento_id or ""))
@@ -1507,7 +1507,8 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
             if tipo == "malicioso":
                 # Mismo elemento_id que usa _procesar_archivo al registrar la infracción.
                 detecciones.append((
-                    "Archivo (múltiples)", filename, f"{mal} detecciones",
+                    "Archivo (múltiples)", filename,
+                    f"{mal} detecci{'ón' if mal == 1 else 'ones'}",
                     f"filehash:{file_hash}" if file_hash else "",
                 ))
 
