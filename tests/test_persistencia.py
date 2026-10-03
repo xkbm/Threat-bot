@@ -93,6 +93,68 @@ def bot_de_prueba(tmp_path):
     state.bot = anterior
 
 
+class TestLasEstadisticasNoSePierden:
+    """Regresión grave: `/stats` volvía a cero solo, cada hora.
+
+    Las estadísticas globales viven en `guilds_data["__global__"]` y en ningún otro sitio:
+    la tabla `guild_config` de SQLite tiene una fila por servidor, así que el global no
+    está respaldado en ninguna parte.
+
+    Y el guardado por defecto (`incluir_guilds=False`, que usan TODOS los llamantes
+    salvo un cambio de configuración) escribía solo `__api_usage__` y `__antispam__`.
+    Como el volcado es atómico y **reemplaza el fichero entero**, ese `__global__` se
+    quedaba fuera y se borraba del disco. El cron horario lo hace cada hora.
+
+    La contradicción era explícita y nadie lo miró: `update_stats` documenta que "las
+    persiste el cron horario", y el cron horario era justo quien las borraba.
+    """
+
+    @pytest.mark.asyncio
+    async def test_un_guardado_normal_no_borra_las_estadisticas(self, bot_de_prueba):
+        bot, data_file = bot_de_prueba
+        bot.guilds_data["__global__"] = {"total_analisis": 4321, "maliciosos": 7}
+
+        await db.guardar_datos(inmediato=True)          # el camino por defecto, sin flags
+
+        guardado = json.loads(data_file.read_text(encoding="utf-8"))
+        assert "__global__" in guardado, (
+            "un guardado sin incluir_guilds se está llevándose las estadísticas"
+        )
+        assert guardado["__global__"]["total_analisis"] == 4321
+
+    @pytest.mark.asyncio
+    async def test_sobreviven_a_un_guardado_repetido(self, bot_de_prueba):
+        """El fallo no era el primero, era cada uno de los siguientes."""
+        bot, data_file = bot_de_prueba
+        bot.guilds_data["__global__"] = {"total_analisis": 10}
+
+        for _ in range(3):
+            await db.guardar_datos(inmediato=True)
+
+        guardado = json.loads(data_file.read_text(encoding="utf-8"))
+        assert guardado["__global__"]["total_analisis"] == 10
+
+    @pytest.mark.asyncio
+    async def test_incluir_el_global_no_trae_la_config_de_guild(self, bot_de_prueba):
+        """Arreglar esto no puede reintroducir el volcado completo por mensaje."""
+        bot, data_file = bot_de_prueba
+        bot.guilds_data["__global__"] = {"total_analisis": 5}
+
+        await db.guardar_datos(inmediato=True)
+
+        guardado = json.loads(data_file.read_text(encoding="utf-8"))
+        assert "__global__" in guardado
+        assert "1" not in guardado, "el global no debe arrastrar la config de los servidores"
+
+    @pytest.mark.asyncio
+    async def test_sin_stats_todavia_no_hay_global(self, bot_de_prueba):
+        """Sin stats todavía no hay global que guardar, y no se crea uno vacío."""
+        bot, data_file = bot_de_prueba
+        await db.guardar_datos(inmediato=True)
+        guardado = json.loads(data_file.read_text(encoding="utf-8"))
+        assert guardado.get("__global__", {}) == {}
+
+
 class TestElVolcadoEsCompleto:
     @pytest.mark.asyncio
     async def test_cuota_y_antispam_siempre_en_el_archivo(self, bot_de_prueba):
