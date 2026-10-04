@@ -568,3 +568,79 @@ class TestBarra:
 
     def test_barra_acota_por_encima_de_100(self):
         assert emb.resultado_barra(150, 15, 10).count("░") == 0
+
+
+class TestElTituloDiceCuantas:
+    """El número va en el título y en plural.
+
+    El cambio se perdió dos veces en un resync de rama, así que hay un test que lo fija.
+    «Amenaza detectada» a secas no dice si es una cosa o seis, y «1 detecciones» hace dudar
+    de si el contador es real: en un panel de moderación eso se lee como un bug, no como
+    un descuido de texto.
+    """
+
+    @staticmethod
+    def _usuario():
+        return type("U", (), {"mention": "<@42>", "id": 42})()
+
+    def test_una_sola_deteccion_en_singular(self):
+        e = emb.amenaza_agrupada(
+            [("URL", "https://a.test/1", "1 detección", "url:1")], self._usuario())
+        titulo = e.title or ""
+        assert "1 detección" in titulo, titulo
+        assert "detecciones" not in titulo, titulo
+        assert "·" in titulo, f"el número tiene que estar en el título: {titulo}"
+
+    def test_varias_en_plural(self):
+        e = emb.amenaza_agrupada(
+            [("URL", f"https://a.test/{i}", "1 detección", f"url:{i}") for i in range(3)],
+            self._usuario())
+        titulo = e.title or ""
+        assert "3 detecciones" in titulo, titulo
+
+    def test_el_pie_usa_el_mismo_numero(self):
+        e = emb.amenaza_agrupada(
+            [("URL", "https://a.test/1", "1 detección", "url:1")], self._usuario())
+        assert "1 detección" in e.footer.text, e.footer.text
+
+
+class TestElAvisoDeTamanoLlevaCifras:
+    """Un límite sin números obliga a mirar el peso del fichero para entender por qué.
+
+    Y si el tamaño no se conoce —viene de la caché o de la respuesta de la API— no se
+    inventa un «0.0 MB» que parece un dato medido.
+    """
+
+    def test_con_el_tamano_de_la_imagen(self):
+        from ui.message_handler import _motivo_de_error
+
+        texto = _motivo_de_error({"error": "too_large", "tamano": 3_266_277})
+        assert "3.1 MB" in texto, texto
+        assert "10 MB" in texto, texto
+        assert "demasiado grande" in texto, texto
+
+    def test_sin_tamano_no_inventa_ceras(self):
+        from ui.message_handler import _motivo_de_error
+
+        texto = _motivo_de_error({"error": "too_large"})
+        assert "0.0 MB" not in texto, texto
+        assert "demasiado grande" in texto, texto
+
+
+class TestElLimiteDeImagenAceptaLoQueDiscordAcepta:
+    """2 MiB rechazaban una foto de 3 MB: perfectamente normal de compartir.
+
+    El límite lo pone Discord (10 MB en plan gratuito), no la API: SightEngine admite más.
+    Y no cuesta cuota, porque el contador cobra una operación por modelo y no por byte.
+    """
+
+    def test_el_limite_es_el_de_discord(self):
+        from core.config import MAX_IMAGE_SIZE
+
+        assert MAX_IMAGE_SIZE == 10 * 1024 * 1024, MAX_IMAGE_SIZE
+
+    def test_una_foto_normal_no_se_rechaza(self):
+        """La que falló en producción medía 3,1 MiB."""
+        from core.config import MAX_IMAGE_SIZE
+
+        assert 3_266_277 < MAX_IMAGE_SIZE

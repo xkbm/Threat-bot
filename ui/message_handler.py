@@ -394,7 +394,19 @@ def _motivo_de_error(modelos: Optional[dict]) -> str:
     if not motivo:
         return "no se pudo comprobar"
     legibles = {
-        "too_large": "demasiado grande para analizarlo",
+        # Con las cifras, y no solo "demasiado grande". Un límite sin números obliga al
+        # usuario a mirar el peso del fichero para entender por qué no se miró, y decidir
+        # "¿pasará o no?" sin saber cuánto pesa es adivinar.
+        #
+        # Si no se conoce el tamaño (viene de la caché o de la respuesta de la API) se
+        # dice el máximo y nada más, en vez de inventar un "0.0 MB" que parece un dato.
+        "too_large": (
+            f"demasiado grande para analizarlo ({modelos['tamano'] / 1_048_576:.1f} MB, "
+            f"el máximo son {MAX_IMAGE_SIZE / 1_048_576:.0f} MB)"
+            if modelos.get("tamano") else
+            f"demasiado grande para analizarlo (el máximo son "
+            f"{MAX_IMAGE_SIZE / 1_048_576:.0f} MB)"
+        ),
         "sin_claves": "análisis de contenido no configurado",
         "sin_cuota": "cuota de la API agotada",
         "sin_bytes": "no se pudo leer el archivo",
@@ -536,7 +548,7 @@ async def _procesar_imagen(
         img.filename, getattr(img, "content_type", None), _deteccion_de(img)
     )
     if img.size > MAX_IMAGE_SIZE:
-        return (img.filename, "error", {"error": "too_large", "doble_extension": doble_ext, "aviso_mime": aviso_mime}, "")
+        return (img.filename, "error", {"error": "too_large", "tamano": img.size, "doble_extension": doble_ext, "aviso_mime": aviso_mime}, "")
     try:
         async with bot._download_sem:
             async with bot.session.get(img.url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
@@ -544,7 +556,7 @@ async def _procesar_imagen(
                     return (img.filename, "error", {"doble_extension": doble_ext, "aviso_mime": aviso_mime}, "")
                 img_data = await resp.read()
             if len(img_data) > MAX_IMAGE_SIZE:
-                return (img.filename, "error", {"error": "too_large", "doble_extension": doble_ext, "aviso_mime": aviso_mime}, "")
+                return (img.filename, "error", {"error": "too_large", "tamano": img.size, "doble_extension": doble_ext, "aviso_mime": aviso_mime}, "")
             # Si no se pudo sniffear antes (falló la petición Range), se hace ahora con
             # los bytes que ya están en memoria: no cuesta una descarga extra.
             det = _deteccion_de(img)

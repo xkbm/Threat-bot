@@ -260,73 +260,34 @@ async def bot_analisis(bot_arrancado, tmp_path):
 
 class TestFlujoCompleto:
     @pytest.mark.asyncio
-    async def test_el_log_lleva_el_enlace_al_mensaje_si_no_se_borro(self):
-        """El log es un registro, y sin el mensaje al que se refiere hay que buscarlo a mano.
+    async def test_el_log_lleva_el_enlace_al_mensaje_si_no_se_borro(self, bot_analisis):
+        """El log lleva el enlace al mensaje mientras siga existiendo, y no si no.
 
-        Y el caso inverso es el que importa: si el mensaje se borró, un enlace a él manda
-        al moderador a una pantalla de "mensaje no encontrado" justo cuando está leyendo
-        el registro de una amenaza.
+        El enlace es lo que convierte el log en un registro: sin él hay que buscar el
+        mensaje a mano. Y si el mensaje ya se borró, un enlace a él manda al moderador a
+        una pantalla de "mensaje no encontrado" justo cuando está leyendo una amenaza.
 
-        Se prueba sobre `_on_threat_found` y no sobre `procesar_analisis` porque el log de
-        las URLs lo manda ese sitio: `analizar_url` devuelve `ya_logueado=True` y el
-        handler se queda quieto a propósito para no duplicarlo. El borrado también ocurre
-        allí, y antes de esto el log se mandaba ANTES de borrar, así que el enlace era una
-        apuesta sobre algo que todavía no había pasado.
+        Antes lo decidía `_on_threat_found`, en plena carrera con el borrado del handler:
+        una ruta ganaba el `delete` y la otra recibía `NotFound`, así que con dos URLs en
+        un mensaje solo uno de los dos logs llevaba el enlace. Ahora lo decide un único
+        sitio, después de borrar, y sale igual en todos.
+
+        Este test antes llamaba a `_on_threat_found` directamente y esperaba un log. Ya no
+        lo hace: el log agrupado lo manda el handler. Un test que sigue probando el sitio
+        viejo pasa o falla por casualidad y además tapa que el nuevo pueda estar roto.
         """
-        import api.virustotal as vt
-        from core import state
+        from core import guild_config as gc
+        await gc.actualizar_config(1, log_channel_id=555, strict_mode=False)
+        enviados = self._captura_log()
 
-        enviados = []
+        msg = _Mensaje("https://ejemplo-enlace-vivo.test/malo", id=9101)
+        await self._amenaza_sin_borrar(bot_analisis, msg)
 
-        class _Canal:
-            id = 777
-
-            async def send(self, embed=None, view=None, **k):
-                enviados.append(embed)
-                return types.SimpleNamespace(id=1)
-
-        original = state.bot
-        state.bot = types.SimpleNamespace(
-            guilds_data={1: {"log_channel_id": 777, "avisar_amenazas": True,
-                             "strict_mode": False}},
-            get_channel=lambda cid: _Canal(),
-        )
-        try:
-            # Sin modo estricto: el mensaje sobrevive y el log lo enlaza.
-            await vt._on_threat_found(
-                "URL", "http://x", 3, 1,
-                types.SimpleNamespace(
-                    id=555, author=types.SimpleNamespace(id=42, mention="<@42>"),
-                    channel=types.SimpleNamespace(id=10),
-                ),
-            )
-            # Los efectos van en una task suelta: hay que ceder el control.
-            await asyncio.sleep(0.05)
-            assert enviados, "no se envió el log"
-            origen = next((f for f in enviados[0].fields if "Origen" in f.name), None)
-            assert origen is not None, "con el mensaje vivo, el log tiene que traer el enlace"
-            assert "555" in origen.value, origen.value
-
-            # Con modo estricto: el mensaje se borra y NO debe quedar el enlace roto.
-            enviados.clear()
-            state.bot.guilds_data[1]["strict_mode"] = True
-            borrable = types.SimpleNamespace(
-                id=556, author=types.SimpleNamespace(id=43, mention="<@43>"),
-                channel=types.SimpleNamespace(id=10),
-            )
-
-            async def _del():
-                borrable.deleted = True
-            borrable.delete = _del
-
-            await vt._on_threat_found("URL", "http://y", 2, 1, borrable)
-            await asyncio.sleep(0.05)
-            assert getattr(borrable, "deleted", False), "el modo estricto tenía que borrar"
-            assert enviados, "no se envió el log"
-            origen = next((f for f in enviados[0].fields if "Origen" in f.name), None)
-            assert origen is None, f"un mensaje borrado no puede enlazar a nada: {origen}"
-        finally:
-            state.bot = original
+        amenazas = [e for e in enviados if "detecc" in (e.title or "").lower()]
+        assert amenazas, f"no llegó el log de amenaza: {[e.title for e in enviados]}"
+        origen = next((f for f in amenazas[0].fields if "Origen" in f.name), None)
+        assert origen is not None, "con el mensaje vivo, el log tiene que traer el enlace"
+        assert "9101" in origen.value, origen.value
 
     @pytest.mark.asyncio
     async def test_sin_mensaje_el_log_no_inventa_enlace(self):
