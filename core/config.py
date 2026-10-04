@@ -24,7 +24,14 @@ SE_VARS: list[tuple[Optional[str], Optional[str]]] = [
 SE_API_KEYS_PAIRS: list[tuple[str, str]] = [(u, k) for u, k in SE_VARS if u and k]
 
 MAX_FILE_SIZE: int = 32 * 1024 * 1024
-MAX_IMAGE_SIZE: int = 2 * 1024 * 1024
+# 10 MiB: lo que Discord acepta en una cuenta gratuita. Antes eran 2 MiB y una foto de
+# 3 MB se quedaba sin analizar con un error genérico.
+#
+# SightEngine admite bastante más —el proceso por lotes acepta 6 imágenes con 24 MB— así que
+# el límite lo pone Discord, no la API. Y **no cuesta cuota**: el contador cobra una
+# operación por modelo y no por byte, así que 10 MB cuestan las mismas 5 operaciones que
+# 100 KB. Lo único que crece es ancho de banda.
+MAX_IMAGE_SIZE: int = 10 * 1024 * 1024
 CACHE_DURATION: int = 3600
 DATA_FILE: str = os.path.join(BASE_DIR, "data.json")
 DB_FILE: str = os.path.join(BASE_DIR, "analisis.db")
