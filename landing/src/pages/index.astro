@@ -190,7 +190,7 @@ const keyCommands = [
                     </div>
                     <div id="chat-response-text" class="hidden text-sm text-surface-300">
                       <img src="/emoji-whitelist.png" alt="" class="inline w-4 h-4 mr-1" width="16" height="16" />
-                      <strong class="text-surface-100">Dominio(s) en whitelist.</strong> No se requiere análisis.
+                      <strong class="text-surface-100">Enlaces exentos por whitelist</strong>
                     </div>
                   </div>
                 </div>
@@ -536,7 +536,7 @@ const keyCommands = [
                   </div>
                   <div id="demo-response-text" class="hidden text-sm text-surface-300">
                     <img src="/emoji-whitelist.png" alt="" class="inline w-4 h-4 mr-1" width="16" height="16" />
-                    <strong class="text-surface-100">Dominio en whitelist.</strong> No se requiere análisis.
+                    <strong class="text-surface-100">Enlaces exentos por whitelist</strong>
                   </div>
                 </div>
               </div>
@@ -572,8 +572,11 @@ const keyCommands = [
             {
               url: 'https://i.imgur.com/NSFWimage.jpg',
               titulo: 'Contenido NSFW detectado',
-              emoji: '/emoji-warn.png',
-              borderColor: 'rgb(232, 197, 71)',
+              // Emoji y borde salen del veredicto NSFW: `core/veredictos.py` le asigna
+              // EMOJI_NSFW y COLOR_NSFW. Antes ponía el de amenaza y el ámbar de alerta,
+              // que son los de otros veredictos. Hay un test que lo comprueba.
+              emoji: '/emoji-nsfw.png',
+              borderColor: 'rgb(220, 38, 38)',
               titleClass: 'text-surface-100',
               tipo: 'nsfw',
               desc: () => `Se analizó <strong class="text-surface-100">1</strong> elemento(s):<br/>${EMOJI_CHECK_D} Seguros: <strong class="text-surface-100">0</strong><br/>${EMOJI_NSFW_D} NSFW: <strong class="text-surface-100">1</strong>`,
