@@ -63,10 +63,11 @@ API falla, el bot lo dice; no afirma estar limpio de algo que nunca miró.
 | **Menú contextual** | Clic derecho sobre cualquier mensaje para analizarlo sin copiar la URL |
 | **`/history`** | Últimos análisis de un canal. Ahora sí queda registro de qué se escaneó |
 | **Una sola reacción** | Cada mensaje lleva la de su peor resultado, no tres contradictorias |
-| **Aviso en tres interruptores** | `avisar_limpios`, `avisar_sospechosos` y `avisar_errores` controlan por separado qué llega al canal. `silent_mode` queda como master, y los defaults reproducen el comportamiento anterior: al actualizar el bot no cambia lo que recibe ningún servidor |
+| **Un dial por categoría** | `notificar` es la lista de lo que llega al canal: 15 categorías, de "malware" a "cuota agotada". `avisar_todo` es el master para silenciar el bot entero de golpe, y `reacciones` va aparte porque el emoji es respuesta a "el bot miró esto", no una notificación |
 
-`/usercheck` es el único comando restringido a moderadores: el expediente de seguridad de una
-persona no es público.
+`/usercheck` y `/history` exigen permiso de moderar mensajes, y `/settings` exige
+administrador. El expediente de seguridad de una persona no es público, y el registro de
+análisis de un canal tampoco.
 
 ---
 
@@ -75,16 +76,16 @@ persona no es público.
 | Comando | Descripción |
 |---------|-------------|
 | `/scan` | Escanea una URL, archivo, hash o IP |
-| `/autoscan` | Activa/desactiva el escaneo automático |
-| `/silentmode` | Modo silencioso |
-| `/strictmode` | Modo estricto (elimina amenazas) |
-| `/setlogchannel` | Canal donde se envían los logs |
-| `/whitelist` | Dominios que el bot ignora |
-| `/usercheck` | Reputación de un usuario |
-| `/stats` | Estadísticas globales |
-| `/settings` | **Panel de configuración**: todo se ajusta ahí, sin comandos aparte |
+| `/usercheck` | Reputación de un usuario (mods) |
 | `/history` | Últimos análisis de un canal (mods) |
+| `/settings` | **Panel de configuración**: todo se ajusta ahí, sin comandos aparte (admin) |
+| `/stats` | Estadísticas globales |
 | `/help` | Lista de comandos |
+| `/about` | Info del bot |
+| `/uptime` | Tiempo en línea |
+| `/ping` | Latencia |
+
+`/eval` y `/reboot` son solo del dueño del bot.
 
 Además, el menú contextual **"Analizar con Threat"** aparece al hacer clic derecho sobre
 cualquier mensaje.
@@ -95,7 +96,6 @@ La configuración de cada servidor, las infracciones y el registro de `/history`
 SQLite (`analisis.db`), no en un `data.json` reescrito entero. `data.json` se conserva
 como respaldo y se migró solo la primera vez; si la migración falla, el bot arranca igual
 con el JSON. Las infracciones se purgan a los 90 días y los eventos a los 30.
-| `/about` | Info del bot |
 
 ---
 
