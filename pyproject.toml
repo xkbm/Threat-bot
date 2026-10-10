@@ -1,6 +1,10 @@
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "strict"
+# pytest-asyncio avisa en cada corrida si queda sin definir, y avisa porque el default
+# va a cambiar. Es el valor que ya aplicaba de facto: la única fixture con scope distinto
+# de "function" (`_bot_cargado`) es síncrona, así que no usa event loop.
+asyncio_default_fixture_loop_scope = "function"
 filterwarnings = ["ignore::DeprecationWarning"]
 
 [tool.ruff]
