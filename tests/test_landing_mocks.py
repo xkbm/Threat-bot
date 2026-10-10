@@ -110,6 +110,51 @@ class TestColoresDeBorde:
             )
 
 
+class TestContadoresYDetecciones:
+    """"Maliciosos: N" cuenta ELEMENTOS. Las detecciones de VT son otro número.
+
+    El embed real hace `conteo = Counter(e.veredicto for e in elementos)`, así que el
+    contador es la cantidad de elementos con ese veredicto. Las detecciones vienen de
+    `e.mal` y viajan en la línea de cada elemento (`_extra_url` dice "N detecciones").
+
+    El mockup mezclaba los dos: con un único enlace ponía "Maliciosos: 24", donde 24
+    eran motores de antivirus. Se leía "1 elemento analizado / 24 maliciosos".
+    """
+
+    def _desc_de_maliciosos(self, index: str) -> list[str]:
+        return re.findall(
+            r"Maliciosos: <strong[^>]*>(\d+)</strong>", index
+        )
+
+    def test_el_contador_no_usa_un_numero_aleatorio(self, index):
+        """El número del contador sale literal, no interpolado.
+
+        Los emojis sí se interpolan (`${EMOJI_CHECK}`), así que el test mira solo lo que
+        va dentro del `<strong>` del número. Si vuelve a ser `${det}`, las detecciones
+        regresan al contador.
+        """
+        numeros = re.findall(
+            r"Maliciosos: <strong[^>]*>([^<]*)</strong>", index
+        )
+        assert numeros, "no se encontró el número del contador de maliciosos"
+        for valor in numeros:
+            assert "${" not in valor, (
+                f"el contador de maliciosos se interpola ({valor}): "
+                "debe ser un número fijo de elementos, no las detecciones"
+            )
+
+    def test_el_contador_coincide_con_el_elemento_analizado(self, index):
+        """Con 1 elemento analizado y 0 seguros, maliciosos tiene que ser 1."""
+        valores = set(self._desc_de_maliciosos(index))
+        assert valores == {"1"}, f"el contador dice {valores}; con 1 elemento debe ser 1"
+
+    def test_las_detecciones_aparecen_en_la_linea_de_la_url(self, index):
+        """`N detecciones` (o `N detección`) tiene que existir junto al enlace."""
+        assert re.search(r"detecci\$\{det", index), (
+            "las detecciones tienen que ir en la línea de la URL, no en el contador"
+        )
+
+
 class TestConsistenciaEntreLosDosMockups:
     def test_los_dos_chats_comparten_la_lista_de_titulos(self, index):
         """Hay dos chats de ejemplo (hero y sección "cómo funciona").

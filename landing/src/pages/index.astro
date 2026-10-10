@@ -230,7 +230,12 @@ const keyCommands = [
                 titleClass: 'text-surface-100',
                 tieneURL: true,
                 tieneNSFW: false,
-                desc: (det) => `Se analizó <strong class="text-surface-100">1</strong> elemento(s):<br/>${EMOJI_CHECK} Seguros: <strong class="text-surface-100">0</strong><br/>${EMOJI_WARN} Maliciosos: <strong class="text-surface-100">${det}</strong>`,
+                // `det` son las DETECCIONES de motores: un dato del elemento, no un conteo.
+                // El contador "Maliciosos" lleva cuántos elementos lo están, y aquí hay 1
+                // enlace, luego 1. Meter las detecciones ahí decía "1 elemento analizado /
+                // Maliciosos: 24", que se contradice. Las detecciones van en la línea de la
+                // URL, como hace `message_handler._extra_url`.
+                desc: () => `Se analizó <strong class="text-surface-100">1</strong> elemento(s):<br/>${EMOJI_CHECK} Seguros: <strong class="text-surface-100">0</strong><br/>${EMOJI_WARN} Maliciosos: <strong class="text-surface-100">1</strong>`,
                 conversaciones: [
                   { u1: '¿Alguien tiene el link del nuevo asset?', u2: 'creo que sí, te lo paso', urlFrom: 'u2' },
                   { u1: 'Me llegó un link raro', u2: '¿cuál es?', urlFrom: 'u1' },
@@ -328,12 +333,16 @@ const keyCommands = [
                 responseUrlField.classList.remove('hidden');
                 const icono = escenario.tipo === 'malicioso' ? EMOJI_WARN : EMOJI_CHECK;
                 const codigo = `<code class="font-mono text-xs text-surface-200 bg-surface-700 px-1 py-0.5 rounded">${url}</code>`;
-                let informe = '';
+                // Orden como en el embed real: valor, luego las detecciones, luego el
+                // informe. Las detecciones son un dato del elemento (`e.mal`), por eso
+                // van aquí y no en el contador de la descripción.
+                let extra = '';
                 if (escenario.tipo === 'malicioso') {
                   const urlId = btoa(url).replace(/=+$/, '');
-                  informe = ` — <a href="https://www.virustotal.com/gui/url/${urlId}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-0.5 whitespace-nowrap text-shield-light hover:underline">${EMOJI_LINK_CHAIN} Informe</a>`;
+                  extra = ` — ${det} detecci${det === 1 ? 'ón' : 'ones'}`;
+                  extra += ` · <a href="https://www.virustotal.com/gui/url/${urlId}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-0.5 whitespace-nowrap text-shield-light hover:underline">${EMOJI_LINK_CHAIN} Informe</a>`;
                 }
-                responseUrlValues.innerHTML = `<span class="text-xs text-surface-300">${icono} ${codigo}${informe}</span>`;
+                responseUrlValues.innerHTML = `<span class="text-xs text-surface-300">${icono} ${codigo}${extra}</span>`;
               } else {
                 responseUrlField.classList.add('hidden');
               }
@@ -566,7 +575,9 @@ const keyCommands = [
               borderColor: 'rgb(230, 126, 34)',
               titleClass: 'text-surface-100',
               tipo: 'url',
-              desc: (det) => `Se analizó <strong class="text-surface-100">1</strong> elemento(s):<br/>${EMOJI_CHECK_D} Seguros: <strong class="text-surface-100">0</strong><br/>${EMOJI_WARN_D} Maliciosos: <strong class="text-surface-100">${det}</strong>`,
+              // Igual que en el mockup del hero: el contador es de elementos y aquí hay
+              // 1. Las detecciones van en la línea de la URL.
+              desc: () => `Se analizó <strong class="text-surface-100">1</strong> elemento(s):<br/>${EMOJI_CHECK_D} Seguros: <strong class="text-surface-100">0</strong><br/>${EMOJI_WARN_D} Maliciosos: <strong class="text-surface-100">1</strong>`,
               highlight: 'scenario-phishing',
             },
             {
@@ -660,12 +671,13 @@ const keyCommands = [
               nsfwField.classList.add('hidden');
 
               if (s.tipo === 'url') {
-                // Mismo formato que el embed del bot: estado al principio, informe al
-                // final. El campo aparte de enlaces se eliminó por repetir la URL.
+                // Mismo formato que el embed del bot: valor, detecciones, informe. El
+                // contador de la descripción cuenta elementos; las detecciones son dato
+                // del enlace y van en su línea.
                 urlField.classList.remove('hidden');
                 const urlId = btoa(s.url).replace(/=+$/, '');
                 const vtLink = `https://www.virustotal.com/gui/url/${urlId}`;
-                urlValues.innerHTML = `${EMOJI_WARN_D} <code class="font-mono text-xs text-surface-200 bg-surface-700 px-1 py-0.5 rounded">${s.url}</code> — <a href="${vtLink}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-0.5 whitespace-nowrap text-shield-light hover:underline">${EMOJI_LINK_D} Informe</a>`;
+                urlValues.innerHTML = `${EMOJI_WARN_D} <code class="font-mono text-xs text-surface-200 bg-surface-700 px-1 py-0.5 rounded">${s.url}</code> — ${det} detecci${det === 1 ? 'ón' : 'ones'} · <a href="${vtLink}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-0.5 whitespace-nowrap text-shield-light hover:underline">${EMOJI_LINK_D} Informe</a>`;
               } else if (s.tipo === 'nsfw') {
                 nsfwField.classList.remove('hidden');
                 nsfwValues.innerHTML = `${EMOJI_NSFW_D} <code class="font-mono text-xs text-surface-200 bg-surface-700 px-1 py-0.5 rounded">${s.url}</code> <span class="text-xs text-surface-300">Desnudez <strong class="text-surface-100">72%</strong>, Armas <strong class="text-surface-100">55%</strong></span>`;
