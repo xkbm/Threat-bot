@@ -115,7 +115,7 @@ Cuando el bot detecta una amenaza, envía un embed al canal configurado con toda
   <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands">
     <img src="https://img.shields.io/badge/Añadir_a_Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Añadir a Discord" />
   </a>
-  <a href="https://threat-bot-discord.vercel.app">
+  <a href="https://tbot-dc.vercel.app">
     <img src="https://img.shields.io/badge/Sitio_web-36393f?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Sitio web" />
   </a>
 </p>

@@ -77,7 +77,7 @@ class InfoCog(commands.Cog):
         view = discord.ui.View()
         view.add_item(discord.ui.Button(
             style=discord.ButtonStyle.link,
-            url="https://threat-bot-discord.vercel.app",
+            url="https://tbot-dc.vercel.app",
             label="Sitio Web",
             emoji=self.bot.EMOJI_LINK
         ))

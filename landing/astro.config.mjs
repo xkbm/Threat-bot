@@ -9,6 +9,9 @@ export default defineConfig({
   vite: {
     plugins: [tailwindcss()],
   },
+  // shortcut: el dominio está hardcodeado en los .astro y en public/robots.txt en vez de
+  // leerse de aquí. Cambiar de dominio son ~17 reemplazos. Centralizar cuando cambie dos
+  // veces, no antes.
   site: 'https://tbot-dc.vercel.app',
   integrations: [sitemap()],
 });
