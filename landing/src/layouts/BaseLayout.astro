@@ -49,6 +49,16 @@ const { title = 'Threat — Bot de Seguridad Gratis para Discord', description =
     }
     </script>
 
+    <script is:inline>
+      // `/thanks` llega por redirección de Discord con `?code=...`, que es un código de
+      // autorización. El history.replaceState de esa página lo borra de la barra después de
+      // cargar, así que para entonces la analítica ya puede haberlo enviado. Vercel recoge
+      // los parámetros de la URL, de modo que aquí se descarta el evento entero.
+      function webAnalyticsBeforeSend(event) {
+        if (event.url.includes('code=')) return null;
+        return event;
+      }
+    </script>
     <Analytics />
     <title>{title}</title>
   </head>

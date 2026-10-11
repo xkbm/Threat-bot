@@ -19,7 +19,7 @@ import Icon from '../components/Icon.astro';
       </h1>
 
       <div class="space-y-6 text-surface-300 leading-relaxed">
-        <p><strong class="text-white">Última actualización:</strong> Junio 2026</p>
+        <p><strong class="text-white">Última actualización:</strong> Octubre 2026</p>
 
         <h2 class="text-xl font-semibold text-white">1. Datos que recopilamos</h2>
         <p>Threat procesa los siguientes datos para proveer el servicio de seguridad:</p>
@@ -29,7 +29,7 @@ import Icon from '../components/Icon.astro';
           <li><strong class="text-surface-200">Archivos adjuntos</strong> (imágenes, documentos) para detección NSFW y de malware.</li>
           <li><strong class="text-surface-200">ID de servidor, canales y usuarios</strong> necesarios para la configuración del bot.</li>
           <li><strong class="text-surface-200">Hashes SHA-256</strong> de archivos analizados, para caché y evitar reanálisis.</li>
-          <li><strong class="text-surface-200">Historial de actividad</strong> — marcas de tiempo de cada análisis solicitado por usuario, para control de anti-spam. Retención: 1 hora en RAM y persistido entre reinicios del bot.</li>
+          <li><strong class="text-surface-200">Historial de actividad</strong> — marcas de tiempo de cada análisis solicitado por usuario, para controlar el spam. Retención: 1 hora en RAM y persistido entre reinicios del bot.</li>
         </ul>
 
         <h2 class="text-xl font-semibold text-white">2. Almacenamiento</h2>
@@ -45,6 +45,7 @@ import Icon from '../components/Icon.astro';
           <li><strong class="text-surface-200">VirusTotal</strong> — análisis de URLs y archivos. Su <a href="https://support.virustotal.com/hc/en-us/articles/115002168385-Privacy-Policy" class="text-shield-light hover:underline" target="_blank" rel="noopener">política de privacidad</a> aplica a los datos enviados.</li>
           <li><strong class="text-surface-200">SightEngine</strong> — detección NSFW en imágenes.</li>
           <li><strong class="text-surface-200">Discord</strong> — el bot opera dentro de la plataforma de Discord. Su <a href="https://discord.com/privacy" class="text-shield-light hover:underline" target="_blank" rel="noopener">política de privacidad</a> aplica a la interacción con el bot.</li>
+          <li><strong class="text-surface-200">Vercel</strong> — aloja esta web y recibe sus métricas de visita y rendimiento. Su <a href="https://vercel.com/legal/privacy-policy" class="text-shield-light hover:underline" target="_blank" rel="noopener">política de privacidad</a> aplica a esos datos.</li>
         </ul>
 
         <h2 class="text-xl font-semibold text-white">4. Retención y eliminación</h2>
@@ -71,10 +72,12 @@ import Icon from '../components/Icon.astro';
         </ul>
 
         <h2 class="text-xl font-semibold text-white">8. Transferencias internacionales</h2>
-        <p>Threat utiliza servicios de terceros ubicados en Estados Unidos (VirusTotal, SightEngine). Al usar el bot, aceptas que los datos necesarios para el análisis puedan ser transferidos y procesados en servidores fuera de tu país de residencia.</p>
+        <p>Threat utiliza servicios de terceros ubicados en Estados Unidos (VirusTotal, SightEngine y Vercel). Al usar el bot, aceptas que los datos necesarios para el análisis puedan ser transferidos y procesados en servidores fuera de tu país de residencia. Lo mismo aplica a las métricas de visita de esta web.</p>
 
-        <h2 class="text-xl font-semibold text-white">9. Cookies</h2>
-        <p>La página web de Threat no utiliza cookies de rastreo ni analíticas. Solo se emplean cookies técnicas necesarias para el funcionamiento del sitio.</p>
+        <h2 class="text-xl font-semibold text-white">9. Analítica y cookies</h2>
+        <p>Esta web usa dos servicios de Vercel. Web Analytics cuenta las visitas a cada página y Speed Insights mide lo rápido que carga. Ninguno de los dos instala cookies.</p>
+        <p>En cada visita se envía a Vercel la ruta visitada, la página de referencia, los parámetros de la URL, la localización aproximada (país, región y ciudad), el sistema operativo, el navegador y el tipo de dispositivo. Web Analytics usa rutas de este mismo dominio e identifica cada visita con un hash que se descarta a las 24 horas. Speed Insights envía además la URL completa y el tipo de conexión.</p>
+        <p>Los datos se guardan agregados. No permiten identificar a una persona ni seguirla de un sitio a otro.</p>
       </div>
     </div>
   </section>
