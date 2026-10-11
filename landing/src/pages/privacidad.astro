@@ -35,8 +35,8 @@ import Icon from '../components/Icon.astro';
         <h2 class="text-xl font-semibold text-white">2. Almacenamiento</h2>
         <p>Los datos se almacenan localmente en:</p>
         <ul class="list-disc pl-6 space-y-2">
-          <li><strong class="text-surface-200">SQLite</strong> — caché de análisis (URLs/IPs: 7 días, hashes/NSFW: 30 días) y configuración de servidores: canal de registro, dominios exentos, modos y límites de contenido. La configuración persiste hasta que el usuario la modifique o elimine el bot del servidor. El fichero <code>data.json</code> queda únicamente como respaldo de una migración antigua y no participa en el funcionamiento normal.</li>
-          <li><strong class="text-surface-200">RAM</strong> — caché temporal con expiración de 1 hora (máximo 100,000 entradas).</li>
+          <li><strong class="text-surface-200">SQLite</strong> — caché de análisis (URLs/IPs: 7 días, hashes/NSFW: 30 días) y configuración de servidores: canal de registro, dominios exentos, modos y límites de contenido. La configuración persiste hasta que el usuario la modifique o elimine el bot del servidor. El fichero <code>data.json</code> guarda el estado en ejecución (contadores de cuota de las APIs e historial antispam) y se vuelve a cargar al reiniciar el bot. Además conserva el respaldo de una migración anterior.</li>
+          <li><strong class="text-surface-200">RAM</strong> — caché temporal con expiración de 1 hora (máximo 100.000 entradas).</li>
         </ul>
 
         <h2 class="text-xl font-semibold text-white">3. Servicios de terceros</h2>
@@ -49,8 +49,8 @@ import Icon from '../components/Icon.astro';
         </ul>
 
         <h2 class="text-xl font-semibold text-white">4. Retención y eliminación</h2>
-        <p>Los datos de caché expiran automáticamente según los plazos indicados. Al eliminar Threat de un servidor, la configuración de ese servidor se elimina inmediatamente. Los datos de análisis en caché permanecen hasta su expiración natural.</p>
-        <p>Cuando un usuario envía contenido que es detectado como amenaza, su ID de usuario queda vinculado al URL o hash específico que generó la alerta (sistema de infracciones), guardado en una tabla propia de la base de datos. Estos registros se purgan automáticamente a los <strong class="text-surface-200">90 días</strong>. Esto permite a los administradores del servidor identificar reincidentes.</p>
+        <p>Los datos de caché expiran automáticamente según los plazos indicados. Al eliminar Threat de un servidor, su configuración, sus infracciones y el registro de eventos de ese servidor se eliminan en el momento. Los datos de análisis en caché permanecen hasta su expiración natural.</p>
+        <p>Cuando un usuario envía contenido que es detectado como amenaza, su ID de usuario queda vinculado a la URL o al hash específico que generó la alerta (sistema de infracciones), guardado en una tabla propia de la base de datos. Estos registros se purgan automáticamente a los <strong class="text-surface-200">90 días</strong>. Esto permite a los administradores del servidor identificar reincidentes.</p>
 
         <h2 class="text-xl font-semibold text-white">5. Tus derechos</h2>
         <p>Como usuario, tienes derecho a:</p>
@@ -77,7 +77,7 @@ import Icon from '../components/Icon.astro';
         <h2 class="text-xl font-semibold text-white">9. Analítica y cookies</h2>
         <p>Esta web usa dos servicios de Vercel. Web Analytics cuenta las visitas a cada página y Speed Insights mide lo rápido que carga. Ninguno de los dos instala cookies.</p>
         <p>En cada visita se envía a Vercel la ruta visitada, la página de referencia, los parámetros de la URL, la localización aproximada (país, región y ciudad), el sistema operativo, el navegador y el tipo de dispositivo. Web Analytics usa rutas de este mismo dominio e identifica cada visita con un hash que se descarta a las 24 horas. Speed Insights envía además la URL completa y el tipo de conexión.</p>
-        <p>Los datos se guardan agregados. No permiten identificar a una persona ni seguirla de un sitio a otro.</p>
+        <p>Vercel recibe estos datos agregados. El identificador de cada visita se descarta a las 24 horas y no se usa para seguir al visitante en otros sitios.</p>
       </div>
     </div>
   </section>
