@@ -310,13 +310,14 @@ async def _saludar_owner(guild: discord.Guild) -> None:
             owner = await guild.fetch_member(guild.owner_id)
         embed = emb.aviso(
             f"Gracias por añadirme a **{guild.name}**",
-            "Reviso cada mensaje en busca de enlaces maliciosos, archivos con malware, "
-            "contenido NSFW y enlaces que imitan a una marca real.\n\n"
-            "**De momento no borro nada.** Te aviso con un embed y un emoji, y eso se "
-            "puede deshacer. Si en algún momento prefieres que borre el malware y el NSFW "
-            "confirmados, se activa con un botón.\n\n"
-            "Quieres silenciarme, cambiar qué aviso o excluir tus dominios: `/settings`.\n"
-            "Y si quieres una explicación de qué estoy haciendo aquí: `/setup`.",
+            "Reviso cada mensaje: los enlaces (incluidos los que imitan a una marca "
+            "conocida), los archivos adjuntos y las imágenes.\n\n"
+            "**De momento no borro nada.** Cuando encuentro algo peligroso te aviso con "
+            "un embed y un emoji, y el mensaje sigue donde estaba. Si quieres que borre "
+            "el malware y el NSFW confirmados, lo activas en /settings, en Moderación.\n\n"
+            "Si quieres silenciarme, cambiar lo que te aviso o excluir tus dominios, "
+            "está todo en `/settings`.\n"
+            "Y si quieres saber qué estoy haciendo aquí ahora mismo: `/setup`.",
             icono=EMOJI_SHIELD,
             con_pie=False,
         )

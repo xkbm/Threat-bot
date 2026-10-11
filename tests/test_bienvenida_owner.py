@@ -163,6 +163,26 @@ class TestComandoSetup:
         assert "sí borro" in embed.description
 
     @pytest.mark.asyncio
+    async def test_sin_analisis_automatico_no_dice_que_revisa(self, monkeypatch):
+        """Con auto_scan apagado el bot no revisa nada: el texto no puede decir que sí.
+
+        Es el mismo fallo que se arregló para el borrado, un poco más allá: un explicador
+        que afirma una capacidad apagada es peor que no tener ninguno.
+        """
+        import cogs.configuracion as cfg_mod
+
+        monkeypatch.setattr(cfg_mod, "obtener_config_guild",
+                            _devuelve({"auto_scan_enabled": False}))
+        comando = _ComandoSetup(cfg_mod).callback
+        interaccion = _Interaccion(_Guild(_Miembro()))
+
+        await comando(interaccion)
+
+        texto = interaccion.enviados[0][1]["embed"].description.lower()
+        assert "reviso cada mensaje" not in texto
+        assert "no estoy revisando" in texto
+
+    @pytest.mark.asyncio
     async def test_es_efimero_y_difiere_antes_de_responder(self, monkeypatch):
         """Sin el defer, Discord devuelve 400 y el comando no muestra nada."""
         import cogs.configuracion as cfg_mod

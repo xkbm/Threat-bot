@@ -11,6 +11,24 @@ from ui.panel import panel_por_guild
 
 log = logging.getLogger("configuracion")
 
+
+def _que_reviso(config: dict) -> str:
+    """Primera línea del explicador, según lo que el servidor tenga activado.
+
+    `/setup` no puede afirmar capacidades: con `auto_scan_enabled` apagado el bot no
+    revisa nada por su cuenta, y decir "reviso cada mensaje" sería el fallo que este
+    comando existe para evitar.
+    """
+    if not config.get("auto_scan_enabled", True):
+        return ("No estoy revisando los mensajes de este servidor por mi cuenta. "
+                "Solo respondo cuando alguien usa `/scan`.")
+    enlaces = "los enlaces"
+    if config.get("detectar_phishing", True):
+        enlaces += " (incluidos los que imitan a una marca conocida)"
+    return (f"Reviso cada mensaje de este servidor: {enlaces}, "
+            "los archivos adjuntos y las imágenes.")
+
+
 class ConfiguracionCog(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
@@ -72,7 +90,7 @@ class ConfiguracionCog(commands.Cog):
 
     @app_commands.command(
         name="setup",
-        description="Explica qué está haciendo el bot en este servidor y qué conviene decidir",
+        description="Qué hace el bot en este servidor y en qué estado está",
     )
     @app_commands.default_permissions(administrator=True)
     async def puesta_en_marcha(self, interaction: discord.Interaction) -> None:
@@ -88,8 +106,9 @@ class ConfiguracionCog(commands.Cog):
         `/settings`; nada queda guardado por haber ejecutado este comando.
 
         El estado sale de la configuración real, no se afirma: si el borrado está activo
-        por lo que sea, el texto lo dice. Un explicador que afirma "no borro" mientras sí
-        borra es peor que no tener ninguno.
+        por lo que sea, el texto lo dice, y si el análisis automático está apagado tampoco
+        afirma que revisa. Un explicador que afirma "no borro" mientras sí borra es peor
+        que no tener ninguno.
         """
         await interaction.response.defer(ephemeral=True)
         if not interaction.guild:
@@ -99,26 +118,32 @@ class ConfiguracionCog(commands.Cog):
             return
 
         config = await obtener_config_guild(interaction.guild.id)
+        revisa = config.get("auto_scan_enabled", True)
 
-        if config.get("strict_mode", False):
+        if not revisa:
+            # Sin análisis automático, el borrado no viene a cuento: no hay nada que borrar.
+            borrado = ""
+        elif config.get("strict_mode", False):
             borrado = (
-                f"{self.bot.EMOJI_WARNING} **Ahora mismo sí borro**: ante malware y NSFW "
-                "confirmados el mensaje desaparece y no hay forma de recuperarlo."
+                "**Ahora sí borro:** ante malware y NSFW confirmados el mensaje "
+                "desaparece y no se puede recuperar."
             )
         else:
             borrado = (
-                "**Ahora mismo no borro nada.** Te aviso con un embed y un emoji, y eso sí "
-                "se puede deshacer. Si prefieres que borre el malware y el NSFW "
-                "confirmados, actívalo abajo."
+                "**Ahora no borro nada.** Cuando encuentro algo peligroso te aviso con "
+                "un embed y un emoji, y el mensaje sigue donde estaba. Si quieres que "
+                "borre el malware y el NSFW confirmados, lo activas en `/settings`."
             )
 
-        descripcion = (
-            f"{self.bot.EMOJI_SHIELD} Reviso **cada mensaje** de este servidor: enlaces "
-            f"sospechosos, archivos adjuntos, imágenes y enlaces que imitan a una marca "
-            f"real.\n\n{borrado}\n\n"
-            f"Los enlaces a {len(config.get('whitelist') or [])} dominios exentos no se "
-            "miran."
-        )
+        partes = [_que_reviso(config)]
+        if borrado:
+            partes.append(borrado)
+        if revisa:
+            partes.append(
+                f"Los enlaces a {len(config.get('whitelist') or [])} dominios exentos "
+                "no los miro."
+            )
+        descripcion = "\n\n".join(partes)
 
         campos = [
             (etiqueta, valor, True)
@@ -127,7 +152,7 @@ class ConfiguracionCog(commands.Cog):
         ]
 
         embed = emb.aviso(
-            "Threat · puesta en marcha",
+            "Threat · estado del bot",
             descripcion,
             campos,
             icono=self.bot.EMOJI_SHIELD,
