@@ -42,7 +42,7 @@ async def _config_de(guild_id):
 
     Antes esto creaba un event loop nuevo por llamada, y como los locks de
     `core.guild_config` se asocian al loop en su primer uso, al ejecutarse el fichero
-    entero los tests fallaban porштрас el fallo venía de la mezcla de loops.
+    entero los tests fallaban por esto: el fallo venía de la mezcla de loops.
     """
     from core.guild_config import obtener_config_guild
 

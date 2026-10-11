@@ -304,13 +304,13 @@ def validar(config: dict) -> dict:
 
 
 def defaults() -> Dict[str, Any]:
-    """Defaults del esquema, con la whitelist real.
+    """Defaults del esquema, con la lista de exentos real.
 
-    `claves_de("exclusiones")` devolvía una whitelist vacía mientras el default de
+    `claves_de("exclusiones")` devolvía una lista vacía mientras el default de
     verdad son los 15 dominios protegidos: dos defaults distintos en el módulo que
     existe precisamente para que no los haya. Cualquier código nuevo que usara la
-    fuente "declarativa" se habría和规范izado de proteger `youtube.com`, `github.com` y
-    `discord.com` sin decirlo.
+    fuente "declarativa" se habría acabado tomando como norma proteger `youtube.com`,
+    `github.com` y `discord.com` sin decirlo.
     """
     from core.config import DOMINIOS_PROTEGIDOS
 

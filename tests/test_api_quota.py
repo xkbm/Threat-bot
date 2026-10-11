@@ -312,7 +312,7 @@ class TestCuotaDelPlanGratuito:
         assert (antes - ahora) / antes == 0.2
 
     def test_urls_de_virustotal_por_dia_en_el_peor_caso(self):
-        """Una URL sin分析 previa cuesta hasta 5 requests de los 500 del día."""
+        """Una URL sin análisis previa cuesta hasta 5 requests de los 500 del día."""
         from core.config import VT_MAX_ANALYSES_PER_DAY, VT_REQUESTS_POR_URL_MAX
 
         assert VT_MAX_ANALYSES_PER_DAY // VT_REQUESTS_POR_URL_MAX == 100

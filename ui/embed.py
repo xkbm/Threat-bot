@@ -166,7 +166,7 @@ def _veredicto_de(datos: dict, mal: int) -> str:
 
     Lo que NO se hace es inventar. Antes, un veredicto que esta función no conocía
     (los nuevos: `restringido`, `phishing`, `ignorado`) caía en
-    `"malicioso" if mal > 0 else "seguro"`. Eso producía dos自主品牌 bugs:
+    `"malicioso" if mal > 0 else "seguro"`. Eso producía dos bugs muy concretos:
     una imagen con alcohol marcada como malware, y un `error` (que es "no se pudo
     comprobar") pintado de verde como "Sin detecciones". Es exactamente el fallo que
     `core.veredictos` declara el peor posible.

@@ -277,7 +277,7 @@ class TestElControladorDeReaccionesNoSeFuga:
 
 
 class TestElEmbedNoDiceTodoLimpioCuandoNoSeMiroNada:
-    """ALTO: un embed verde de "todo seguro" sobre un mensaje que no se分析了.
+    """ALTO: un embed verde de "todo seguro" sobre un mensaje que no se analizó.
 
     `peor([])` devuelve SEGURO por diseño, así que un mensaje con solo enlaces en
     whitelist salía con el título "Todos los elementos son seguros" en verde junto a

@@ -79,12 +79,12 @@ class ConfiguracionCog(commands.Cog):
         """Explica, en texto, qué está haciendo el bot aquí y ahora.
 
         Existe por el caso de un owner que añade el bot, ve un mensaje desaparecer sin
-        saber por qué, y lo desinstala. `/settings` le enseña 15 controles; esto le dice
-        qué significan y en qué estado están.
+        saber por qué, y lo desinstala. `/settings` le enseña todos los controles; esto
+        le dice qué significan y en qué estado están.
 
-        No es un asistente paso a paso. Un wizard necesita recordar en qué punto va cada
-        servidor, que es un dato más que guardar y que además obliga a actualizar la
-        política de privacidad. Con esto el admin lee, decide y cambia lo que quiera en
+        No es un asistente paso a paso. Uno de esos necesita recordar en qué punto va
+        cada servidor, que es un dato más que guardar y que además obliga a actualizar
+        la política de privacidad. Con esto el admin lee, decide y cambia lo que quiera en
         `/settings`; nada queda guardado por haber ejecutado este comando.
 
         El estado sale de la configuración real, no se afirma: si el borrado está activo
@@ -114,10 +114,10 @@ class ConfiguracionCog(commands.Cog):
 
         descripcion = (
             f"{self.bot.EMOJI_SHIELD} Reviso **cada mensaje** de este servidor: enlaces "
-            f"sospechosos, archivosAdjuntos, imágenes y enlaces que imitan a una marca "
+            f"sospechosos, archivos adjuntos, imágenes y enlaces que imitan a una marca "
             f"real.\n\n{borrado}\n\n"
-            f"Los enlaces a {len(config.get('whitelist') or [])} dominios de la whitelist "
-            "no se miran."
+            f"Los enlaces a {len(config.get('whitelist') or [])} dominios exentos no se "
+            "miran."
         )
 
         campos = [

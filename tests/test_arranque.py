@@ -755,7 +755,7 @@ class TestUnMensajeSoloTieneUnAnalisisEnVuelo:
     primero tarda segundos—. Los dos llegaban al borrado del modo estricto: el primero lo
     hacía bien y el segundo recibía `NotFound`.
 
-    Con eso, un `NotFound` acabó报告中 como "al bot le falta `Manage Messages`" en el
+    Con eso, un `NotFound` acabó reportado como "al bot le falta `Manage Messages`" en el
     canal del contenido, que era mentira y mandaba a un administrador a tocar un permiso
     que ya tenía. Es el aviso que se veía, y la causa era esto y no los permisos.
     """
