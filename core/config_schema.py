@@ -241,8 +241,9 @@ ESQUEMA: tuple[Clave, ...] = (
     # la llave de tu cuota mensual. Ahora lo decide el código.
 
     # --- Moderación ---
-    _b("strict_mode", MODERACION, "Borrar los mensajes peligrosos", True,
-       "Solo ante malware y NSFW confirmados. Ni el alcohol, ni las armas, ni un enlace "
+    _b("strict_mode", MODERACION, "Borrar los mensajes peligrosos", False,
+       "Apagado de serie: el bot avisa pero no borra hasta que lo actives aquí. Solo ante "
+       "malware y NSFW confirmados borra; ni el alcohol, ni las armas, ni un enlace "
        "sospechoso borran nada por su cuenta."),
 
     # --- Exclusiones ---

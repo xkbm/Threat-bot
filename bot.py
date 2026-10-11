@@ -288,9 +288,55 @@ async def _enviar_guild_log(guild: discord.Guild, accion: str, color: int):
     except Exception as e:
         log.error(f"_enviar_guild_log: error enviando embed: {e}")
 
+async def _saludar_owner(guild: discord.Guild) -> None:
+    """DM al owner al entrar: qué hace el bot y cómo configurarlo.
+
+    Es una bienvenida, no un paso de onboarding. No guarda nada, no deja el servidor en
+    ningún estado pendiente y se puede borrar entero sin que el bot se entere.
+
+    `guild.owner` es `self.get_member(self.owner_id)`, una búsqueda **solo en caché**, y
+    este bot no pide el intent `members` (`bot.py`, arriba): pedirlo hacía que el gateway
+    rechazara el arranque. Sin ese intent la caché de miembros va medio vacía, así que
+    `owner` sale `None` con facilidad en un servidor grande recién añadido — justo donde
+    más hace falta el mensaje. Por eso el fallback a REST, que va por HTTP y no depende
+    del intent.
+
+    Nada de esto puede propagarse: que el owner tenga los DMs cerrados es lo más normal
+    del mundo, no un fallo del bot.
+    """
+    try:
+        owner = guild.owner
+        if owner is None:
+            owner = await guild.fetch_member(guild.owner_id)
+        embed = emb.aviso(
+            f"Gracias por añadirme a **{guild.name}**",
+            "Reviso cada mensaje en busca de enlaces maliciosos, archivos con malware, "
+            "contenido NSFW y enlaces que imitan a una marca real.\n\n"
+            "**De momento no borro nada.** Te aviso con un embed y un emoji, y eso se "
+            "puede deshacer. Si en algún momento prefieres que borre el malware y el NSFW "
+            "confirmados, se activa con un botón.\n\n"
+            "Quieres silenciarme, cambiar qué aviso o excluir tus dominios: `/settings`.\n"
+            "Y si quieres una explicación de qué estoy haciendo aquí: `/setup`.",
+            icono=EMOJI_SHIELD,
+            con_pie=False,
+        )
+        emb.pie(embed, "Threat · Configuración")
+        await owner.send(embed=embed)
+        log.info(f"Bienvenida enviada al owner de {guild.id} ({guild.name})")
+    except discord.errors.Forbidden:
+        # Los DMs cerrados son la causa más habitual de que esto no salga. No es un error
+        # que merezca un warning: es un owner al que no se le puede escribir.
+        log.info(f"Owner de {guild.id} ({guild.name}) tiene los DM cerrados: sin bienvenida")
+    except discord.errors.NotFound:
+        log.debug(f"Owner de {guild.id} no encontrado al entrar")
+    except Exception as e:
+        log.error(f"_saludar_owner: fallo inesperado en {guild.id}: {e}")
+
+
 @bot.event
 async def on_guild_join(guild):
     await _enviar_guild_log(guild, "Añadido a un servidor", COLOR_SEGURO)
+    await _saludar_owner(guild)
 
 @bot.event
 async def on_guild_remove(guild):

@@ -118,6 +118,9 @@ def _bot_cargado():
     except SystemExit:
         pass
     sys.modules["threat_bot_test"] = entorno["bot"]
+    # El espacio de nombres completo, para poder probar funciones de `bot.py` sin
+    # reejecutar el fichero entero en cada test.
+    sys.modules["threat_bot_entorno"] = entorno
     return entorno["bot"]
 
 
@@ -428,9 +431,14 @@ class TestFlujoCompleto:
 
     @pytest.mark.asyncio
     async def test_un_mensaje_con_amenaza(self, bot_analisis):
+        from core import guild_config as gc
         from core import cache as cache_mod
         from core.utils import clave_analisis
         import ui.message_handler as mh
+
+        # El borrado ya no es el default (ver `test_defaults_guild_nueva.py`): los tests
+        # que prueban ese camino tienen que activarlo, o no prueban nada.
+        await gc.actualizar_config(1, strict_mode=True)
 
         msg = _Mensaje("mira esto https://ejemplo.com/malo y https://ejemplo.com/limpio")
 
@@ -559,7 +567,7 @@ class TestFlujoCompleto:
         embed solo añadía ruido.
         """
         from core import guild_config as gc
-        await gc.actualizar_config(1, log_channel_id=555)
+        await gc.actualizar_config(1, log_channel_id=555, strict_mode=True)
         enviados = self._captura_log()
 
         msg = _Mensaje("https://ejemplo-aviso.test/malo")
@@ -584,7 +592,7 @@ class TestFlujoCompleto:
         """
         import discord as _d
         from core import guild_config as gc
-        await gc.actualizar_config(1, log_channel_id=555)
+        await gc.actualizar_config(1, log_channel_id=555, strict_mode=True)
         enviados = self._captura_log()
 
         msg = _Mensaje("https://ejemplo-permiso-ok.test/malo")
@@ -604,7 +612,7 @@ class TestFlujoCompleto:
         """La otra mitad: si de verdad falta, se dice cuál, con nombre y canal."""
         import discord as _d
         from core import guild_config as gc
-        await gc.actualizar_config(1, log_channel_id=555)
+        await gc.actualizar_config(1, log_channel_id=555, strict_mode=True)
         enviados = self._captura_log()
 
         msg = _Mensaje("https://ejemplo-sin-permiso.test/malo")
@@ -619,8 +627,11 @@ class TestFlujoCompleto:
     @pytest.mark.asyncio
     async def test_el_embed_no_se_queja_cuando_si_se_borro(self, bot_analisis):
         """El aviso se quite cuando el borrado funcionó, o acaba siendo ruido."""
+        from core import guild_config as gc
         from core.utils import clave_analisis
         import ui.message_handler as mh
+
+        await gc.actualizar_config(1, strict_mode=True)
 
         msg = _Mensaje("https://ejemplo-sinaviso.test/malo")
 

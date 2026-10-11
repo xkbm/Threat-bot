@@ -583,6 +583,11 @@ async def cargar_datos() -> None:
                 except ValueError:
                     continue
                 if isinstance(val, dict):
+                    # `strict_mode` sale `True` aquí y `False` en `_config_por_defecto()`,
+                    # y no es un descuido: esta ruta solo lee guilds que ya existían, que
+                    # pudieron confiar en el borrado. El default nuevo es para las que se
+                    # añadan a partir de ahora. Un `setdefault` sobre un guild que ya
+                    # traía el valor guardado no lo toca.
                     defaults = {
                         "silent_mode": True,
                         "strict_mode": True,

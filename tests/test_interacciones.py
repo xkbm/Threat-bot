@@ -306,16 +306,25 @@ class TestTodoSeConfiguraDesdeElPanel:
     """Ningún otro comando cambia configuración: todo pasa por el panel."""
 
     def test_no_quedan_comandos_de_configuracion(self):
+        """Ningún comando escribe config; que se lea y se explique sí se permite.
+
+        El panel es la única forma de cambiar algo: dos caminos para escribir se
+        desincronizan, que es lo que pasó con `/whitelist` y los interruptores de un
+        paso. Un comando que solo *lee* —`/setup`, que explica el estado actual— no crea
+        un segundo camino de escritura, así que se permite.
+        """
         import inspect
 
         import cogs.configuracion as cfg_mod
 
         nombres = []
-        for attr in vars(cfg_mod.ConfiguracionCog).values():
+        for nombre, attr in vars(cfg_mod.ConfiguracionCog).items():
             comando = getattr(attr, "callback", None)
-            if comando is not None and getattr(comando, "__name__", "") != "settings":
-                nombres.append(comando.__name__)
-        assert nombres == [], f"comandos de configuración fuera del panel: {nombres}"
+            if comando is None or getattr(comando, "__name__", "") == "settings":
+                continue
+            if "actualizar_config" in inspect.getsource(comando):
+                nombres.append(nombre)
+        assert nombres == [], f"comandos que escriben config fuera del panel: {nombres}"
 
     def test_no_existe_cog_de_whitelist(self):
         """El panel añade y quita dominios; el comando se fue con el resto."""

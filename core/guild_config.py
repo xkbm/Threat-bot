@@ -36,7 +36,11 @@ def _config_por_defecto() -> dict[str, Any]:
     # falta: `config_aviso_por_defecto` ya trae `avisar_todo`. Para una que venga de un
     # `data.json` viejo, la traduce `migrar_aviso` en `_asegurar_guild`.
     cfg: dict[str, Any] = {
-        "strict_mode": True,
+        # No se borra de salida. Un owner que añade el bot y ve desaparecer un mensaje sin
+        # explicación lo desinstala; avisar es igual de útil y sí se puede deshacer.
+        # `core/database.py` deja `True` a propósito: esa ruta solo lee guilds que ya
+        # existían, y no tiene por qué cambiarles el comportamiento.
+        "strict_mode": False,
         "auto_scan_enabled": True,
         "log_channel_id": None,
         "whitelist": list(DOMINIOS_PROTEGIDOS),
