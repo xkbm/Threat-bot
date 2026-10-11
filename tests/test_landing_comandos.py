@@ -103,14 +103,11 @@ def test_el_guard_encuentra_de_verdad():
 
 
 def test_los_comandos_muertos_conocidos_siguen_muertos():
-    """Que la lista de la documentación siga siendo certaina de sí misma.
+    """Que la lista de comandos muertos documentada siga siendo cierta.
 
     Los atajos de un paso se borraron a propósito. Si alguno vuelve, este test salta
     aunque la landing todavía no lo anuncie.
     """
-    from cogs import help as _  # noqa: F401  (aseguramos que el módulo existe)
-    import cogs
-
     texto = (RAIZ / "cogs" / "help.py").read_text("utf-8")
     for muerto in COMANDOS_MUERTOS_CONOCIDOS:
         assert f"/{muerto}" not in texto, f"/help volvió a anunciar /{muerto}"
