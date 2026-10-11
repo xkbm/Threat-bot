@@ -31,7 +31,7 @@ const threats = [
 const stack = [
   { name: 'VirusTotal', desc: 'Análisis de URLs y archivos contra 70+ motores de antivirus' },
   { name: 'SightEngine', desc: 'Detección NSFW con 4 modelos: desnudos, armas, alcohol, ofensivo' },
-  { name: 'Cache', desc: 'RAM + SQLite. URLs 7 días, archivos 30 días. Sin análisis repetidos' },
+  { name: 'Cache', desc: 'Caché en memoria y disco. URLs 7 días, archivos 30 días, sin repetir análisis' },
 ];
 
 // Antes aquí se anunciaban `autoscan` y `setlogchannel`, que ya no existen:
@@ -489,7 +489,7 @@ const keyCommands = [
               </div>
               <div>
                 <h3 class="mb-1 text-lg font-semibold text-white">Link seguro</h3>
-                <p class="text-sm text-surface-400">Alguien comparte un enlace de YouTube. Threat lo reconoce por el dominio y lo deja pasar sin consultarlo, así que no gasta cuota.</p>
+                <p class="text-sm text-surface-400">Alguien comparte un enlace de YouTube. Threat reconoce el dominio y lo deja pasar sin comprobarlo.</p>
               </div>
             </div>
           </div>
@@ -726,7 +726,7 @@ const keyCommands = [
           Debajo del capó
         </h2>
         <p class="mx-auto max-w-2xl text-surface-400">
-          Dos APIs de renombre hacen el análisis, y una caché en RAM y SQLite evita repetirlo.
+          El análisis lo hacen VirusTotal y SightEngine, y una caché evita repetirlo cuando el mismo enlace vuelve a aparecer.
         </p>
       </div>
 
