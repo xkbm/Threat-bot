@@ -96,8 +96,8 @@ class ReactionController:
     async def set(self, emoji: str) -> None:
         """Pone `emoji` como veredicto, retirando antes el que hubiera.
 
-        Poner dos veces el mismo emoji no es un no-op: en el camino rápido solo
-        détection de nombre no hay nada que quitar, y en el resto evita el trabajo de
+        Poner dos veces el mismo emoji no es un no-op: en el camino rápido solo se
+        detecta el nombre y no hay nada que quitar, y en el resto evita el trabajo de
         quitar y volver a poner si el veredicto no ha cambiado.
         """
         if emoji == self.veredicto_actual:
@@ -105,7 +105,7 @@ class ReactionController:
         if not self.message:
             return
 
-        # Si el veredicto definitive ya no hay nada que esperar, el loading sobra.
+        # Si el veredicto definitivo ya no hay nada que esperar, el loading sobra.
         await self._quitar_loading()
 
         anterior = self.veredicto_actual

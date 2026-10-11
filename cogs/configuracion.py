@@ -20,7 +20,7 @@ class ConfiguracionCog(commands.Cog):
 
         Un 400 aquí significa que la interaction no se respondió ni se difirió antes, y
         que el usuario no va a ver nada. Se relanza para que quede traza en el log: antes
-        se silenciaba y el fallo solo se manifesting como "el comando no hace nada".
+        se silenciaba y el fallo solo se manifestaba como "el comando no hace nada".
         """
         try:
             await interaction.followup.send(*args, **kwargs)

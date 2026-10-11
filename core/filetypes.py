@@ -170,7 +170,7 @@ def _formato_documento(datos: bytes) -> Optional[Tuple[str, str]]:
         return "rar", "application/vnd.rar"
     if _empieza(datos, b"7z\xbc\xaf\x27\x1c"):
         return "sevenzip", "application/x-7z-compressed"
-    # OLE2: el contenedor de .doc/.xls antiguos. Distinto de D0CF11E0 (OLE) sí, OLE2.
+    # OLE2: el contenedor de los .doc/.xls antiguos. La firma es D0CF11E0A1B11AE1.
     if _empieza(datos, b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"):
         return "ole", "application/msword"
     return None

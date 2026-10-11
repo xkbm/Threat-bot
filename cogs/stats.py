@@ -92,7 +92,7 @@ class EstadisticasCog(commands.Cog):
             embed.add_field(name=f"{self.bot.EMOJI_WHITELIST} Ignorados por moderación", value=f"**{stats.get('ignorados', 0)}**", inline=True)
 
             # La barra miraba solo los maliciosos. Con 700 análisis y 60 strings de
-            # phishing, el único porcentaje que salía era el de malware, y seemed decir
+            # phishing, el único porcentaje que salía era el de malware, y parecía decir
             # que el bot apenas encontraba nada cuando estaba viendo una de cada diez.
             amenazas = (stats["maliciosos"] + stats.get("sospechosos", 0)
                         + stats.get("nsfw", 0) + stats.get("restringidos", 0)

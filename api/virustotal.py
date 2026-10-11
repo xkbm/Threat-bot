@@ -146,8 +146,8 @@ async def obtener_siguiente_se_key() -> Optional[tuple[str, str]]:
     Así el contador cuadra con las peticiones realmente emitidas.
 
     Se comprueban los TRES topes del plan gratuito: por segundo (lo impone la API), por
-    día y **por mes**. El mensual es el que de verdad manda, y se—was applying el
-    checks —la constante `SE_MAX_OPS_PER_MONTH` estaba escrita y sin usar— así que el bot
+    día y **por mes**. El mensual es el que de verdad manda, y no se aplicaba el
+    check mensual —la constante `SE_MAX_OPS_PER_MONTH` estaba escrita y sin usar—, así que el bot
     gastaba los 2.000 ops del mes en cuatro días (500/día) y a partir del día 5 lo
     bloqueaba SightEngine sin que el bot supiera por qué. Aplicando el mensual, ese mismo
     presupuesto se reparte en ~13 imágenes al día hasta final de mes y nadie se queda sin
@@ -200,9 +200,9 @@ async def reservar_se_key(pair: tuple[str, str], operaciones: Optional[int] = No
     análisis pueden ser varias peticiones.
 
     Devuelve las operaciones reservadas para que `liberar_se_key` pueda devolverlas si la
-    petición se rechaza. Devolverlas no esDESCUENTO de contabilidad: **un 400 de
+    petición se rechaza. Devolverlas no es un descuento: **un 400 de
     SightEngine no se cobra**. Antes sí se contaba, y con el reintento de modelos eso
-    inflaba el contador hasta 15 operaciones por imagen (5+4+3+2+1) cuando la real_costaba
+    inflaba el contador hasta 15 operaciones por imagen (5+4+3+2+1) cuando la real costaba
     una. Con el tope mensual aplicado, ese sobrecoste se traducía en servir 133 imágenes
     al mes en vez de 400.
 
@@ -829,7 +829,7 @@ async def _post_threat_side_effects(guild_id: int, tipo_str: str, valor: str, ma
         await update_stats(guild_id, "malicioso")
         if mensaje_original is None:
             # Escaneo manual (`/scan` o menú contextual): no hay un análisis de mensaje
-            # al que groupingselo, así que este sitio manda su propio log.
+            # al que agrupárselo, así que este sitio manda su propio log.
             #
             # Y NO borra: el modo estricto solo borra desde el handler, una vez por
             # mensaje. Antes se borraba aquí también, una vez por cada URL, y las dos

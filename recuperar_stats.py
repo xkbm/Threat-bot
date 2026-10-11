@@ -31,7 +31,7 @@ USO
     python3 recuperar_stats.py --aplicar  # escribe data.json (CON EL BOT PARADO)
 
 El bot DEBE estar parado al aplicarlo: si está corriendo tiene las estadísticas en
-memoria y las volvería a escribir encima en el siguiente volcado, perdiendo lo inserted.
+memoria y las volvería a escribir encima en el siguiente volcado, perdiendo lo insertado.
 """
 
 from __future__ import annotations

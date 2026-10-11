@@ -111,7 +111,7 @@ class SelectorUmbral(discord.ui.Button):
 class SelectorCanalLog(discord.ui.Select):
     """Elige el canal de logs entre los del servidor.
 
-    Antes el panel lo mostraba pero no lo cambiaba: había que resorting a
+    Antes el panel lo mostraba pero no lo cambiaba: había que recurrir a
     `/setlogchannel`. Es una opción por guild más, de las que un admin tiene que poder
     tocar sin recordar un comando aparte.
     """
@@ -199,7 +199,7 @@ class BotonAnadirWhitelist(discord.ui.Button):
 class SelectorQuitarWhitelist(discord.ui.Select):
     """Quita un dominio de la whitelist.
 
-    El complements de `BotonAnadirWhitelist`. Sin esto, quitar un dominio obligaba a
+    El complemento de `BotonAnadirWhitelist`. Sin esto, quitar un dominio obligaba a
     recordar `/whitelist remove`: se podía añadir desde el panel pero no deshacer, lo
     que es la peor forma de dejar medio migrado un ajuste.
 
@@ -445,7 +445,7 @@ class PanelConfig(discord.ui.View):
             self.add_item(boton)
 
         if self.seccion == esq.AVISO:
-            # Al final a proposito: los interruptores se leen de arriba abajo y el
+            # Al final a propósito: los interruptores se leen de arriba abajo y el
             # desplegable de 15 opciones es lo que menos se toca.
             self.add_item(SelectorNotificaciones(
                 list(config.get("notificar") or esq.CATEGORIAS_POR_DEFECTO)))

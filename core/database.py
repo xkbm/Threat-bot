@@ -166,7 +166,7 @@ class DatabasePool:
             # medias deja una transacción de escritura abierta en esta conexión: el
             # bloqueo de escritura de SQLite se queda retenido y las escrituras
             # posteriores desde la misma conexión se encolan sin llegar a commitearse.
-            # # es exactamente lo que hace que la caché "deje de funcionar" sin que
+            # Eso es exactamente lo que hace que la caché "deje de funcionar" sin que
             # salte ninguna excepción.
             try:
                 await conn.rollback()

@@ -65,7 +65,7 @@ PALABRAS_SOSPECHOSAS = (
 # "discord" incrustada en la etiqueta lo marcaría.
 #
 # El coste de equivocarse aquí es el peor posible: una URL marcada como phishing se
-# SACSA de la lista de análisis en `ui/message_handler.py`, así que deja de pasar por
+# saca de la lista de análisis en `ui/message_handler.py`, así que deja de pasar por
 # VirusTotal. Es decir, un falso positivo no solo molesta: desactiva el escaneo de
 # malware. Cualquier servicio real cuya infraestructura contenga una marca tiene que
 # estar aquí, y es normal que la lista necesite crecer.
@@ -136,7 +136,7 @@ def _distancia(a: str, b: str) -> int:
 
     Antes era Levenshtein, donde transponer dos letras costaba 2. Medido sobre 23
     typosquats y 55 dominios legítimos: los mismos 0 falsos positivos y 4 detecciones
-    más. Los cuatro son de transposition, que es el error típico al teclear un dominio:
+    más. Los cuatro son de transposición, que es el error típico al teclear un dominio:
     `microsfot`, `microsotf`, `payapl`, `netflx`.
 
     Ojo con el alcance: esto NO arregla `rniicrosfot`, que tras normalizar queda a 2

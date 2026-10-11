@@ -161,8 +161,8 @@ async def _persistir_config(guild_id: int, config: dict[str, Any], inmediato: bo
 
     Si SQLite falla, se hace una copia de emergencia con las configs incluidas y se avisa
     por log. El motivo de esa copia es que un cambio de configuración hecho por un
-    administrador no se puede perder porque la base esté momentarily caída, y es
-    JUSTAMENTE en ese escenario cuando `cargar_datos` cairía de vuelta al JSON. Sin la
+    administrador no se puede perder porque la base esté momentáneamente caída, y es
+    JUSTAMENTE en ese escenario cuando `cargar_datos` caería de vuelta al JSON. Sin la
     copia, ese cambio se perdía en silencio.
     """
     try:
@@ -207,7 +207,7 @@ async def quitar_dominio(guild_id: int, dominio: str) -> bool:
     """Quita un dominio de la whitelist del guild. Devuelve True si se quitó.
 
     Los dominios protegidos **no** se pueden quitar, y aquí es donde se garantiza, no en
-    el panel. El panel puedeEvolucionar; esta función es la que decide.
+    el panel. El panel puede evolucionar; esta función es la que decide.
 
     Antes no había ninguna comprobación: un admin podía quitar `youtube.com` de un golpe y
     a partir de ahí cada enlace de YouTube del servidor pasaba a analysizarse, que es
@@ -269,7 +269,7 @@ async def update_stats(guild_id: Optional[int], tipo: str) -> None:
             global_stats["errores"] += 1
     # Aquí NO se guarda. Antes este `await guardar_datos()` reescribía el `data.json`
     # entero (con `indent=4` y `fsync`) en CADA análisis, y las estadísticas son lo
-    # único que cambia en cada mensaje: un servidor activoDirectories un fichero
+    # único que cambia en cada mensaje: un servidor activo escribía un fichero
     # stat_json entero por mensaje sin que la configuración haya cambiado nada.
     # Las estadísticas son estado de ejecución: las persiste el cron horario y el
     # apagado, que es donde de verdad importa no perderlas.

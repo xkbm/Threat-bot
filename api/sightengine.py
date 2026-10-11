@@ -115,9 +115,9 @@ def _es_cuota_agotada(cuerpo, status: int) -> bool:
 
     Antes cualquier respuesta que no fuera 400 se traducía a `ERROR_HTTP`, y el embed de
     ese error dice *"Fallo de red o respuesta ilegible de SightEngine"*. Cuando se agota
-    el plan gratuito el bot loeleya como un fallo de red, durante 26 días al mes, y
+    el plan gratuito el bot lo leía como un fallo de red, durante 26 días al mes, y
     además se cacheaba como transitorio: cada imagen volvía a llamar a la API, volvía a
-    fallar, y volvía a intentarlo. Un diagnóstico falso que además Picasso bombardea la
+    fallar, y volvía a intentarlo. Un diagnóstico falso que además bombardea la
     API.
 
     Se decide por lo que **dice** la respuesta y no por el status, porque el status con
@@ -182,7 +182,7 @@ async def _cachear_fallo(cache_key: str, motivo: str, detalle: str) -> None:
       preguntarlo al siguiente repost es gastar 5 operaciones por la misma respuesta
       inválida, y con 2.000 al mes eso son 400 imágenes.
     - Los fallos de red no cuestan operaciones, pero durante una caída cada reaparición
-      añadiría otra petición a una API que ya está cayendo, y la-avalancha empeora la
+      añadiría otra petición a una API que ya está cayendo, y la avalancha empeora la
       caída.
     """
     tipo = _TIPO_CACHEADO.get(motivo)

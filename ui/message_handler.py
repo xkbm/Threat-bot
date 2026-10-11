@@ -91,7 +91,7 @@ def _marcar_procesado(message: discord.Message) -> bool:
 #
 # `_marcar_procesado` solo evita el re-análisis cuando el contenido NO ha cambiado. Si el
 # usuario edita el mensaje mientras el primer análisis sigue corriendo —que tarda
-# segundos—, la huella cambia, el guard deja pasar el segundo y los dosAnalizan a la vez.
+# segundos—, la huella cambia, el guard deja pasar el segundo y los dos analizan a la vez.
 #
 # Consecuencia observada: los dos llegaban al borrado, el primero lo hacía bien y el
 # segundo recibía `NotFound`. Antes ese `NotFound` compartía `except` con `Forbidden` y
@@ -757,7 +757,7 @@ async def _analizar_adjuntos(
 
     El reparto entre "imagen" y "archivo" lo deciden los bytes, no el nombre. Antes se
     hacía con `es_imagen()`, que mira la extensión y el `Content-Type` que Discord deduce
-    del nombre: un ejecutable llamado `malware.png` pasaba por ahí, se.ibía solo a
+    del nombre: un ejecutable llamado `malware.png` pasaba por ahí, se iba solo a
     SightEngine y el malware no se escaneaba nunca. Y al revés, `foto.exe.png` entraba
     como imagen y se saltaba la verificación MIME y la detección de doble extensión.
     """
@@ -767,7 +767,7 @@ async def _analizar_adjuntos(
     # Dedupica adjuntos idénticos antes de analizar.
     #
     # Del log de producción: al subir cinco veces el mismo `image.png` en un mensaje se
-    #Logged:
+    # veía:
     #
     #     SQLITE MISS → imgmal:077d18ed...   x5
     #     VT HASH NUEVO → 077d18ed...         x5
@@ -831,7 +831,7 @@ async def _analizar_adjuntos(
             resultados_arch = []
     finally:
         await safe_remove_loading(bot, message)
-        #Va en el `finally`, no después: si un adjunto revienta, `gather` sin
+        # Va en el `finally`, no después: si un adjunto revienta, `gather` sin
         # `return_exceptions` propagaba la excepción y `_detecciones` se quedaba con las
         # entradas de ese mensaje para siempre. Como el mapa no tiene TTL, eso es una
         # fuga que crece con cada mensaje problemático.
@@ -944,7 +944,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
         message.content = message.content[:5000]
 
     # `silent_mode` ya no se lee aquí: la decisión de avisar la toma `debe_enviar_embed`,
-    # que conoce los tres interruptores. Tenerla en dos sitios hacía que secould divergieran.
+    # que conoce los tres interruptores. Tenerla en dos sitios hacía que divergieran.
     strict_mode = config["strict_mode"]
     log_channel_id = config["log_channel_id"]
     whitelist = config.get("whitelist", [])
@@ -987,7 +987,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
             else:
                 # Solo se cuenta. La reacción la pone al final `resolver_reaccion`, que
                 # además tiene en cuenta lo demás: ponerla aquí marcaba como confiable un
-                # mensaje que|resultara malicioso.
+                # mensaje que resultara malicioso.
                 _whitelist_omitidos += 1
 
         # Anti-phishing local, antes de gastar cuota en nada.
@@ -1073,9 +1073,9 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                                 cached_hash, b"", config.get("_umbrales"))
                             if from_cache:
                                 # El veredicto y el detalle los compone `evaluar_contenido`, como en
-                                # `_procesar_imagen`. Esta rama leia `models['nudity']`, clave que ya no
-                                # existe, con umbrales escritos a mano: el detalle salia siempre como
-                                # "Contenido inapropiado" sin decir que se detecto, y alcohol o armas
+                                # `_procesar_imagen`. Esta rama leía `models['nudity']`, clave que ya no
+                                # existe, con umbrales escritos a mano: el detalle salía siempre como
+                                # "Contenido inapropiado" sin decir que se detectó, y alcohol o armas
                                 # quedaban etiquetados como `nsfw`.
                                 _v, _conf, detalles_str = _veredicto_de_contenido(config, models)
                                 img_url_results.append(ImgUrlResult(
@@ -1191,9 +1191,9 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
                                 log.debug("Cache MISS para URL → llamando VT")
                                 if not await check_vt_user_limit(bot, guild_id, message.author.id):
                                     # `SIN_RESPUESTA`, no `None`. `vuelo()` trata `None`
-                                    # como resultado legitimo y lo reparte a todos los
-                                    # esperadores: un usuario que agota su cupo hacia que
-                                    # todos los demas analysing el mismo enlace recibieran
+                                    # como resultado legítimo y lo reparte a todos los
+                                    # esperadores: un usuario que agota su cupo hace que
+                                    # todos los demás analizando el mismo enlace recibieran
                                     # un error falso y se quedaran sin escanear. Con
                                     # `SIN_RESPUESTA` cada esperador lo reintenta por su
                                     # cuenta, que es justo lo que documenta `vuelo`.
@@ -1356,8 +1356,8 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
     # --- Construir y enviar embed unificado ---
     total_elementos = len(url_results) + len(img_url_results) + len(img_results) + len(arch_results)
     if total_elementos == 0 and not _whitelist_omitidos:
-        # El controlador se creo al poner el emoji de progreso, asi que tambien hay que
-        # soltarlo aqui: sin esto esta salida era la que mas fugaba.
+        # El controlador se creó al poner el emoji de progreso, así que también hay que
+        # soltarlo aquí: sin esto, esta salida era la que más fugaba.
         _liberar_controlador(bot, message)
         return
 
@@ -1457,7 +1457,7 @@ async def procesar_analisis(bot: commands.Bot, message: discord.Message) -> None
         await _controlador_para(bot, message).set(resolver_reaccion(senales))
     else:
         await safe_remove_loading(bot, message)
-    # El analisis termino: el controlador ya no hace falta y el cache debe quedar limpio.
+    # El análisis terminó: el controlador ya no hace falta y la caché debe quedar limpia.
     _liberar_controlador(bot, message)
 
     # Logs por cada amenaza detectada. `elemento_id` tiene que ser el MISMO que se usó al

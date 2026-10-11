@@ -163,7 +163,7 @@ async def _analizar_mensaje(interaction: discord.Interaction, message: discord.M
 
     # Primero se mira QUÉ hay, y luego se cobra. Al revés, un moderador que hace clic
     # derecho sobre un mensaje sin enlaces se gastaba una de las 30 unidades por hora y
-    # recibía "no hay nada que analizar": 30 clics-equivoco bastaban para bloquearse a
+    # recibía "no hay nada que analizar": 30 clics equivocados bastaban para bloquearse a
     # sí mismo. La comprobación es síncrona y no cuesta nada.
     objetivo = _extraer_objetivo(message)
     if objetivo is None:

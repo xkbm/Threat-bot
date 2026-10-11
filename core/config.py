@@ -214,7 +214,7 @@ def stats_vacias() -> dict[str, int]:
 
     Y tener dos copias era exactamente el bug: `database` hardcodeaba una versión de 6
     claves y `guild_config` usaba una de 9. Las que faltaban eran `restringidos`,
-    `phishing` e `ignorados`, así que un arranque limpioCreaba unas estadísticas sin esas
+    `phishing` e `ignorados`, así que un arranque limpio creaba unas estadísticas sin esas
     tres categorías y `/stats` no las enseñaba: el bot estaba contando phishing y
     contenido restringido, y el panel no lo mencionaba.
 

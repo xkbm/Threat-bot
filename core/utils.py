@@ -389,7 +389,7 @@ async def vuelo(clave: str, calcular):
             if not ok:
                 # Cancelación no es un error de análisis: es un cierre. Si se propaga
                 # como excepción, `CancelledError` salta por todos los `except Exception`
-                # del llamante y los esperadores nochesAnalizan, no reaccionan, no
+                # del llamante y los esperadores no analizan, no reaccionan, no
                 # registran evento y no limpian. Se distingue para que cada uno decida.
                 if isinstance(valor, asyncio.CancelledError):
                     log.debug(f"VUELO cerrado por cancelación → {clave}")

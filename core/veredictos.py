@@ -39,7 +39,7 @@ class Veredicto(Enum):
 
     @property
     def es_amenaza(self) -> bool:
-        """Amenaza confirmada:borra y avisa pase lo que pase el resto de ajustes."""
+        """Amenaza confirmada: borra y avisa pase lo que pase el resto de ajustes."""
         return self in (Veredicto.MALICIOSO, Veredicto.NSFW)
 
     @property
@@ -178,7 +178,7 @@ ORDEN_CONTADORES = (
 )
 
 # De peor a mejor. Cuando hay varios elementos en un mensaje manda el primero de la
-# lista. El orden es la definición de "peor", así que no debe cambiar por whim: si un
+# lista. El orden es la definición de "peor", así que no debe cambiar por capricho: si un
 # veredicto nuevo aparece, hay que decidir deliberadamente dónde se coloca.
 #
 # `SOSPECHOSO` va antes que `ERROR` a propósito. Un hallazgo confirmado es accionable;

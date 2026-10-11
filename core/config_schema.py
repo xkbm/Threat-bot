@@ -201,14 +201,14 @@ ESQUEMA: tuple[Clave, ...] = (
        "Marca cada hallazgo en el canal de registro. Puedes dejarlo apagado y seguir "
        "recibiendo los avisos en el chat de donde salió el mensaje."),
     Clave("log_channel_id", "int", GENERAL, "Canal de registro", None,
-          ayuda="Donde queda constancia de lo que se ha encontrado. Déjalo vacío si no "
+          ayuda="Dónde queda constancia de lo que se ha encontrado. Déjalo vacío si no "
                 "quieres registro."),
     # --- Aviso ---
     Clave("avisar_todo", "bool", AVISO, "Avisar de todo", True,
           afirmativa=True,
           ayuda="El interruptor general. Desactivado, el bot no manda ningún aviso, ni de "
                 "amenazas: es para cuando se está comiendo un canal. Para callar una sola "
-                "cosa, desmarcala abajo. Las reacciones se ponen igual."),
+                "cosa, desmárcala abajo. Las reacciones se ponen igual."),
     _b("reacciones", AVISO, "Poner un emoji en el mensaje", True,
        "El emoji que resume cómo acabó el análisis. Es independiente de los avisos: "
        "puedes querer el emoji pero no los mensajes largos."),

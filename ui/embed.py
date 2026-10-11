@@ -156,7 +156,7 @@ def _veredicto_de(datos: dict, mal: int) -> str:
     """Veredicto del análisis, tal y como se guarda en caché.
 
     Se lee de `datos` y no se deduce solo de `mal` porque un elemento con 0 detecciones
-    maliciosas y varias sospechosa sigue sin estar limpio, y ese matiz se pierde si solo
+    maliciosas y varias sospechosas sigue sin estar limpio, y ese matiz se pierde si solo
     guardamos el número. Viaja dentro de `datos` —que es lo que se persiste y se
     re-renderiza al leer— para que una entrada cacheada siga mostrando su veredicto
     aunque el diseño cambie dentro de seis meses.
@@ -232,7 +232,7 @@ def resultado(tipo: str, datos: dict, mal: int) -> discord.Embed:
 def error(texto: str, descripcion: str, detalle: Optional[str] = None, icono: str = EMOJI_SHIELD) -> discord.Embed:
     """Error con el vocabulario cerrado. El icono por defecto es el escudo de marca:
     la severidad ya la comunica el color rojo y el texto, así que el icono del título
-    se reserva para la identidad. `icono` existe para los casos que síQuieres otra cosa."""
+    se reserva para la identidad. `icono` existe para los casos que quieres otra cosa."""
     embed = discord.Embed(
         title=f"{icono} {texto}",
         description=descripcion,
@@ -400,7 +400,7 @@ def amenaza_agrupada(detecciones: list[tuple[str, str, str, Optional[str]]],
     """Un solo log con TODAS las detecciones de un mismo mensaje.
 
     Antes cada detección mandaba su propio embed, así que un mensaje con tres enlaces
-    maliciosos llenaba el canal de logs con tres avisos casi idénticos, distinguished
+    maliciosos llenaba el canal de logs con tres avisos casi idénticos, distinguiéndose
     solo por una URL. Un moderador los lee como tres mensajes distintos de tres personas
     distintas, y el mensaje original no aparece en ninguno de los tres.
 
