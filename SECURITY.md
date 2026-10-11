@@ -2,9 +2,9 @@
 
 ## Reportar vulnerabilidades
 
-Si se encuentra una vulnerabilidad de seguridad, **no publicarla como issue público**. Contactar directamente vía Discord: **imsh4d0w_**.
+Si se encuentra una vulnerabilidad de seguridad, **no publicarla como una incidencia pública (issue)**. Contactar directamente vía Discord: **imsh4d0w_**.
 
-Incluir en el reporte:
+Incluir en el informe:
 
 - Descripción de la vulnerabilidad
 - Pasos para reproducirla
@@ -29,6 +29,6 @@ Se responderá en un plazo razonable y se trabajará para resolverla.
 - SSRF o ataques de red
 - Escalada de privilegios
 
-## Responsable disclosure
+## Divulgación responsable
 
 Si se reporta una vulnerabilidad de forma responsable, se reconocerá en los agradecimientos (a menos que se prefiera anonimato).

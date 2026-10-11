@@ -22,7 +22,7 @@
 |------|----------|
 | **URLs** | Expande acortadores y escanea con VirusTotal |
 | **Archivos** | Detecta malware (hasta 32MB) |
-| **Imágenes** | Detección NSFW — nudity, weapons, alcohol, offensive |
+| **Imágenes** | Detección NSFW: desnudez, gore, armas, alcohol, ofensivo |
 | **Hashes** | Verificación directa de SHA256/MD5, por `/scan` o el menú contextual |
 | **IPs** | Análisis de reputación, por `/scan` |
 | **Nombres sospechosos** | Doble extensión (`.pdf.exe`) y extensión que no cuadra con el contenido |
@@ -51,19 +51,19 @@ API falla, el bot lo dice; no afirma estar limpio de algo que nunca miró.
 
 ### Protección activa
 
-| Feature | Descripción |
+| Característica | Descripción |
 |---------|-------------|
 | **Modo estricto** | Elimina mensajes peligrosos automáticamente |
 | **Modo silencioso** | Con él activo solo se avisa si hay algo que mirar |
-| **Whitelist** | Dominios seguros que configurás por servidor |
-| **Anti-spam** | 30 análisis/hora por usuario, cooldown de 10s |
+| **Whitelist** | Dominios seguros que configuras por servidor |
+| **Anti-spam** | 30 análisis por hora y usuario, con 10 segundos de espera entre uno y otro |
 | **Veredicto "sospechoso"** | Los enlaces que VirusTotal marca como *suspicious* pero sin confirmar se informan en ámbar: no se borran ni cuentan como infracción, porque no hay certeza |
 | **Anti-phishing** | Detecta `rnicrosoft.com`, `steamcomunnity.ru` o `discord.com.evil.io`. Comprobación local de texto: no gasta cuota y filtra antes de llamar a VirusTotal |
 | **Panel `/settings`** | Todos los ajustes en un panel con botones y desplegables, recorrido desde un esquema declarado |
 | **Menú contextual** | Clic derecho sobre cualquier mensaje para analizarlo sin copiar la URL |
 | **`/history`** | Últimos análisis de un canal. Ahora sí queda registro de qué se escaneó |
 | **Una sola reacción** | Cada mensaje lleva la de su peor resultado, no tres contradictorias |
-| **Un dial por categoría** | `notificar` es la lista de lo que llega al canal: 15 categorías, de "malware" a "cuota agotada". `avisar_todo` es el master para silenciar el bot entero de golpe, y `reacciones` va aparte porque el emoji es respuesta a "el bot miró esto", no una notificación |
+| **Un dial por categoría** | `notificar` es la lista de lo que llega al canal: 15 categorías, de "malware" a "cuota agotada". `avisar_todo` es el interruptor general que lo silencia entero de golpe, y `reacciones` va aparte porque el emoji es respuesta a "el bot miró esto", no una notificación |
 
 `/usercheck` y `/history` exigen permiso de moderar mensajes, y `/settings` exige
 administrador. El expediente de seguridad de una persona no es público, y el registro de
@@ -76,9 +76,10 @@ análisis de un canal tampoco.
 | Comando | Descripción |
 |---------|-------------|
 | `/scan` | Escanea una URL, archivo, hash o IP |
-| `/usercheck` | Reputación de un usuario (mods) |
-| `/history` | Últimos análisis de un canal (mods) |
-| `/settings` | **Panel de configuración**: todo se ajusta ahí, sin comandos aparte (admin) |
+| `/setup` | Qué hace el bot en el servidor y en qué estado está la configuración (administrador) |
+| `/usercheck` | Reputación de un usuario (moderación) |
+| `/history` | Últimos análisis de un canal (moderación) |
+| `/settings` | **Panel de configuración**: todo se ajusta ahí, sin comandos aparte (administrador) |
 | `/stats` | Estadísticas globales |
 | `/help` | Lista de comandos |
 | `/about` | Info del bot |
@@ -93,15 +94,14 @@ cualquier mensaje.
 ## Persistencia
 
 La configuración de cada servidor, las infracciones y el registro de `/history` viven en
-SQLite (`analisis.db`), no en un `data.json` reescrito entero. `data.json` se conserva
-como respaldo y se migró solo la primera vez; si la migración falla, el bot arranca igual
-con el JSON. Las infracciones se purgan a los 90 días y los eventos a los 30.
+SQLite (`analisis.db`). `data.json` sigue guardando el estado en marcha (cuotas de API e
+historial antispam) y sirve de respaldo: si la base falla, el bot arranca con el JSON. Las infracciones se purgan a los 90 días y los eventos a los 30.
 
 ---
 
 ## Logs
 
-Cuando el bot detecta una amenaza, envía un embed al canal configurado con toda la info: qué detectó, cuántos motores lo marcaron, y botones para **Ban**, **Kick** o **Ignore**. Todo en tiempo real.
+Cuando el bot detecta una amenaza, envía un embed al canal configurado con toda la información: qué detectó, cuántos motores lo marcaron y botones para **Banear usuario**, **Expulsar usuario** o **Ignorar**.
 
 ---
 
