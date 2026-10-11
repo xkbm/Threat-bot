@@ -195,15 +195,18 @@ def resultado(tipo: str, datos: dict, mal: int) -> discord.Embed:
         vt_link   -> enlace al informe de VirusTotal (opcional)
         top_text  -> antivirus que lo detectaron, ya formateado (opcional)
         veredicto -> "malicioso" | "sospechoso" | "seguro" (opcional, ver arriba)
-        susp      -> cuántos engines lo marcan como sospechoso (opcional)
+        susp      -> cuántos motores lo marcan como sospechoso (opcional)
     """
     veredicto = _veredicto_de(datos, mal)
     texto = _TITULO_RESULTADO.get((tipo, veredicto), "Resultado del análisis")
     embed = _nuevo(texto, SEVERIDAD_COLOR.get(veredicto, COLOR_NEUTRAL))
     if veredicto == "malicioso":
-        embed.description = f"**{mal}** detecciones"
+        plural = "detección" if mal == 1 else "detecciones"
+        embed.description = f"**{mal}** {plural}"
     elif veredicto == "sospechoso":
-        embed.description = f"**{datos.get('susp', 0)}** engines lo marcan como sospechoso"
+        n = datos.get("susp", 0)
+        motor = "motor" if n == 1 else "motores"
+        embed.description = f"**{n}** {motor} lo marca{'n' if n != 1 else ''} como sospechoso"
     else:
         embed.description = "Sin detecciones"
 

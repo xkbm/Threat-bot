@@ -111,7 +111,7 @@ class HistorialCog(commands.Cog):
             autor = member.mention if member is not None else f"<@{ev['author_id']}>"
             linea = (f"{veredicto.emoji} [{autor}]({enlace})"
                      f" · {_tiempo_relativo(ev['created_at'])}"
-                     f" · {ev['total']} elemento(s)")
+                     f" · {ev['total']} elemento{'s' if ev['total'] != 1 else ''}")
             if ev["detalle"]:
                 linea += f" · {ev['detalle']}"
             lineas.append(linea)

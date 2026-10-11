@@ -240,7 +240,8 @@ async def _construir_embed_unificado(
 
     conteo = Counter(e.veredicto for e in elementos)
 
-    desc = f"**{total}** elemento(s) analizado(s) en el mensaje de {message.author.mention}:\n"
+    sufijo = "elemento analizado" if total == 1 else "elementos analizados"
+    desc = f"**{total}** {sufijo} en el mensaje de {message.author.mention}:\n"
     # "Seguros" se muestra siempre, incluso a 0: un 0 ahí dice "de esto no había nada
     # limpio", que es información. Los demás solo cuando hay, para no llenar el embed
     # de filas a cero.
@@ -357,7 +358,7 @@ async def _construir_embed_unificado(
         embed.add_field(name=f"{EMOJI_REPLY} {etiqueta}",
                         value="\n".join(lineas)[:1024], inline=False)
 
-    return emb.pie(embed, f"Análisis de mensaje · {total} elemento(s)")
+    return emb.pie(embed, f"Análisis de mensaje · {total} elemento{'s' if total != 1 else ''}")
 
 
 def _veredicto_de_contenido(config: dict, models: dict) -> tuple[Veredicto, float, str]:
