@@ -342,6 +342,31 @@ class TestTodoSeConfiguraDesdeElPanel:
                           "/setlogchannel", "/disablelogchannel", "/whitelist"):
             assert eliminado not in texto, f"/help sigue anunciando {eliminado}"
 
+    @pytest.mark.asyncio
+    async def test_ayuda_anuncia_los_comandos_que_existen(self):
+        """El otro lado del guard de arriba.
+
+        Que no se anuncien comandos muertos no significa que se anuncien los vivos:
+        `/setup` estuvo registrado y funcionando durante años de tests sin aparecer
+        en `/help`. Nadie se entera porque nada mira en esa dirección.
+        """
+        import pathlib
+        import re
+
+        from tests.test_landing_comandos import _comandos_existentes
+
+        existentes = await _comandos_existentes()
+        # `/eval` y `/reboot` son solo del dueño, y el menú contextual no es un slash.
+        # `islower()` descarta "Analizar con Threat" sin necesitar otra lista.
+        publicas = {c for c in existentes if c.islower()} - {"eval", "reboot"}
+
+        raiz = pathlib.Path(__file__).resolve().parent.parent
+        texto = (raiz / "cogs" / "help.py").read_text(encoding="utf-8")
+        anunciados = set(re.findall(r"/([a-z][a-z0-9_]*)", texto))
+
+        faltan = publicas - anunciados
+        assert not faltan, f"/help no menciona: {sorted(faltan)}"
+
 
 class TestQuitarDominioDesdeElPanel:
     @pytest.fixture(autouse=True)

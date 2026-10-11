@@ -15,7 +15,10 @@ class HelpCog(commands.Cog):
         log.debug(f"HELP → usuario={interaction.user.id} guild={interaction.guild.id if interaction.guild else None}")
         await interaction.response.defer()
         
-        embed = emb.aviso("Comandos de Threat", "Lista de comandos disponibles.", con_pie=False)
+        # Los "[N]" de cada campo van escritos a mano.
+        # shortcut: se desincronizan al añadir un comando; derivarlos de
+        # bot.tree.get_commands() si alguna vez molestan de verdad.
+        embed = emb.aviso("Comandos de Threat", "", con_pie=False)
 
         embed.add_field(
             name=f"{self.bot.EMOJI_LUPA} Análisis [1]",
@@ -31,8 +34,9 @@ class HelpCog(commands.Cog):
         )
 
         embed.add_field(
-            name=f"{self.bot.EMOJI_GUARDIAN} Moderación [2]",
+            name=f"{self.bot.EMOJI_GUARDIAN} Moderación [3]",
             value=(
+                "`/setup` · qué hace el bot aquí y en qué estado está\n"
                 "`/settings` · **todo se configura aquí**\n"
                 "`/history` · últimos análisis del canal"
             ),
