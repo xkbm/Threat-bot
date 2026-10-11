@@ -2,33 +2,35 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Icon from '../components/Icon.astro';
 
+// Los comandos que aparecen aquí tienen que existir. `tests/test_landing_comandos.py`
+// lo comprueba contra el árbol de comandos del bot: si se borra uno, el test falla.
 const steps = [
   {
-    icon: 'hashtag',
-    title: 'Canal de logs',
-    desc: 'Usa /setlogchannel para elegir dónde recibir alertas de seguridad.',
+    icon: 'question-circle',
+    title: 'Empezar',
+    desc: 'Ejecuta /setup y te explico qué estoy haciendo en este servidor y en qué estado está cada cosa.',
   },
   {
     icon: 'gavel',
-    title: 'Modo estricto',
-    desc: 'El modo estricto ya está activado por defecto. Ajusta con /strictmode si lo deseas.',
+    title: 'Borrar mensajes',
+    desc: 'Ahora mismo no borro nada: aviso con un embed y un emoji, y eso se puede deshacer. Si prefieres que borre el malware y el NSFW confirmados, actívalo en /settings › Moderación.',
   },
   {
     icon: 'cog',
     title: 'Configuración',
-    desc: 'Puedes revisar tu configuración en cualquier momento con /settings.',
+    desc: 'Con /settings cambias qué te aviso, los límites de contenido y los dominios que dejo exentos.',
   },
   {
-    icon: 'question-circle',
-    title: 'Ayuda',
-    desc: 'Escribe /help para ver todos los comandos.',
+    icon: 'hashtag',
+    title: 'Canal de registro',
+    desc: 'Se elige dentro de /settings, en la sección General. También /help para ver todos los comandos.',
   },
 ];
 ---
 
 <BaseLayout
   title="Threat añadido — Gracias por invitarlo"
-  description="Threat ya está en tu servidor. Usa /setlogchannel, /strictmode y /settings para configurarlo."
+  description="Threat ya está en tu servidor. Ejecuta /setup para ver qué está haciendo y /settings para configurarlo."
   canonical="/thanks"
 >
   <section class="section-scanline relative flex min-h-[100dvh] items-center justify-center px-6 pt-24 pb-16 sm:py-32">

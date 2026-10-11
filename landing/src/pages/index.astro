@@ -34,10 +34,13 @@ const stack = [
   { name: 'Cache', desc: 'RAM + SQLite. URLs 7 días, archivos 30 días. Sin análisis repetidos' },
 ];
 
+// Antes aquí se anunciaban `autoscan` y `setlogchannel`, que ya no existen:
+// todo se ajusta desde el panel de /settings. `tests/test_landing_comandos.py` lo
+// impide volver a pasar.
 const keyCommands = [
   { name: '/scan', desc: 'Analiza cualquier archivo o URL manualmente' },
-  { name: '/autoscan', desc: 'Activa el escaneo automático de mensajes' },
-  { name: '/setlogchannel', desc: 'Canal donde Threat envía las alertas' },
+  { name: '/setup', desc: 'Explica qué está haciendo el bot en tu servidor' },
+  { name: '/settings', desc: 'Qué avisa, límites de contenido y dominios exentos' },
 ];
 ---
 <BaseLayout>
@@ -59,7 +62,7 @@ const keyCommands = [
         "name": "¿Cómo configuro el bot en mi servidor?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Invita al bot con el enlace en la página, usa /setlogchannel para configurar el canal de logs. El modo silencioso y el modo estricto vienen activados por defecto, pero puedes ajustarlos con /silentmode y /strictmode."
+          "text": "Invita al bot con el enlace de la página. Ejecuta /setup para ver qué está haciendo en tu servidor y /settings para configurarlo: qué te avisa, los límites de contenido, los dominios exentos y el canal de registro. El borrado de mensajes viene desactivado y se activa en /settings."
         }
       },
       {
@@ -83,7 +86,7 @@ const keyCommands = [
         "name": "¿Qué hago si el bot marca un falso positivo?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Puedes agregar el dominio a la whitelist con /whitelist add."
+          "text": "Puedes agregar el dominio a los exentos desde /settings, en la sección Exclusiones. También puedes subir el límite de lo que considera contenido sensible."
         }
       }
     ]

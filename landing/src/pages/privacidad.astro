@@ -35,8 +35,7 @@ import Icon from '../components/Icon.astro';
         <h2 class="text-xl font-semibold text-white">2. Almacenamiento</h2>
         <p>Los datos se almacenan localmente en:</p>
         <ul class="list-disc pl-6 space-y-2">
-          <li><strong class="text-surface-200">SQLite</strong> — caché de análisis. URLs/IPs: 7 días. Hashes/NSFW: 30 días.</li>
-          <li><strong class="text-surface-200">JSON</strong> — configuración de servidores (canal de logs, whitelist, modos). Persistente hasta que el usuario lo modifique o el bot sea eliminado del servidor.</li>
+          <li><strong class="text-surface-200">SQLite</strong> — caché de análisis (URLs/IPs: 7 días, hashes/NSFW: 30 días) y configuración de servidores: canal de registro, dominios exentos, modos y límites de contenido. La configuración persiste hasta que el usuario la modifique o elimine el bot del servidor. El fichero <code>data.json</code> queda únicamente como respaldo de una migración antigua y no participa en el funcionamiento normal.</li>
           <li><strong class="text-surface-200">RAM</strong> — caché temporal con expiración de 1 hora (máximo 100,000 entradas).</li>
         </ul>
 
@@ -50,7 +49,7 @@ import Icon from '../components/Icon.astro';
 
         <h2 class="text-xl font-semibold text-white">4. Retención y eliminación</h2>
         <p>Los datos de caché expiran automáticamente según los plazos indicados. Al eliminar Threat de un servidor, la configuración de ese servidor se elimina inmediatamente. Los datos de análisis en caché permanecen hasta su expiración natural.</p>
-        <p>Cuando un usuario envía contenido que es detectado como amenaza, su ID de usuario queda vinculado permanentemente al URL o hash específico que generó la alerta (sistema de infracciones), almacenado en la configuración persistente del servidor. Esto permite a los administradores del servidor identificar reincidentes.</p>
+        <p>Cuando un usuario envía contenido que es detectado como amenaza, su ID de usuario queda vinculado al URL o hash específico que generó la alerta (sistema de infracciones), guardado en una tabla propia de la base de datos. Estos registros se purgan automáticamente a los <strong class="text-surface-200">90 días</strong>. Esto permite a los administradores del servidor identificar reincidentes.</p>
 
         <h2 class="text-xl font-semibold text-white">5. Tus derechos</h2>
         <p>Como usuario, tienes derecho a:</p>
