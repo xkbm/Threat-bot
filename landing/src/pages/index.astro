@@ -14,7 +14,7 @@ const threats = [
   {
     icon: 'link',
     title: 'Phishing',
-    desc: 'Un miembro comparte un link de "free-nitro.download". Parece legítimo. No lo es. En 5 minutos puede comprometer todas las cuentas que hagan clic.',
+    desc: 'Un miembro comparte un enlace de "free-nitro.download". Parece legítimo. No lo es. En 5 minutos puede comprometer todas las cuentas que hagan clic.',
   },
   {
     icon: 'eye',
@@ -30,8 +30,8 @@ const threats = [
 
 const stack = [
   { name: 'VirusTotal', desc: 'Análisis de URLs y archivos contra 70+ motores de antivirus' },
-  { name: 'SightEngine', desc: 'Detección NSFW con 4 modelos: desnudos, armas, alcohol, ofensivo' },
-  { name: 'Cache', desc: 'Caché en memoria y disco. URLs 7 días, archivos 30 días, sin repetir análisis' },
+  { name: 'SightEngine', desc: 'Detección NSFW con 5 modelos: desnudez, gore, armas, alcohol, ofensivo' },
+  { name: 'Caché', desc: 'Caché en memoria y disco. URLs 7 días, archivos 30 días, sin repetir análisis' },
 ];
 
 // Antes aquí se anunciaban `autoscan` y `setlogchannel`, que ya no existen:
@@ -40,7 +40,7 @@ const stack = [
 const keyCommands = [
   { name: '/scan', desc: 'Analiza cualquier archivo o URL manualmente' },
   { name: '/setup', desc: 'Explica qué está haciendo el bot en tu servidor' },
-  { name: '/settings', desc: 'Qué avisa, límites de contenido y dominios exentos' },
+  { name: '/settings', desc: 'Configura qué avisa, los límites de contenido y los dominios exentos' },
 ];
 ---
 <BaseLayout>
@@ -54,7 +54,7 @@ const keyCommands = [
         "name": "¿Qué tipo de amenazas detecta Threat?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Threat analiza URLs maliciosas (malware, phishing) mediante VirusTotal, detecta contenido NSFW (desnudos, armas, alcohol, ofensivo) con SightEngine, y previene spam con límites por usuario."
+          "text": "Threat analiza URLs maliciosas (malware, phishing) mediante VirusTotal, detecta contenido NSFW (desnudez, gore, armas, alcohol, ofensivo) con SightEngine, y previene spam con límites por usuario."
         }
       },
       {
@@ -238,7 +238,7 @@ const keyCommands = [
                 // enlace, luego 1. Meter las detecciones ahí decía "1 elemento analizado /
                 // Maliciosos: 24", que se contradice. Las detecciones van en la línea de la
                 // URL, como hace `message_handler._extra_url`.
-                desc: () => `Se analizó <strong class="text-surface-100">1</strong> elemento(s):<br/>${EMOJI_CHECK} Seguros: <strong class="text-surface-100">0</strong><br/>${EMOJI_WARN} Maliciosos: <strong class="text-surface-100">1</strong>`,
+                desc: () => `Se analizó <strong class="text-surface-100">1</strong> elemento:<br/>${EMOJI_CHECK} Seguros: <strong class="text-surface-100">0</strong><br/>${EMOJI_WARN} Maliciosos: <strong class="text-surface-100">1</strong>`,
                 conversaciones: [
                   { u1: '¿Alguien tiene el link del nuevo asset?', u2: 'creo que sí, te lo paso', urlFrom: 'u2' },
                   { u1: 'Me llegó un link raro', u2: '¿cuál es?', urlFrom: 'u1' },
@@ -262,7 +262,7 @@ const keyCommands = [
                 titleClass: 'text-surface-100',
                 tieneURL: true,
                 tieneNSFW: false,
-                desc: () => `Se analizó <strong class="text-surface-100">1</strong> elemento(s):<br/>${EMOJI_CHECK} Seguros: <strong class="text-surface-100">1</strong>`,
+                desc: () => `Se analizó <strong class="text-surface-100">1</strong> elemento:<br/>${EMOJI_CHECK} Seguros: <strong class="text-surface-100">1</strong>`,
                 conversaciones: [
                   { u1: '¿Alguien ha usado esto?', u2: 'sí, es confiable', urlFrom: 'u1' },
                   { u1: 'Mira el repo nuevo', u2: '¿qué hay?', urlFrom: 'u1' },
@@ -477,7 +477,7 @@ const keyCommands = [
               </div>
               <div>
                 <h3 class="mb-1 text-lg font-semibold text-white">Contenido NSFW</h3>
-                <p class="text-sm text-surface-400">Una imagen no deseada llega al general. SightEngine evalúa 4 modelos simultáneamente y clasifica el contenido en segundos.</p>
+                <p class="text-sm text-surface-400">Una imagen no deseada llega al general. SightEngine evalúa 5 modelos simultáneamente y clasifica el contenido en segundos.</p>
               </div>
             </div>
           </div>
@@ -488,7 +488,7 @@ const keyCommands = [
                 <Icon name="check-double" />
               </div>
               <div>
-                <h3 class="mb-1 text-lg font-semibold text-white">Link seguro</h3>
+                <h3 class="mb-1 text-lg font-semibold text-white">Enlace seguro</h3>
                 <p class="text-sm text-surface-400">Alguien comparte un enlace de YouTube. Threat reconoce el dominio y lo deja pasar sin comprobarlo.</p>
               </div>
             </div>
@@ -580,7 +580,7 @@ const keyCommands = [
               tipo: 'url',
               // Igual que en el mockup del hero: el contador es de elementos y aquí hay
               // 1. Las detecciones van en la línea de la URL.
-              desc: () => `Se analizó <strong class="text-surface-100">1</strong> elemento(s):<br/>${EMOJI_CHECK_D} Seguros: <strong class="text-surface-100">0</strong><br/>${EMOJI_WARN_D} Maliciosos: <strong class="text-surface-100">1</strong>`,
+              desc: () => `Se analizó <strong class="text-surface-100">1</strong> elemento:<br/>${EMOJI_CHECK_D} Seguros: <strong class="text-surface-100">0</strong><br/>${EMOJI_WARN_D} Maliciosos: <strong class="text-surface-100">1</strong>`,
               highlight: 'scenario-phishing',
             },
             {
@@ -593,7 +593,7 @@ const keyCommands = [
               borderColor: 'rgb(220, 38, 38)',
               titleClass: 'text-surface-100',
               tipo: 'nsfw',
-              desc: () => `Se analizó <strong class="text-surface-100">1</strong> elemento(s):<br/>${EMOJI_CHECK_D} Seguros: <strong class="text-surface-100">0</strong><br/>${EMOJI_NSFW_D} NSFW: <strong class="text-surface-100">1</strong>`,
+              desc: () => `Se analizó <strong class="text-surface-100">1</strong> elemento:<br/>${EMOJI_CHECK_D} Seguros: <strong class="text-surface-100">0</strong><br/>${EMOJI_NSFW_D} NSFW: <strong class="text-surface-100">1</strong>`,
               highlight: 'scenario-nsfw',
             },
             {
@@ -726,7 +726,7 @@ const keyCommands = [
           Debajo del capó
         </h2>
         <p class="mx-auto max-w-2xl text-surface-400">
-          El análisis lo hacen VirusTotal y SightEngine, y una caché evita repetirlo cuando el mismo enlace vuelve a aparecer.
+          El análisis lo hacen VirusTotal y SightEngine; si el mismo enlace aparece otra vez, la caché responde sin volver a consultarlos.
         </p>
       </div>
 
@@ -739,7 +739,7 @@ const keyCommands = [
         ))}
       </div>
 
-      <div class="mt-12 flex flex-wrap justify-center gap-x-8 gap-y-3">
+      <div class="mt-12 flex flex-wrap justify-center gap-x-8 gap-y-3" id="commands">
         {keyCommands.map((cmd) => (
           <div class="flex items-center gap-2 text-sm text-surface-400">
             <code class="font-mono font-medium text-shield-light">{cmd.name}</code>
@@ -760,7 +760,6 @@ const keyCommands = [
       <a href="https://discord.com/oauth2/authorize?client_id=1038186932456390726&permissions=277025745990&scope=bot+applications.commands&redirect_uri=https%3A%2F%2Ftbot-dc.vercel.app%2Fthanks&response_type=code" rel="noopener noreferrer" class="group cta-primary inline-flex items-center gap-3 rounded-full bg-discord px-10 py-4 text-lg font-semibold text-white">
         <Icon name="plus" />
         Añadir a Discord
-        </span>
       </a>
     </div>
   </section>
