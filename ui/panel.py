@@ -502,9 +502,6 @@ class PanelConfig(discord.ui.View):
                     self.add_item(SelectorUmbral(
                         clave.nombre, clave.etiqueta,
                         float(config.get(clave.nombre, clave.default))))
-                    if es_beta(self.guild.id):
-                        self.add_item(BotonEditarUmbral(
-                            clave.nombre, clave.etiqueta))
 
         # Solo los booleanos de ESTA sección.
         #
@@ -580,10 +577,10 @@ class PanelConfig(discord.ui.View):
             protegidos = len(esq.DOMINIOS_PROTEGIDOS)
             descripcion += (
                 f"\n\nLos {protegidos} dominios protegidos vienen de serie y **no se "
-                "pueden quitar**. Están aquí para ahorrar peticiones: un enlace de "
-                "youtube.com o de spotify.com no llega a analizarse nunca, así que "
-                "salen de tu presupuesto de SightEngine y VirusTotal sin gastarlo. "
-                "Quitar uno no sería ahorrarla: sería lo contrario."
+                "pueden quitar**. Están aquí para no gastar peticiones de la cuota del "
+                "bot: un enlace de youtube.com o de spotify.com no llega a analizarse "
+                "nunca, así que no consumen la cuota compartida de SightEngine y "
+                "VirusTotal. Quitar uno no ahorraría nada: gastaría más de esa cuota."
             )
         return emb.aviso(
             f"Ajustes \u00b7 {esq.TITULOS_SECCION[self.seccion]}",
