@@ -93,7 +93,7 @@ SIGHTENGINE_API_URL: str = "https://api.sightengine.com/1.0/check.json"
 # `nudity` v1.0 está deprecated en favor de `nudity-2.1`, y se añade `gore-2.0` porque
 # la sangre/gore es contenido que de verdad aparece en un servidor y antes no se miraba.
 # Suman 5 operaciones por llamada, y ese número lo gasta SE_OPS_PER_CALL.
-SIGHTENGINE_MODELS: str = "nudity-2.1,weapon,alcohol,gore-2.0,offensive"
+SIGHTENGINE_MODELS: str = "nudity-2.1,weapon,gore-2.0,offensive"
 NSFW_CONFIDENCE_THRESHOLD: float = 0.5
 
 # Umbrales por categoría. Se pueden sobrescribir por servidor desde /settings; estos son
@@ -195,8 +195,9 @@ SE_MAX_OPS_PER_MONTH: int = 2000
 SE_MAX_OPS_PER_DAY: int = 500
 SE_MAX_REQUESTS_PER_SECOND: int = 1
 # Derivado de la lista real de modelos: cada uno pedido en la misma llamada cuenta como
-# una operación. Con `nudity-2.1,weapon,alcohol,gore-2.0,offensive` son 5, así que el
-# plan gratuito da 500/5 = 100 imágenes al día, no 125.
+# una operación. Con `nudity-2.1,weapon,gore-2.0,offensive` son 4, así que el plan
+# gratuito da 500/4 = 125 imágenes al día. `weapon` ya devuelve alcohol en la misma
+# respuesta, así que pedir el modelo `alcohol` por separado era redundant
 SE_OPS_PER_CALL: int = len(SIGHTENGINE_MODELS.split(","))
 SE_MAX_REQUESTS_PER_MINUTE: int = 4
 

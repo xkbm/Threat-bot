@@ -86,7 +86,6 @@ ERROR_MODELO_NO_DISPONIBLE = "modelo_no_disponible"
 # antemano qué modelos incluye la cuenta.
 MODELOS_CON_FALLBACK = (
     SIGHTENGINE_MODELS,
-    "nudity-2.1,weapon,alcohol,offensive",
     "nudity-2.1,weapon,offensive",
     "nudity-2.1,offensive",
     "offensive",

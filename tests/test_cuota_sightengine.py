@@ -66,7 +66,7 @@ class TestReservaPorPeticion:
             "si solo hay una combinación, la reserva por petición y la única no se "
             "distinguen y el test no mide nada"
         )
-        assert SE_OPS_PER_CALL == 5
+        assert SE_OPS_PER_CALL == 4
 
 
 class TestCacheDeFallosDeSightEngine:
