@@ -406,22 +406,31 @@ def evaluar_contenido(
 
     detectados: list[Tuple[str, float]] = []
 
+    # Umbral 0.0 significa "desactivado" para esa categoría: nunca se detecta.
+    # Un umbral de 0.0 con `valor >= 0.0` marcaría todo (hasta el ruido de fondo),
+    # que es justo lo que un administrador no quiere al poner el filtro en 0%.
     for clave, etiqueta in (
         (CLAVE_NUDITY_RAW, "Desnudez explícita"),
         (CLAVE_NUDITY_PARTIAL, "Desnudez parcial"),
         (CLAVE_GORE, "Gore"),
         (CLAVE_OFFENSIVE, "Ofensivo"),
     ):
+        umbral = lim.get(clave, 1.0)
+        if umbral == 0.0:
+            continue
         valor = _a_float(models.get(clave))
-        if valor >= lim.get(clave, 1.0):
+        if valor >= umbral:
             detectados.append((etiqueta, valor))
 
     for clave, etiqueta in (
         (CLAVE_ALCOHOL, "Alcohol"),
         (CLAVE_WEAPON, "Armas"),
     ):
+        umbral = lim.get(clave, 1.0)
+        if umbral == 0.0:
+            continue
         valor = _a_float(models.get(clave))
-        if valor >= lim.get(clave, 1.0):
+        if valor >= umbral:
             detectados.append((etiqueta, valor))
 
     if not detectados:

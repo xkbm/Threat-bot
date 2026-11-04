@@ -65,6 +65,8 @@ $RECYCLE_BIN/
 # Tools & cache
 .cache
 .local
+kilo/
+.kilo/
 opencode.jsonc
 .opencode/
 .agents/
