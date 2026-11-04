@@ -204,6 +204,21 @@ IMAGE_EXTENSIONS: list[str] = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp',
 
 OWNER_ID: Optional[str] = os.getenv("OWNER_ID")
 
+# Modo beta: funciones nuevas visibles solo en servidores autorizados.
+# Una sola instancia del bot (misma token, misma DB, misma cuota de API); lo que
+# cambia es el comportamiento según el guild.
+#
+# BETA_MODE: master switch. Sin esto, nada beta se activa.
+# BETA_GUILD_IDS: IDs de servidores autorizados, separados por coma.
+# Se requieren ambas para que `es_beta(guild_id)` devuelva True.
+# Cambiar la lista requiere reiniciar el bot (las env vars se leen al importar).
+BETA_MODE: bool = os.getenv("BETA_MODE", "").lower() in ("1", "true", "yes", "sí")
+BETA_GUILD_IDS: list[int] = [
+    int(g.strip())
+    for g in os.getenv("BETA_GUILD_IDS", "").split(",")
+    if g.strip().isdigit()
+]
+
 
 def stats_vacias() -> dict[str, int]:
     """La forma de las estadísticas globales, con todas las claves a cero.
