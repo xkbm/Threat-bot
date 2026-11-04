@@ -27,7 +27,6 @@ from typing import Optional
 import discord
 
 from core import config_schema as esq
-from core.beta import es_beta
 from core.guild_config import actualizar_config, obtener_config_guild
 from core.utils import es_dominio_valido, normalizar_dominio
 from ui import embed as emb
@@ -107,56 +106,6 @@ class SelectorUmbral(discord.ui.Button):
             return
         config = await obtener_config_guild(interaction.guild.id)
         await _guardar(interaction, self.nombre, self.siguiente(float(config.get(self.nombre, 0.5))))
-
-
-class ModalUmbral(discord.ui.Modal, title="Editar umbral"):
-    """Modal para escribir el valor exacto de un umbral."""
-
-    def __init__(self, nombre: str, etiqueta: str, valor_actual: float):
-        super().__init__()
-        self.nombre = nombre
-        self.valor = discord.ui.TextInput(
-            label="Valor (0.0 - 1.0)",
-            placeholder="ej: 0.45",
-            max_length=10,
-            required=True,
-            default=f"{valor_actual:.2f}",
-        )
-        self.add_item(self.valor)
-
-    async def on_submit(self, interaction: discord.Interaction) -> None:
-        try:
-            numero = float(self.valor.value)
-        except ValueError:
-            await interaction.response.send_message(
-                "Eso no es un número válido.", ephemeral=True)
-            return
-        if numero < 0.0:
-            numero = 0.0
-        elif numero > 1.0:
-            numero = 1.0
-        await _guardar(interaction, self.nombre, numero)
-
-
-class BotonEditarUmbral(discord.ui.Button):
-    """Botón que abre el modal para escribir el umbral exacto."""
-
-    def __init__(self, nombre: str, etiqueta: str):
-        self.nombre = nombre
-        self.etiqueta = etiqueta
-        super().__init__(
-            label=f"Editar {etiqueta[:40]}",
-            custom_id=f"{UMBRAL}edit:{nombre}",
-            style=discord.ButtonStyle.secondary,
-        )
-
-    async def callback(self, interaction: discord.Interaction) -> None:
-        if interaction.guild is None:
-            return
-        config = await obtener_config_guild(interaction.guild.id)
-        valor_actual = float(config.get(self.nombre, 0.5))
-        await interaction.response.send_modal(ModalUmbral(
-            self.nombre, self.etiqueta, valor_actual))
 
 
 class BotonResetSeccion(discord.ui.Button):
@@ -530,8 +479,7 @@ class PanelConfig(discord.ui.View):
                 list(config.get("notificar") or esq.CATEGORIAS_POR_DEFECTO)))
             self.add_item(SelectorPresetNotificaciones())
 
-        if es_beta(self.guild.id):
-            self.add_item(BotonResetSeccion(self.seccion))
+        self.add_item(BotonResetSeccion(self.seccion))
 
         self._avisar_si_no_cabe()
 
