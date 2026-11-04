@@ -27,6 +27,7 @@ from typing import Optional
 import discord
 
 from core import config_schema as esq
+from core.beta import es_beta
 from core.guild_config import actualizar_config, obtener_config_guild
 from core.utils import es_dominio_valido, normalizar_dominio
 from ui import embed as emb
@@ -106,6 +107,83 @@ class SelectorUmbral(discord.ui.Button):
             return
         config = await obtener_config_guild(interaction.guild.id)
         await _guardar(interaction, self.nombre, self.siguiente(float(config.get(self.nombre, 0.5))))
+
+
+class ModalUmbral(discord.ui.Modal, title="Editar umbral"):
+    """Modal para escribir el valor exacto de un umbral."""
+
+    def __init__(self, nombre: str, etiqueta: str, valor_actual: float):
+        super().__init__()
+        self.nombre = nombre
+        self.valor = discord.ui.TextInput(
+            label="Valor (0.0 - 1.0)",
+            placeholder="ej: 0.45",
+            max_length=10,
+            required=True,
+            default=f"{valor_actual:.2f}",
+        )
+        self.add_item(self.valor)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        try:
+            numero = float(self.valor.value)
+        except ValueError:
+            await interaction.response.send_message(
+                "Eso no es un número válido.", ephemeral=True)
+            return
+        if numero < 0.0:
+            numero = 0.0
+        elif numero > 1.0:
+            numero = 1.0
+        await _guardar(interaction, self.nombre, numero)
+
+
+class BotonEditarUmbral(discord.ui.Button):
+    """Botón que abre el modal para escribir el umbral exacto."""
+
+    def __init__(self, nombre: str, etiqueta: str):
+        self.nombre = nombre
+        self.etiqueta = etiqueta
+        super().__init__(
+            label=f"Editar {etiqueta[:40]}",
+            custom_id=f"{UMBRAL}edit:{nombre}",
+            style=discord.ButtonStyle.secondary,
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if interaction.guild is None:
+            return
+        config = await obtener_config_guild(interaction.guild.id)
+        valor_actual = float(config.get(self.nombre, 0.5))
+        await interaction.response.send_modal(ModalUmbral(
+            self.nombre, self.etiqueta, valor_actual))
+
+
+class BotonResetSeccion(discord.ui.Button):
+    """Resetea todos los valores de la sección a sus defecto."""
+
+    def __init__(self, seccion: str):
+        self.seccion = seccion
+        super().__init__(
+            label=f"Resetear {esq.TITULOS_SECCION[seccion]}",
+            custom_id=f"{PREFIJO}reset:{seccion}",
+            style=discord.ButtonStyle.danger,
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if interaction.guild is None:
+            return
+        campos = {}
+        for clave in esq.ESQUEMA:
+            if clave.seccion == self.seccion:
+                campos[clave.nombre] = clave.default
+        await actualizar_config(interaction.guild.id, **campos)
+        panel = await PanelConfig.crear(self.seccion, interaction.guild)
+        await interaction.response.edit_message(
+            embed=await panel.embed(), view=panel)
+        await interaction.followup.send(
+            f"Sección {esq.TITULOS_SECCION[self.seccion]} reseteada a valores por defecto.",
+            ephemeral=True)
 
 
 class SelectorCanalLog(discord.ui.Select):
@@ -422,7 +500,11 @@ class PanelConfig(discord.ui.View):
             for clave in esq.claves_de(esq.CONTENIDO):
                 if clave.tipo == "float":
                     self.add_item(SelectorUmbral(
-                        clave.nombre, clave.etiqueta, float(config.get(clave.nombre, clave.default))))
+                        clave.nombre, clave.etiqueta,
+                        float(config.get(clave.nombre, clave.default))))
+                    if es_beta(self.guild.id):
+                        self.add_item(BotonEditarUmbral(
+                            clave.nombre, clave.etiqueta))
 
         # Solo los booleanos de ESTA sección.
         #
@@ -450,6 +532,9 @@ class PanelConfig(discord.ui.View):
             self.add_item(SelectorNotificaciones(
                 list(config.get("notificar") or esq.CATEGORIAS_POR_DEFECTO)))
             self.add_item(SelectorPresetNotificaciones())
+
+        if es_beta(self.guild.id):
+            self.add_item(BotonResetSeccion(self.seccion))
 
         self._avisar_si_no_cabe()
 
